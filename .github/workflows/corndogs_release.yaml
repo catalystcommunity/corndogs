@@ -7,8 +7,6 @@ on:
       - main
     paths:
       - corndogs/**
-    paths-ignore:
-      - .github/
 jobs:
   corndogs-release:
     name: Corndogs Release
