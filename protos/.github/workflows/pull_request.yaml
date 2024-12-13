@@ -1,0 +1,34 @@
+name: Pull Request
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'protos/corndogsapis/**'
+      - 'protos/buf.gen.yaml'
+      - 'protos/buf.work.yaml'
+jobs:
+  validate-pr-title:
+    name: Validate PR Title
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: crazy-max/ghaction-dump-context@v1
+      - uses: amannn/action-semantic-pull-request@v3.4.6
+        with:
+          types: |
+            fix
+            feat
+            norelease
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+  buf:
+    name: Run buf commands
+    runs-on: ubuntu-latest
+    steps:
+      - uses: crazy-max/ghaction-dump-context@v1
+      - uses: catalystsquad/action-buf@v1
+        with:
+          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+          buf-user: ${{ secrets.BUF_USER }}
+          buf-token: ${{ secrets.BUF_TOKEN }}

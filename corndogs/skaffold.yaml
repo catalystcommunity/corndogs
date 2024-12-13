@@ -1,0 +1,37 @@
+apiVersion: skaffold/v2beta25
+kind: Config
+build:
+  artifacts:
+    - image: skaffold-corndogs
+portForward:
+  # pf for grpc server
+  - resourceType: service
+    resourceName: corndogs
+    port: 5080
+    localPort: 5080
+  # pf for prometheus metrics
+  # - resourceType: service
+  #   resourceName: corndogs
+  #   port: 8080
+  #   localPort: 8080
+  # pf for postgresdb
+  - resourceType: service
+    resourceName: corndogs-postgresql
+    port: 5432
+    localPort: 5432
+deploy:
+  helm:
+    releases:
+    - name: corndogs
+      remoteChart: tnlcommunity/corndogs
+      namespace: skaffoldcorndogs
+      createNamespace: true
+      skipBuildDependencies: true
+      artifactOverrides:
+        image: skaffold-corndogs
+      imageStrategy:
+        helm: {}
+      valuesFiles:
+        - values-skaffold-local.yaml
+      recreatePods: true
+      wait: true

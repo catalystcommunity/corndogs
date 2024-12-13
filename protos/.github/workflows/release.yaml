@@ -1,0 +1,19 @@
+name: Release
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+    paths:
+      - 'protos/corndogsapis/**'
+      - 'protos/buf.gen.yaml'
+      - 'protos/buf.work.yaml'
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    name: Release
+    steps:
+      - uses: tnlcommunity/action-release-general@v1
+        with:
+          token: ${{ secrets.GIT_RUNNER_TOKEN }}
