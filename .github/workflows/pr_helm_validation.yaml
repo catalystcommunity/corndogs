@@ -1,0 +1,50 @@
+name: PR Helm Validation
+on:
+  pull_request:
+    branches:
+      - alpha
+    paths:
+      - 'chart/chart/**'
+jobs:
+  lint-chart:
+    if: ${{ !startsWith( github.head_ref, 'automated-code-release' ) }}
+    name: Lint Chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Set up Helm
+        uses: azure/setup-helm@v1
+        with:
+          version: v3.7.2
+      - run: |
+          helm lint chart
+  update-chart-dependencies:
+    if: ${{ !startsWith( github.head_ref, 'automated-code-release' ) }}
+    name: Update Chart Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Set up Helm
+        uses: azure/setup-helm@v1
+        with:
+          version: v3.7.2
+      - run: |
+          helm dependency update chart
+  template-chart:
+    if: ${{ !startsWith( github.head_ref, 'automated-code-release' ) }}
+    name: Template Chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Set up Helm
+        uses: azure/setup-helm@v1
+        with:
+          version: v3.7.2
+      - run: |
+          helm template chart

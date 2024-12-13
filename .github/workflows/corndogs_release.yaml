@@ -1,0 +1,63 @@
+name: Release
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+    paths:
+      - corndogs/**
+    paths-ignore:
+      - .github/
+jobs:
+  corndogs-release:
+    name: Corndogs Release
+    runs-on: ubuntu-latest
+    outputs:
+      new_release_published: "${{ steps.semver-tags.outputs.new_release_published }}"
+      new_release_version: "${{ steps.semver-tags.outputs.new_release_version }}"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+      - name: Get semver-tags
+        run: |
+          wget -c https://github.com/catalystsquad/semver-tags/releases/download/v0.3.4/semver-tags.tar.gz -O - | tar -xz
+      - name: Semver Tags
+        id: semver-tags
+        shell: bash
+        run: |
+          semver-tags run --directories corndogs --github_action
+      - if: stesp
+        name: Make Release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_RUNNER_TOKEN }}
+          RELEASE_NAME: ${{ steps.semver-tags.outputs.new_release_git_tag }}
+        run: |
+          ./.github/scripts/make_general_release.sh "${RELEASE_NAME}"
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Update chart appVersion
+        shell: bash
+        run: |
+          sed -i "0,/appVersion:.*/s//appVersion: \"${{ steps.semver-tags.outputs.new_release_version }}\"/g" chart/chart/Chart.yaml
+
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Make PR for chart
+        # TODO, verify these inputs
+        id: make-chart-pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+          title: "ci: ${{ github.event.pull_request.title }}"
+          body: 'Automated changes triggered by [pull request](${{ github.event.pull_request._links.html.href }})<br />${{ github.event.pull_request.body }}'
+          commit-message: ${{ github.event.pull_request.title }}
+          branch: 'update-chart-appversion-to-${{ steps.semver-tags.outputs.new_release_version }}'
+          delete-branch: true
+          labels: automerge
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Enable automerge for chart PR
+        run: gh pr merge --rebase --auto ${{ steps.make-chart-pr.outputs.pull-request-url }}
+
+
