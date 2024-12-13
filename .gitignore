@@ -15,14 +15,15 @@
 *.out
 
 # Dependency directories (remove the comment below to include it)
-# vendor/
+# corndogs/vendor/
 
 # Protobuf stuff
-gen/
+corndogs/gen/
+#TODO figure out gen file stuff here, but leave it in te protos folder
 
 # Helm dependency stuff
-chart/Chart.lock
-chart/charts/
+helm_chart/chart/Chart.lock
+helm_chart/chart/charts/
 
 # Node nonsense
 node_modules

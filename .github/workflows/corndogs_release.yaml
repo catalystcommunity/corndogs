@@ -27,7 +27,7 @@ jobs:
         shell: bash
         run: |
           ./semver-tags run --directories corndogs --github_action
-      - if: stesp
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make Release
         shell: bash
         env:
