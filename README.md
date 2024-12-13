@@ -101,4 +101,4 @@ Theres some overlap between these endpoints, but they allow for some flexibility
 - `GetQueueAndStateCounts` returns all queues, their tasks per state, and the total tasks in each queue.
 
 ## API docs
-[APIDOCS.md](./APIDOCS.md) has more granular descriptions and helpful links.
+[corndogs/APIDOCS.md](./corndogs/APIDOCS.md) has more granular descriptions and helpful links.
