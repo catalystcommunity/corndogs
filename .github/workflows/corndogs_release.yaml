@@ -26,7 +26,7 @@ jobs:
         id: semver-tags
         shell: bash
         run: |
-          ./semver-tags run --directories corndogs --github_action
+          ./semver-tags run --github_action --directories corndogs
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make Release
         shell: bash
