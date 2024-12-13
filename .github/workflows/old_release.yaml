@@ -1,13 +1,20 @@
-# name: Release
-# on:
-#   pull_request:
-#     types:
-#       - closed
-#     branches:
-#       - main
-#     paths-ignore:
-#       - .github/
-# jobs:
+name: old
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+    paths-ignore:
+      - .github/
+jobs:
+    dummy:
+      name: dummy
+      runs-on: ubuntu-latest
+      steps:
+        - name: Echo
+          shell: bash
+          run: echo yeet
 #   semantic-release:
 #     name: Semantic Release
 #     runs-on: ubuntu-latest
