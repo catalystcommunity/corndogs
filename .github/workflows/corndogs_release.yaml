@@ -26,7 +26,7 @@ jobs:
         id: semver-tags
         shell: bash
         run: |
-          git remote
+          git remote get-url origin
           ./semver-tags run --github_action --directories corndogs
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make Release
