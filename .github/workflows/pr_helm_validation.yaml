@@ -2,9 +2,9 @@ name: PR Helm Validation
 on:
   pull_request:
     branches:
-      - alpha
+      - main
     paths:
-      - 'chart/chart/**'
+      - 'helm_chart/chart/**'
 jobs:
   lint-chart:
     if: ${{ !startsWith( github.head_ref, 'automated-code-release' ) }}
@@ -19,7 +19,7 @@ jobs:
         with:
           version: v3.7.2
       - run: |
-          helm lint chart
+          helm lint helm_chart/chart
   update-chart-dependencies:
     if: ${{ !startsWith( github.head_ref, 'automated-code-release' ) }}
     name: Update Chart Dependencies
@@ -33,7 +33,7 @@ jobs:
         with:
           version: v3.7.2
       - run: |
-          helm dependency update chart
+          helm dependency update helm_chart/chart
   template-chart:
     if: ${{ !startsWith( github.head_ref, 'automated-code-release' ) }}
     name: Template Chart
@@ -47,4 +47,4 @@ jobs:
         with:
           version: v3.7.2
       - run: |
-          helm template chart
+          helm template helm_chart/chart
