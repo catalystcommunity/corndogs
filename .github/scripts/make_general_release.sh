@@ -8,8 +8,6 @@ GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-catalystcommunity/semver-tags}"
 DEFAULT_GITHUB_API_URL="https://api.github.com"
 GITHUB_API_URL="${GITHUB_API_URL:-${DEFAULT_GITHUB_API_URL}}"
 
-TARFILE_NAME="corndogs-${PACKAGE_NAME}.tar.gz"
-
 echo ${RELEASE_NAME}
 
 curl -L \
