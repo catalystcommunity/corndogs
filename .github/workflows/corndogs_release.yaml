@@ -32,6 +32,10 @@ jobs:
         shell: bash
         run: |
           ./semver-tags run --github_action --directories corndogs
+      - name: Cleanup Semver Tags
+        shell: bash
+        run: |
+          rm ./semver-tags
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make Release
         shell: bash
@@ -48,7 +52,6 @@ jobs:
 
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make PR for chart
-        # TODO, verify these inputs
         id: make-chart-pr
         uses: peter-evans/create-pull-request@v7
         with:
