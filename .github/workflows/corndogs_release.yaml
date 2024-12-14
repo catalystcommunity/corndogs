@@ -27,6 +27,10 @@ jobs:
         shell: bash
         run: |
           git remote get-url origin
+          echo "github.ref   ${{ github.ref }}"
+          echo "github.ref_name   ${{ github.ref_name }}"
+          echo "github.sha   ${{ github.sha }}"
+          echo "github.head_ref   ${{ github.head_ref }}"
           ./semver-tags run --github_action --directories corndogs
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make Release
