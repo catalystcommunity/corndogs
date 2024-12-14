@@ -9,7 +9,8 @@ on:
       - corndogs/**
 jobs:
   corndogs-release:
-    name: Corndogs Release
+    name: Corndogs release
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     outputs:
       new_release_published: "${{ steps.semver-tags.outputs.new_release_published }}"
@@ -56,7 +57,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GIT_RUNNER_TOKEN }}
-          title: "ci: Update helm appVersion for ${{ github.event.pull_request.title }}"
+          title: "ci: Update helm appVersion to ${{ steps.semver-tags.outputs.new_release_version }} for ${{ github.event.pull_request.title }}"
           body: 'Automated changes triggered by [pull request](${{ github.event.pull_request._links.html.href }})<br />${{ github.event.pull_request.body }}'
           commit-message: ${{ github.event.pull_request.title }}
           branch: 'update-chart-appversion-to-${{ steps.semver-tags.outputs.new_release_version }}'
