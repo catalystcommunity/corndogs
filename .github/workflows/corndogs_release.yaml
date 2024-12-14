@@ -61,6 +61,8 @@ jobs:
           labels: automerge
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Enable automerge for chart PR
+        env:
+          GH_TOKEN: ${{ secrets.GIT_RUNNER_TOKEN }}
         run: gh pr merge --rebase --auto ${{ steps.make-chart-pr.outputs.pull-request-url }}
 
 
