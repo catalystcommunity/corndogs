@@ -1,0 +1,58 @@
+name: Release Chart
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+    paths:
+      - 'helm_/chart/**'
+jobs:
+  helm-release:
+    name: Helm chart release
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+     - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+          fetch-depth: 0
+      - name: Set up Helm
+        uses: azure/setup-helm@v1
+        with:
+          version: v3.7.2
+      - name: Setup git config
+        run: |
+          git config --global user.name "Test Automation"
+          git config --global user.email "<jacob+testautomation@todandlorna.com>"
+      - name: Get semver-tags
+        run: |
+          wget -c https://github.com/catalystsquad/semver-tags/releases/download/v0.3.4/semver-tags.tar.gz -O - | tar -xz
+      - name: Semver Tags
+        id: semver-tags
+        shell: bash
+        run: |
+          ./semver-tags run --github_action --directories helm_chart
+      - name: Cleanup Semver Tags
+        shell: bash
+        run: |
+          rm ./semver-tags
+      
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Update chart appVersion
+        shell: bash
+        run: |
+          sed -i "0,/version:.*/s//version: \"${{ steps.semver-tags.outputs.new_release_version }}\"/g" helm_chart/chart/Chart.yaml
+          git add helm_chart/chart/Chart.yaml
+          git commit -m "ci: Update chart version to ${{ steps.semver-tags.outputs.new_release_version }}"
+          git push
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Make Release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_RUNNER_TOKEN }}
+          RELEASE_NAME: ${{ steps.semver-tags.outputs.new_release_git_tag }}
+        run: |
+          helm package ./helm_chart/chart/
+          ./.github/scripts/make_helm_release.sh "${RELEASE_NAME}"
