@@ -6,7 +6,7 @@ on:
     branches:
       - main
     paths:
-      - 'helm_/chart/**'
+      - 'helm_chart/chart/**'
 jobs:
   helm-release:
     name: Helm chart release
