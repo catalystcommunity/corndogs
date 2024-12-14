@@ -31,14 +31,7 @@ jobs:
         id: semver-tags
         shell: bash
         run: |
-          git remote get-url origin
-          echo "github.ref   ${{ github.ref }}"
-          echo "github.ref_name   ${{ github.ref_name }}"
-          echo "github.sha   ${{ github.sha }}"
-          echo "github.head_ref   ${{ github.head_ref }}"
-          git push --tags
           ./semver-tags run --github_action --directories corndogs
-          git push --tags
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make Release
         shell: bash
@@ -51,7 +44,7 @@ jobs:
         name: Update chart appVersion
         shell: bash
         run: |
-          sed -i "0,/appVersion:.*/s//appVersion: \"${{ steps.semver-tags.outputs.new_release_version }}\"/g" chart/chart/Chart.yaml
+          sed -i "0,/appVersion:.*/s//appVersion: \"${{ steps.semver-tags.outputs.new_release_version }}\"/g" helm_chart/chart/Chart.yaml
 
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make PR for chart
@@ -60,7 +53,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GIT_RUNNER_TOKEN }}
-          title: "ci: ${{ github.event.pull_request.title }}"
+          title: "ci: Update helm appVersion for ${{ github.event.pull_request.title }}"
           body: 'Automated changes triggered by [pull request](${{ github.event.pull_request._links.html.href }})<br />${{ github.event.pull_request.body }}'
           commit-message: ${{ github.event.pull_request.title }}
           branch: 'update-chart-appversion-to-${{ steps.semver-tags.outputs.new_release_version }}'
