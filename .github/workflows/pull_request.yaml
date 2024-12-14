@@ -12,7 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: amannn/action-semantic-pull-request@v5.2.0
-      # TODO make sure this does not depend on semantic relase, and can be used independently
         with:
           types: |
             fix
@@ -20,6 +19,7 @@ jobs:
             norelease
             chore
             build
+            ci
         env:
           GITHUB_TOKEN: ${{ github.token }}
   pipeline:
