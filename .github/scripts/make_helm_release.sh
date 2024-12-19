@@ -14,8 +14,6 @@ CHART_TARFILE_PATH=$(find . -maxdepth 1 -type f -iname "*.tgz")
 
 echo ${RELEASE_NAME}
 
-tar -cvzf "${TARFILE_NAME}" ./semver-tags
-
 curl -L \
   -X POST \
   -H "Accept: application/vnd.github+json" \
@@ -37,4 +35,4 @@ curl -L \
   -H "X-GitHub-Api-Version: 2022-11-28" \
   -H "Content-Type: application/octet-stream" \
   "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${LATEST_RELEASE_ID}/assets?name=${CHART_ASSET_NAME}" \
-  --data-binary "@${TARFILE_NAME}"
+  --data-binary "@${CHART_TARFILE_PATH}"
