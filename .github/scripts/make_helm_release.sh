@@ -9,7 +9,7 @@ GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-JacobPuff/corndogs-cicd-testing}"
 DEFAULT_GITHUB_API_URL="https://api.github.com"
 GITHUB_API_URL="${GITHUB_API_URL:-${DEFAULT_GITHUB_API_URL}}"
 
-CHART_ASSET_NAME="Helm chart"
+CHART_ASSET_NAME="Helm+chart"
 CHART_TARFILE_PATH=$(find . -maxdepth 1 -type f -iname "*.tgz")
 
 echo ${RELEASE_NAME}
