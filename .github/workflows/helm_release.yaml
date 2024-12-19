@@ -44,7 +44,7 @@ jobs:
           git push
       
       - if: steps.semver-tags.outputs.new_release_published == 'true'
-      - name: Semver Tags
+        name: Semver Tags
         shell: bash
         run: |
           ./semver-tags run--github_action --directories helm_chart
