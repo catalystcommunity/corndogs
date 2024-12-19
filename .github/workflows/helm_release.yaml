@@ -29,16 +29,11 @@ jobs:
       - name: Get semver-tags
         run: |
           wget -c https://github.com/catalystsquad/semver-tags/releases/download/v0.3.4/semver-tags.tar.gz -O - | tar -xz
-      - name: Semver Tags
+      - name: Semver Tags dry_run for yaml update
         id: semver-tags
         shell: bash
         run: |
-          ./semver-tags run --github_action --directories helm_chart
-      - name: Cleanup Semver Tags
-        shell: bash
-        run: |
-          rm ./semver-tags
-      
+          ./semver-tags run --dry_run --github_action --directories helm_chart
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Update chart appVersion
         shell: bash
@@ -47,6 +42,15 @@ jobs:
           git add helm_chart/chart/Chart.yaml
           git commit -m "ci: Update chart version to ${{ steps.semver-tags.outputs.new_release_version }}"
           git push
+      - name: Semver Tags
+        id: semver-tags
+        shell: bash
+        run: |
+          ./semver-tags run--github_action --directories helm_chart
+      - name: Cleanup Semver Tags
+        shell: bash
+        run: |
+          rm ./semver-tags
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make Release
         shell: bash
