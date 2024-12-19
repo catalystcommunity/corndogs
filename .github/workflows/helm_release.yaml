@@ -42,8 +42,9 @@ jobs:
           git add helm_chart/chart/Chart.yaml
           git commit -m "ci: Update chart version to ${{ steps.semver-tags.outputs.new_release_version }}"
           git push
+      
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
       - name: Semver Tags
-        id: semver-tags
         shell: bash
         run: |
           ./semver-tags run--github_action --directories helm_chart
