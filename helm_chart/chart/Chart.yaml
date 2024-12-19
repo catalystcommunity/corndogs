@@ -3,7 +3,7 @@ name: corndogs
 description: A Helm chart for Kubernetes
 
 type: application
-version: "0.1.3"
+version: "0.1.4"
 appVersion: "0.0.9"
 
 
