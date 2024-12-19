@@ -43,7 +43,6 @@ jobs:
           git commit -m "ci: Update chart version to ${{ steps.semver-tags.outputs.new_release_version }}"
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Semver Tags real run
-        id: semver-tags
         shell: bash
         run: |
           ./semver-tags run --github_action --directories helm_chart
@@ -53,9 +52,9 @@ jobs:
           rm ./semver-tags
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Push tagged chart version commit
+        shell: bash
         run: |
           git push
-        shell: bash
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make Release
         shell: bash
