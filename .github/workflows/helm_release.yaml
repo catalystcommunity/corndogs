@@ -33,11 +33,7 @@ jobs:
         id: semver-tags
         shell: bash
         run: |
-          ./semver-tags run --github_action --directories helm_chart
-      - name: Cleanup Semver Tags
-        shell: bash
-        run: |
-          rm ./semver-tags
+          ./semver-tags run --dry_run --github_action --directories helm_chart
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Update chart version
         shell: bash
@@ -45,7 +41,21 @@ jobs:
           sed -i "0,/version:.*/s//version: \"${{ steps.semver-tags.outputs.new_release_version }}\"/g" helm_chart/chart/Chart.yaml
           git add helm_chart/chart/Chart.yaml
           git commit -m "ci: Update chart version to ${{ steps.semver-tags.outputs.new_release_version }}"
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Semver Tags real run
+        id: semver-tags
+        shell: bash
+        run: |
+          ./semver-tags run --github_action --directories helm_chart
+      - name: Cleanup Semver Tags
+        shell: bash
+        run: |
+          rm ./semver-tags
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Push tagged chart version commit
+        run: |
           git push
+        shell: bash
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make Release
         shell: bash
