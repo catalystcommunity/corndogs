@@ -47,7 +47,7 @@ jobs:
         name: Semver Tags
         shell: bash
         run: |
-          ./semver-tags run--github_action --directories helm_chart
+          ./semver-tags run --github_action --directories helm_chart
       - name: Cleanup Semver Tags
         shell: bash
         run: |
