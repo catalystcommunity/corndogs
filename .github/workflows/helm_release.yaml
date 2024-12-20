@@ -28,7 +28,7 @@ jobs:
           git config --global user.email "<jacob+testautomation@todandlorna.com>"
       - name: Get semver-tags
         run: |
-          wget -c https://github.com/catalystsquad/semver-tags/releases/download/v0.3.4/semver-tags.tar.gz -O - | tar -xz
+          wget -c https://github.com/catalystsquad/semver-tags/releases/download/v0.3.5/semver-tags.tar.gz -O - | tar -xz
       - name: Semver Tags dry_run for yaml update
         id: semver-tags
         shell: bash
@@ -50,11 +50,6 @@ jobs:
         shell: bash
         run: |
           rm ./semver-tags
-      - if: steps.semver-tags.outputs.new_release_published == 'true'
-        name: Push tagged chart version commit
-        shell: bash
-        run: |
-          git push
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make Release
         shell: bash
