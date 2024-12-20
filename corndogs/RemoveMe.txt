@@ -29,3 +29,4 @@ This is for the workflow run.
 29
 30, test tagging
 31, testing tagging on main
+32, test tagging on main without specifying remote and branch
