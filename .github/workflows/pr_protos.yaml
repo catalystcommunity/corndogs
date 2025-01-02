@@ -1,0 +1,21 @@
+name: Pull Request
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'protos/corndogsapis/**'
+      - 'protos/buf.gen.yaml'
+      - 'protos/buf.work.yaml'
+jobs:
+  buf:
+    name: Run buf commands
+    runs-on: ubuntu-latest
+    steps:
+      - uses: crazy-max/ghaction-dump-context@v1
+      - uses: catalystcommunity/action-buf@v1
+        with:
+          working-directory: "protos"
+          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+          buf-user: ${{ secrets.BUF_USER }}
+          buf-token: ${{ secrets.BUF_TOKEN }}
