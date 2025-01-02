@@ -17,5 +17,4 @@ jobs:
         with:
           working-directory: "protos"
           token: ${{ secrets.GIT_RUNNER_TOKEN }}
-          registery-login: false
-          
+          registry-login: false
