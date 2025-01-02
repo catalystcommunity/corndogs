@@ -1,10 +1,10 @@
 version: v1
-name: buf.build/tnlcommunity/corndogsapis
+name: buf.build/catalystcommunity/corndogsapis
 deps:
   - buf.build/googleapis/googleapis
 lint:
   use:
-    - DEFAULT
+    - STANDARD
   ignore:
     - google/type/datetime.proto
 breaking:
