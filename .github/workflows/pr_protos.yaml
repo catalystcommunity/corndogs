@@ -18,3 +18,4 @@ jobs:
           working-directory: "protos"
           token: ${{ secrets.GIT_RUNNER_TOKEN }}
           registry-login: false
+          breaking-against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=main,subdir=protos"
