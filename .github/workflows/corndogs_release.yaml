@@ -68,5 +68,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GIT_RUNNER_TOKEN }}
         run: gh pr merge --rebase --auto ${{ steps.make-chart-pr.outputs.pull-request-url }}
+#TODO: push to quay https://github.com/catalystcommunity/action-build-push-image-quay
 
 
