@@ -17,5 +17,3 @@ plugins:
       - require_unimplemented_servers=false  
   - name: python
     out: gen/proto/python
-    opt:
-      - paths=source_relative
