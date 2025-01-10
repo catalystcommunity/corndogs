@@ -14,4 +14,8 @@ plugins:
     out: gen/proto/go
     opt:
       - paths=source_relative
-      - require_unimplemented_servers=false
+      - require_unimplemented_servers=false  
+  - name: python
+    out: gen/proto/python
+    opt:
+      - paths=source_relative
