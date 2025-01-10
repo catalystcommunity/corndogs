@@ -1,0 +1,47 @@
+name: Protos release
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+    paths:
+      - protos/**
+jobs:
+  protos-release:
+    name: Protos release
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      new_release_published: "${{ steps.semver-tags.outputs.new_release_published }}"
+      new_release_version: "${{ steps.semver-tags.outputs.new_release_version }}"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+          fetch-depth: 0
+      - name: Setup git config
+        run: |
+          git config --global user.name "Test Automation"
+          git config --global user.email "<jacob+testautomation@todandlorna.com>"
+      - name: Get semver-tags
+        run: |
+          wget -c https://github.com/catalystsquad/semver-tags/releases/download/v0.3.5/semver-tags.tar.gz -O - | tar -xz
+      - name: Semver Tags
+        id: semver-tags
+        shell: bash
+        run: |
+          ./semver-tags run --github_action --directories protos
+      - name: Cleanup Semver Tags
+        shell: bash
+        run: |
+          rm ./semver-tags
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Make Release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_RUNNER_TOKEN }}
+          RELEASE_NAME: ${{ steps.semver-tags.outputs.new_release_git_tag }}
+        run: |
+          ./.github/scripts/make_general_release.sh "${RELEASE_NAME}"
