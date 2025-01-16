@@ -67,10 +67,8 @@ jobs:
         run: |
           uv python install 3.13
       - if: steps.semver-tags.outputs.new_release_published == 'true'
-        name: Build python protos dist
+        name: Build and publish python protos to PyPi
         run: |
           cd protos
           uv build
-      - if: steps.semver-tags.outputs.new_release_published == 'true'
-        name: Publish python protos to PyPi
-        run: uv publish --token ${{ secrets.PYPI_PUBLISH_TOKEN }} --index testpypi
+          uv publish --token ${{ secrets.PYPI_PUBLISH_TOKEN }} --index testpypi
