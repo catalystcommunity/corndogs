@@ -65,7 +65,7 @@ jobs:
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Install Python
         run:
-          uv install python 3.13
+          uv python install 3.13
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Build python protos dist
         run: uv build
