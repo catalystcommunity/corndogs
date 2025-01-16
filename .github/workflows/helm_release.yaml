@@ -24,8 +24,8 @@ jobs:
           version: v3.7.2
       - name: Setup git config
         run: |
-          git config --global user.name "Test Automation"
-          git config --global user.email "<jacob+testautomation@todandlorna.com>"
+          git config --global user.name "Catalyst Community Automation"
+          git config --global user.email "<catalyst-community@todandlorna.com>"
       - name: Get semver-tags
         run: |
           wget -c https://github.com/catalystsquad/semver-tags/releases/download/v0.3.5/semver-tags.tar.gz -O - | tar -xz

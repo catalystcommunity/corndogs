@@ -23,8 +23,8 @@ jobs:
           fetch-depth: 0
       - name: Setup git config
         run: |
-          git config --global user.name "Test Automation"
-          git config --global user.email "<jacob+testautomation@todandlorna.com>"
+          git config --global user.name "Catalyst Community Automation"
+          git config --global user.email "<catalyst-community@todandlorna.com>"
       - name: Get semver-tags
         run: |
           wget -c https://github.com/catalystsquad/semver-tags/releases/download/v0.3.5/semver-tags.tar.gz -O - | tar -xz
@@ -57,20 +57,20 @@ jobs:
           RELEASE_NAME: ${{ steps.semver-tags.outputs.new_release_git_tag }}
         run: |
           ./.github/scripts/make_general_release.sh "${RELEASE_NAME}"
-      # - if: steps.semver-tags.outputs.new_release_published == 'true'
-      #   name: Push protos to buf BSR
-      #   uses: catalystsquad/action-buf@v2
-      #   with:
-      #     token: ${{ secrets.GIT_RUNNER_TOKEN }}
-      #     buf-user: ${{ secrets.BUF_USER }}
-      #     buf-token: ${{ secrets.BUF_TOKEN }}
-      #     lint: false
-      #     generate: false
-      #     breaking: false
-      #     mod-prune: false
-      #     mod-update: false
-      #     push: true
-      #     push-dir: protos/corndogsapis
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Push protos to buf BSR
+        uses: catalystsquad/action-buf@v2
+        with:
+          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+          buf-user: ${{ secrets.BUF_USER }}
+          buf-token: ${{ secrets.BUF_TOKEN }}
+          lint: false
+          generate: false
+          breaking: false
+          mod-prune: false
+          mod-update: false
+          push: true
+          push-dir: protos/corndogsapis
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Install UV
         run: wget -qO- https://astral.sh/uv/install.sh | sh

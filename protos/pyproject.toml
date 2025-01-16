@@ -1,14 +1,14 @@
 
 [project]
-name = "corndogs-cicd-testing"
+name = "corndogs"
 version = "0.1.10"
 description = "Corndogs python gRPC client"
 readme = "README.md"
 requires-python = ">= 3.8"
 
 [project.urls]
-Homepage = "https://github.com/JacobPuff/corndogs-cicd-testing"
-Issues = "https://github.com/JacobPuff/corndogs-cicd-testing/issues"
+Homepage = "https://github.com/catalystcommunity/corndogs"
+Issues = "https://github.com/catalystcommunity/corndogs/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -20,7 +20,7 @@ packages = ["gen/proto/python/corndogs"]
 [[tool.uv.index]]
 name = "pypi"
 url = "https://pypi.org/simple/"
-publish-url = "https://test.pypi.org/legacy/"
+publish-url = "https://pypi.org/legacy/"
 
 [[tool.uv.index]]
 name = "testpypi"
