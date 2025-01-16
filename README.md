@@ -74,7 +74,7 @@ You may want a task to timeout after being submitted. In this case, as an exampl
 
 A timeout does *not* happen automatically. You control when your timeout checks happen, using a `CleanUpTimedOutRequest`. It uses `at_time` to compare tasks against to see if they're timed out, and optionaly a `queue` to limit which tasks this affects. This has the added benefit of letting you time out tasks early or late in testing and such.
 
-Corndogs does provide some helper utilities for timeouts. There is a `timeout` command provided in the cli that will send a request at the current time using the address, port, and optional queue flags. There is also a simple cronjob provided by [the corndogs chart](https://github.com/TnLCommunity/chart-corndogs).
+Corndogs does provide some helper utilities for timeouts. There is a `timeout` command provided in the cli that will send a request at the current time using the address, port, and optional queue flags. There is also a simple cronjob provided by [the corndogs chart](./helm_chart/README.md).
 
 ### Priority
 
