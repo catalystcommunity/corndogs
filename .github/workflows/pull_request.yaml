@@ -39,9 +39,8 @@ jobs:
           ref: ${{ github.ref }}
           wait-for-ports: 5080
           add-private-helm-repo: "true"
-          helm-repo-name: tnlcommunity
-          # TODO: update repo name
-          helm-repo-url: https://tnlcommunity.github.io/charts
+          helm-repo-name: catalystcommunity
+          helm-repo-url: https://catalystcommunity.github.io/charts
           helm-repo-username: ${{ github.token }}
           helm-repo-password: ${{ github.token }}
           test-command: go test -v ./...
