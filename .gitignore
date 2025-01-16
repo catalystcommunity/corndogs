@@ -18,8 +18,6 @@
 # corndogs/vendor/
 
 # Protobuf stuff
-corndogs/gen/
-#TODO figure out gen file stuff here, but leave it in te protos folder
 
 # Helm dependency stuff
 helm_chart/chart/Chart.lock
