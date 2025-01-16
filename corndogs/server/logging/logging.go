@@ -1,10 +1,11 @@
 package logging
 
 import (
-	"github.com/TnLCommunity/corndogs/server/config"
-	"github.com/rs/zerolog/pkgerrors"
 	"strings"
 	"time"
+
+	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
+	"github.com/rs/zerolog/pkgerrors"
 
 	"github.com/rs/zerolog"
 )

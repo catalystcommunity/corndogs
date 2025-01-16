@@ -23,7 +23,7 @@ deploy:
   helm:
     releases:
     - name: corndogs
-      remoteChart: tnlcommunity/corndogs
+      remoteChart: catalystcommunity/corndogs
       namespace: skaffoldcorndogs
       createNamespace: true
       skipBuildDependencies: true

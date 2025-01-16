@@ -3,8 +3,8 @@ package implementations
 import (
 	"context"
 
-	"github.com/TnLCommunity/corndogs/server/store"
-	corndogsv1alpha1 "github.com/TnLCommunity/protos-corndogs/gen/proto/go/corndogs/v1alpha1"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
+	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
 )
 
 func (s *V1Alpha1Server) GetQueues(ctx context.Context, req *corndogsv1alpha1.GetQueuesRequest) (*corndogsv1alpha1.GetQueuesResponse, error) {

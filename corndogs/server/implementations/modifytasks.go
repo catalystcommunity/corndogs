@@ -3,10 +3,10 @@ package implementations
 import (
 	"context"
 
-	"github.com/TnLCommunity/corndogs/server/config"
-	"github.com/TnLCommunity/corndogs/server/metrics"
-	"github.com/TnLCommunity/corndogs/server/store"
-	corndogsv1alpha1 "github.com/TnLCommunity/protos-corndogs/gen/proto/go/corndogs/v1alpha1"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/metrics"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
+	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
 )
 
 func (s *V1Alpha1Server) UpdateTask(ctx context.Context, req *corndogsv1alpha1.UpdateTaskRequest) (*corndogsv1alpha1.UpdateTaskResponse, error) {

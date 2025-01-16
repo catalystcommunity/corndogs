@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/TnLCommunity/corndogs/server/config"
-	"github.com/TnLCommunity/corndogs/server/store"
-	corndogsv1alpha1 "github.com/TnLCommunity/protos-corndogs/gen/proto/go/corndogs/v1alpha1"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
+	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

@@ -6,7 +6,7 @@ replicaCount: 1
 namespace: corndogs
 
 image:
-  repository: quay.io/tnlcommunity/corndogs
+  repository: quay.io/catalystcommunity/corndogs
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""

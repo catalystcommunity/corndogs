@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	corndogsv1alpha1 "github.com/TnLCommunity/protos-corndogs/gen/proto/go/corndogs/v1alpha1"
+	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 )

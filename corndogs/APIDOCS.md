@@ -1,5 +1,5 @@
 # Corndogs API Docs
-This is where the API docs for corndogs lives for now. It contains the rpc endpoints available. It's mostly semantics and brief descriptions at the moment, since the [Flow](https://github.com/TnLCommunity/corndogs#flow) section in the readme covers a lot of how you would use these. See the [protos-corndogs](https://github.com/TnLCommunity/protos-corndogs) repo for specific fields and generated clients.
+This is where the API docs for corndogs lives for now. It contains the rpc endpoints available. It's mostly semantics and brief descriptions at the moment, since the [Flow](/README.md#flow) section in the readme covers a lot of how you would use these. See the `protos/` directory for specific fields and generated clients.
 
 ## General
 The regular flow stuff.
@@ -14,7 +14,7 @@ Gets a task by the `uuid`. Will return archived tasks.
 ### `GetNextTask`
 Gets the next task from `queue` that has the same `current_state`.\
 The `override_` fields override the task data *after* the states are switched.
-See [State and Timeout Overrides](https://github.com/TnLCommunity/corndogs#state-and-timeout-overrides) in the readme for an example.\
+See [State and Timeout Overrides](/README.md#state-and-timeout-overrides) in the readme for an example.\
 Returns the next task.
 
 ### `UpdateTask`
@@ -33,7 +33,7 @@ Returns the archived task.
 
 ### `CleanUpTimedOut`
 Will compare tasks to `at_time` to see if they're timed out. Optionally limited to a specific `queue`.\
-See the [Timeouts](https://github.com/TnLCommunity/corndogs#timeouts) section in the readme for more info on how you might use timeouts.\
+See the [Timeouts](/README.md#timeouts) section in the readme for more info on how you might use timeouts.\
 Returns the number of tasks `timed_out`.
 
 ---

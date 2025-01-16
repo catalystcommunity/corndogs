@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	corndogsv1alpha1 "github.com/TnLCommunity/protos-corndogs/gen/proto/go/corndogs/v1alpha1"
+	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/stretchr/testify/require"
 

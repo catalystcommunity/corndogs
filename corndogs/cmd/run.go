@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/TnLCommunity/corndogs/server"
+	"github.com/CatalystCommunity/corndogs/server"
 	"github.com/spf13/cobra"
 )
 
