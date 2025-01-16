@@ -45,3 +45,30 @@ jobs:
           RELEASE_NAME: ${{ steps.semver-tags.outputs.new_release_git_tag }}
         run: |
           ./.github/scripts/make_general_release.sh "${RELEASE_NAME}"
+      # - if: steps.semver-tags.outputs.new_release_published == 'true'
+      #   name: Push protos to buf BSR
+      #   uses: catalystsquad/action-buf@v2
+      #   with:
+      #     token: ${{ secrets.GIT_RUNNER_TOKEN }}
+      #     buf-user: ${{ secrets.BUF_USER }}
+      #     buf-token: ${{ secrets.BUF_TOKEN }}
+      #     lint: false
+      #     generate: false
+      #     breaking: false
+      #     mod-prune: false
+      #     mod-update: false
+      #     push: true
+      #     push-dir: protos/corndogsapis
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Install UV
+        run: wget -qO- https://astral.sh/uv/install.sh | sh
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Install Python
+        run:
+          uv install python 3.13
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Build python protos dist
+        run: uv build
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Publish python protos to PyPi
+        run: uv publish --token ${{ secrets.PYPI_PUBLISH_TOKEN }} --index testpypi
