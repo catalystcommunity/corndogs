@@ -28,8 +28,20 @@ jobs:
       - name: Get semver-tags
         run: |
           wget -c https://github.com/catalystsquad/semver-tags/releases/download/v0.3.5/semver-tags.tar.gz -O - | tar -xz
-      - name: Semver Tags
+      - name: Semver Tags dry_run for version updates
         id: semver-tags
+        shell: bash
+        run: |
+          ./semver-tags run --dry_run --github_action --directories protos
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Update python protos pyproject.toml version
+        shell: bash
+        run: |
+          sed -i "0,/version = .*/s//version = \"${{ steps.semver-tags.outputs.new_release_version }}\"/g" protos/pyproject.toml
+          git add protos/pyproject.toml
+          git commit -m "ci: Update python protos pyproject.toml version to ${{ steps.semver-tags.outputs.new_release_version }}"
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Semver Tags real run
         shell: bash
         run: |
           ./semver-tags run --github_action --directories protos
