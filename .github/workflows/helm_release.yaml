@@ -50,6 +50,7 @@ jobs:
         shell: bash
         run: |
           rm ./semver-tags
+
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Make Release
         shell: bash
@@ -62,3 +63,9 @@ jobs:
           helm template ./helm_chart/chart/
           helm package ./helm_chart/chart/
           ./.github/scripts/make_helm_release.sh "${RELEASE_NAME}"
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Upload chart
+        uses: catalystcommunity/action-upload-chart-git@v1
+        token: ${{ secrets.AUTOMATION_PAT }}
+        tag: ${{ steps.semver-tags.outputs.new_release_git_tag }}
+        release-asset-label-contains: "Helm_chart"
