@@ -32,6 +32,6 @@ jobs:
       - uses: catalystcommunity/action-buf@v2
         with:
           working-directory: "protos"
-          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+          token: ${{ secrets.AUTOMATION_PAT }}
           registry-login: false
           breaking-against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=main,subdir=protos"
