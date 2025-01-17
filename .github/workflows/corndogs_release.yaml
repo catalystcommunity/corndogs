@@ -19,7 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+          token: ${{ secrets.AUTOMATION_PAT }}
           fetch-depth: 0
       - name: Setup git config
         run: |
@@ -41,7 +41,7 @@ jobs:
         name: Make Release
         shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GIT_RUNNER_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.AUTOMATION_PAT }}
           RELEASE_NAME: ${{ steps.semver-tags.outputs.new_release_git_tag }}
         run: |
           ./.github/scripts/make_general_release.sh "${RELEASE_NAME}"
@@ -49,8 +49,8 @@ jobs:
         name: Build and push server docker image to Quay
         uses: catalystcommunity/action-build-push-image-quay@v1
         with:
-          username: ${{ secrets.QUAY_USER }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+          username: ${{ secrets.QUAY_DOCKER_REGISTRY_USER }}
+          password: ${{ secrets.QUAY_DOCKER_REGISTRY_PASSWORD }}
           tag-versions: "latest,${{ steps.semver-tags.outputs.new_release_version }}"
           docker-context: "./corndogs"
 
@@ -64,7 +64,7 @@ jobs:
         id: make-chart-pr
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+          token: ${{ secrets.AUTOMATION_PAT }}
           title: "ci: Update helm appVersion to ${{ steps.semver-tags.outputs.new_release_version }} for ${{ github.event.pull_request.title }}"
           body: 'Automated changes triggered by [pull request](${{ github.event.pull_request._links.html.href }})<br />${{ github.event.pull_request.body }}'
           commit-message: ${{ github.event.pull_request.title }}
@@ -74,7 +74,7 @@ jobs:
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Enable automerge for chart PR
         env:
-          GH_TOKEN: ${{ secrets.GIT_RUNNER_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTOMATION_PAT }}
         run: gh pr merge --rebase --auto ${{ steps.make-chart-pr.outputs.pull-request-url }}
 
 

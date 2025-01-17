@@ -19,7 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+          token: ${{ secrets.AUTOMATION_PAT }}
           fetch-depth: 0
       - name: Setup git config
         run: |
@@ -53,7 +53,7 @@ jobs:
         name: Make Release
         shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GIT_RUNNER_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.AUTOMATION_PAT }}
           RELEASE_NAME: ${{ steps.semver-tags.outputs.new_release_git_tag }}
         run: |
           ./.github/scripts/make_general_release.sh "${RELEASE_NAME}"
@@ -61,7 +61,7 @@ jobs:
         name: Push protos to buf BSR
         uses: catalystsquad/action-buf@v2
         with:
-          token: ${{ secrets.GIT_RUNNER_TOKEN }}
+          token: ${{ secrets.AUTOMATION_PAT }}
           buf-user: ${{ secrets.BUF_USER }}
           buf-token: ${{ secrets.BUF_TOKEN }}
           lint: false
@@ -83,4 +83,4 @@ jobs:
         run: |
           cd protos
           uv build
-          uv publish --token ${{ secrets.PYPI_PUBLISH_TOKEN }} --index testpypi
+          uv publish --token ${{ secrets.PYPI_TOKEN }} --index testpypi
