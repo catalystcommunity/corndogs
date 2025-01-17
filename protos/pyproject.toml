@@ -1,7 +1,7 @@
 
 [project]
-name = "corndogs"
-version = "0.1.10"
+name = "pycorndogs"
+version = "0.0.0"
 description = "Corndogs python gRPC client"
 readme = "README.md"
 requires-python = ">= 3.8"
