@@ -52,7 +52,7 @@ jobs:
           username: ${{ secrets.QUAY_DOCKER_REGISTRY_USER }}
           password: ${{ secrets.QUAY_DOCKER_REGISTRY_PASSWORD }}
           tag-versions: "latest,${{ steps.semver-tags.outputs.new_release_version }}"
-          docker-context: "./corndogs"
+          docker-context: "./corndogs/"
 
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Update chart appVersion
