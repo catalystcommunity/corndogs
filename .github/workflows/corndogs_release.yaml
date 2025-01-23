@@ -27,7 +27,7 @@ jobs:
           git config --global user.email "<catalyst-community@todandlorna.com>"
       - name: Get semver-tags
         run: |
-          wget -c https://github.com/catalystsquad/semver-tags/releases/download/v0.3.5/semver-tags.tar.gz -O - | tar -xz
+          wget -c https://github.com/catalystsquad/semver-tags/releases/download/v0.3.7/semver-tags.tar.gz -O - | tar -xz
       - name: Semver Tags
         id: semver-tags
         shell: bash
