@@ -1,4 +1,4 @@
-FROM golang:1.20 as builder
+FROM golang:1.20 AS builder
 
 WORKDIR /workspace
 # install grpc health probe
@@ -10,8 +10,8 @@ COPY go.sum .
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
-COPY server/ ./server
 COPY cmd/ ./cmd
+COPY server/ ./server
 COPY main.go ./main.go
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o main main.go

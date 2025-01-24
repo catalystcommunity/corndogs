@@ -1,0 +1,15 @@
+name: Upload chart  
+on:
+  release:
+    types:
+      - published
+jobs:
+  upload-chart:
+    steps:
+      - if: ${{ startsWith(github.event.release.name, "helm_chart") }}
+        name: Upload chart
+        uses: catalystcommunity/action-upload-chart-git@v1
+        with:
+          token: ${{ secrets.AUTOMATION_PAT }}
+          tag: ${{ steps.semver-tags.outputs.new_release_git_tag }}
+          release-asset-label-contains: "Helm_chart"
