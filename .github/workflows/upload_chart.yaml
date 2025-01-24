@@ -6,7 +6,7 @@ on:
 jobs:
   upload-chart:
     steps:
-      - if: ${{ startsWith(github.event.release.name, "helm_chart") }}
+      - if: ${{ startsWith(github.event.release.name, 'helm_chart') }}
         name: Upload chart
         uses: catalystcommunity/action-upload-chart-git@v1
         with:
