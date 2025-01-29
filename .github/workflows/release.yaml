@@ -23,10 +23,23 @@ jobs:
       - name: Get changed paths
         id: changed-paths
         run: |
-          echo "test=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\.github')" >> "$GITHUB_OUTPUT"
-          echo "protos=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\protos/')" >> "$GITHUB_OUTPUT"
-          echo "corndogs=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^corndogs/')" >> "$GITHUB_OUTPUT"
-          echo "helm_chart=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^helm_chart/chart/')" >> "$GITHUB_OUTPUT"
-      - if:  ${{ startsWith(steps.changed-paths.outputs.test, '.github') }}
-        run: |
-          echo Got github
+          workflow_changed=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\.github')
+          if [[ $workflow_changed ]]; then
+            echo "workflow_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "workflow_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          
+          protos_changed=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\protos/')
+          if [[ $protos_changed ]]; then
+            echo "protos_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "protos_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "corndogs=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^corndogs/')"
+          echo "helm_chart=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^helm_chart/chart/')"
+      - run: |
+          echo ${{ steps.changed-paths.outputs.workflow_changed }}
+          echo ${{ steps.changed-paths.outputs.protos_changed }}
