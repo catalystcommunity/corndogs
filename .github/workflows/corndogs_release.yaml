@@ -16,6 +16,8 @@ jobs:
       new_release_published: "${{ steps.semver-tags.outputs.new_release_published }}"
       new_release_version: "${{ steps.semver-tags.outputs.new_release_version }}"
     steps:
+      - name: Dump Context
+        uses: crazy-max/ghaction-dump-context@v2
       - name: Checkout
         uses: actions/checkout@v3
         with:

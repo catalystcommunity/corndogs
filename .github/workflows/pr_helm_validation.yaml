@@ -11,6 +11,8 @@ jobs:
     name: 
     runs-on: ubuntu-latest
     steps:
+      - name: Dump Context
+        uses: crazy-max/ghaction-dump-context@v2
       - uses: actions/checkout@v3
         with:
           ref: ${{ github.head_ref }}

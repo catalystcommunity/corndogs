@@ -13,6 +13,8 @@ jobs:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
+      - name: Dump Context
+        uses: crazy-max/ghaction-dump-context@v2
       - name: Checkout
         uses: actions/checkout@v3
         with:
