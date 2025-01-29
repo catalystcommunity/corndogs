@@ -5,14 +5,10 @@ on:
       - closed
     branches:
       - main
-    # paths:
-    #   - protos/**
-    #   - corndogs/**
-    #   - helm_chart/chart/**
 jobs:
   do-releases:
     name: Do releases
-    # if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,7 +31,7 @@ jobs:
           fi
       - if: ${{ check-protos.outputs.protos-changed == "true" }}
         name: Release protos
-        uses: catalystcommunity/corndogs/.github/workflows/protos_release.yml
+        uses: ./.github/workflows/protos_release.yaml
         secrets:
           AUTOMATION_PAT: ${{ secrets.AUTOMATION_PAT }}
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
@@ -55,7 +51,7 @@ jobs:
           fi
       - if: ${{ check-corndogs.outputs.corndogs-changed == "true" }}
         name: Release corndogs
-        uses: catalystcommunity/corndogs/.github/workflows/corndogs_release.yml
+        uses: ./.github/workflows/corndogs_release.yaml
         secrets:
           AUTOMATION_PAT: ${{ secrets.AUTOMATION_PAT }}
           QUAY_DOCKER_REGISTRY_USER: ${{ secrets.QUAY_DOCKER_REGISTRY_USER }}
@@ -76,6 +72,6 @@ jobs:
           fi
       - if: ${{  check-helm.outputs.helm-changed == "true" }}
         name: Release helm chart
-        uses: catalystcommunity/corndogs/.github/workflows/helm_release.yml
+        uses: ./.github/workflows/helm_release.yaml
         secrets:
           AUTOMATION_PAT: ${{ secrets.AUTOMATION_PAT }}
