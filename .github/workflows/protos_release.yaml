@@ -1,12 +1,6 @@
 name: Protos release
 on:
-  pull_request:
-    types:
-      - closed
-    branches:
-      - main
-    paths:
-      - protos/**
+  workflow_dispatch:
 jobs:
   protos-release:
     name: Protos release
