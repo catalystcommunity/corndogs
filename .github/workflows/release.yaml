@@ -24,16 +24,18 @@ jobs:
         id: changed-paths
         run: |
           workflow_changed=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\.github')
-          if [ -n "$workflow_changed" ]; then
-            echo "workflow_changed=true" >> $GITHUB_OUTPUT
-          else
+          echo "GOT WORKFLOW $workflow_changed"
+          if [[ -z $workflow_changed ]]; then
             echo "workflow_changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "workflow_changed=true" >> $GITHUB_OUTPUT
           fi
           protos_changed=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\protos/')
-          if [ -n "$protos_changed" ]; then
-            echo "protos_changed=true" >> $GITHUB_OUTPUT
-          else
+          echo "GOT PROTOS $protos_changed"
+          if [[ -z $protos_changed ]]; then
             echo "protos_changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "protos_changed=true" >> $GITHUB_OUTPUT
           fi
       - run: |
           echo ${{ steps.changed-paths.outputs.workflow_changed }}
