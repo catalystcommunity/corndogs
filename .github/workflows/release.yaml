@@ -25,7 +25,7 @@ jobs:
         run: |
           diff=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }}) 
           set +e
-          workflow_changed=$($diff | grep -m 1 -E '^\.github')
+          workflow_changed=$(echo $diff | grep -m 1 -E '^\.github')
           set -e
           echo "GOT WORKFLOW $workflow_changed"
           if [[ -z $workflow_changed ]]; then
@@ -33,9 +33,9 @@ jobs:
           else
             echo "workflow_changed=true" >> $GITHUB_OUTPUT
           fi
-          
+
           set +e
-          protos_changed=$($diff | grep -m 1 -E '^protos\/')
+          protos_changed=$(echo $diff | grep -m 1 -E '^protos\/')
           set -e
           echo "GOT PROTOS $protos_changed"
           if [[ -z $protos_changed ]]; then
