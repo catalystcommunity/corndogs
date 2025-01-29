@@ -27,6 +27,6 @@ jobs:
           echo "protos=$(git diff --name-only main ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\protos/')" >> "$GITHUB_OUTPUT"
           echo "corndogs=$(git diff --name-only main ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^corndogs/')" >> "$GITHUB_OUTPUT"
           echo "helm_chart=$(git diff --name-only main ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^helm_chart/chart/')" >> "$GITHUB_OUTPUT"
-      - if:  ${{ startsWith(changed-paths.outputs.test, '.github') }}
+      - if:  ${{ startsWith(steps.changed-paths.outputs.test, '.github') }}
         run: |
           echo Got github
