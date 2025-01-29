@@ -22,26 +22,28 @@ jobs:
           fetch-depth: 0
       - name: Get changed paths
         id: changed-paths
+        shell: bash
         run: |
           diff=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }}) 
+
           set +e
-          workflow_changed=$(echo $diff | grep -m 1 -E '^\.github')
+          workflow_changed=$(echo $diff | grep -q -m 1 -E '^.github/' ; echo $?)
           set -e
           echo "GOT WORKFLOW $workflow_changed"
-          if [[ -z $workflow_changed ]]; then
-            echo "workflow_changed=false" >> $GITHUB_OUTPUT
+          if [[ $workflow_changed = 0 ]]; then
+              echo "workflow_changed=true" >> $GITHUB_OUTPUT
           else
-            echo "workflow_changed=true" >> $GITHUB_OUTPUT
+              echo "workflow_changed=false" >> $GITHUB_OUTPUT
           fi
 
           set +e
-          protos_changed=$(echo $diff | grep -m 1 -E '^protos\/')
+          protos_changed=$(echo $diff | grep -q -m 1 -E '^protos/' ; echo $?)
           set -e
           echo "GOT PROTOS $protos_changed"
-          if [[ -z $protos_changed ]]; then
-            echo "protos_changed=false" >> $GITHUB_OUTPUT
+          if [[ $protos_changed = 0 ]]; then
+              echo "protos_changed=true" >> $GITHUB_OUTPUT
           else
-            echo "protos_changed=true" >> $GITHUB_OUTPUT
+              echo "protos_changed=false" >> $GITHUB_OUTPUT
           fi
       - run: |
           echo ${{ steps.changed-paths.outputs.workflow_changed }}
