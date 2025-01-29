@@ -31,9 +31,9 @@ jobs:
           fi
           protos_changed=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\protos/')
           if [[ $protos_changed ]]; then
-            echo "protos_changed=true" >>  $GITHUB_OUTPUT
+            echo "protos_changed=true" >> $GITHUB_OUTPUT
           else
-            echo "protos_changed=false" >>  $GITHUB_OUTPUT
+            echo "protos_changed=false" >> $GITHUB_OUTPUT
           fi
       - run: |
           echo ${{ steps.changed-paths.outputs.workflow_changed }}
