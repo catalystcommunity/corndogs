@@ -20,31 +20,62 @@ jobs:
         with:
           token: ${{ secrets.AUTOMATION_PAT }}
           fetch-depth: 0
-      - name: Get changed paths
-        id: changed-paths
+      - name: Check protos changed
+        id: check-protos
         shell: bash
         run: |
           diff=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }}) 
-
           set +e
-          workflow_changed=$(echo $diff | grep -q -m 1 -E '^.github/' ; echo $?)
+          changed=$(echo $diff | grep -q -m 1 -E '^protos/' ; echo $?)
           set -e
-          echo "GOT WORKFLOW $workflow_changed"
-          if [[ $workflow_changed = 0 ]]; then
-              echo "workflow_changed=true" >> $GITHUB_OUTPUT
+          if [[ $changed = 0 ]]; then
+              echo "protos-changed=true" >> $GITHUB_OUTPUT
           else
-              echo "workflow_changed=false" >> $GITHUB_OUTPUT
+              echo "protos-changed=false" >> $GITHUB_OUTPUT
           fi
-
+      - if: ${{ check-protos.outputs.protos-changed == "true" }}
+        name: Release protos
+        uses: catalystcommunity/corndogs/.github/workflows/protos_release.yml
+        secrets:
+          AUTOMATION_PAT: ${{ secrets.AUTOMATION_PAT }}
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+      
+      - name: Check corndogs changed
+        id: check-corndogs
+        shell: bash
+        run: |
+          diff=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }}) 
           set +e
-          protos_changed=$(echo $diff | grep -q -m 1 -E '^protos/' ; echo $?)
+          changed=$(echo $diff | grep -q -m 1 -E '^corndogs/' ; echo $?)
           set -e
-          echo "GOT PROTOS $protos_changed"
-          if [[ $protos_changed = 0 ]]; then
-              echo "protos_changed=true" >> $GITHUB_OUTPUT
+          if [[ $changed = 0 ]]; then
+              echo "corndogs-changed=true" >> $GITHUB_OUTPUT
           else
-              echo "protos_changed=false" >> $GITHUB_OUTPUT
+              echo "corndogs-changed=false" >> $GITHUB_OUTPUT
           fi
-      - run: |
-          echo ${{ steps.changed-paths.outputs.workflow_changed }}
-          echo ${{ steps.changed-paths.outputs.protos_changed }}
+      - if: ${{ check-corndogs.outputs.corndogs-changed == "true" }}
+        name: Release corndogs
+        uses: catalystcommunity/corndogs/.github/workflows/corndogs_release.yml
+        secrets:
+          AUTOMATION_PAT: ${{ secrets.AUTOMATION_PAT }}
+          QUAY_DOCKER_REGISTRY_USER: ${{ secrets.QUAY_DOCKER_REGISTRY_USER }}
+          QUAY_DOCKER_REGISTRY_PASSWORD: ${{ secrets.QUAY_DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Check helm chart changed
+        id: check-helm
+        shell: bash
+        run: |
+          diff=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }}) 
+          set +e
+          changed=$(echo $diff | grep -q -m 1 -E '^helm_chart/chart/' ; echo $?)
+          set -e
+          if [[ $changed = 0 ]]; then
+              echo "helm-changed=true" >> $GITHUB_OUTPUT
+          else
+              echo "helm-changed=false" >> $GITHUB_OUTPUT
+          fi
+      - if: ${{  check-helm.outputs.helm-changed == "true" }}
+        name: Release helm chart
+        uses: catalystcommunity/corndogs/.github/workflows/helm_release.yml
+        secrets:
+          AUTOMATION_PAT: ${{ secrets.AUTOMATION_PAT }}
