@@ -1,14 +1,10 @@
 name: Do releases
 on:
   pull_request:
-    # types:
-    #   - closed
+    types:
+      - closed
     branches:
       - main
-    # paths:
-    #   - protos/**
-    #   - corndogs/**
-    #   - helm_chart/chart/**
 jobs:
   do-releases:
     name: Do releases
@@ -20,13 +16,62 @@ jobs:
         with:
           token: ${{ secrets.AUTOMATION_PAT }}
           fetch-depth: 0
-      - name: Get changed paths
-        id: changed-paths
+      - name: Check protos changed
+        id: check-protos
+        shell: bash
         run: |
-          echo "test=$(git diff --name-only main ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\.github')" >> "$GITHUB_OUTPUT"
-          echo "protos=$(git diff --name-only main ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\protos/')" >> "$GITHUB_OUTPUT"
-          echo "corndogs=$(git diff --name-only main ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^corndogs/')" >> "$GITHUB_OUTPUT"
-          echo "helm_chart=$(git diff --name-only main ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^helm_chart/chart/')" >> "$GITHUB_OUTPUT"
-      - if:  ${{ startsWith(changed-paths.outputs.test, '.github') }}
+          diff=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }}) 
+          set +e
+          changed=$(echo $diff | grep -q -m 1 -E '^protos/' ; echo $?)
+          set -e
+          if [[ $changed = 0 ]]; then
+              echo "protos-changed=true" >> $GITHUB_OUTPUT
+          else
+              echo "protos-changed=false" >> $GITHUB_OUTPUT
+          fi
+      - if: ${{ check-protos.outputs.protos-changed == "true" }}
+        name: Release protos
+        uses: ./.github/workflows/protos_release.yaml
+        secrets:
+          AUTOMATION_PAT: ${{ secrets.AUTOMATION_PAT }}
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+      
+      - name: Check corndogs changed
+        id: check-corndogs
+        shell: bash
         run: |
-          echo YEET
+          diff=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }}) 
+          set +e
+          changed=$(echo $diff | grep -q -m 1 -E '^corndogs/' ; echo $?)
+          set -e
+          if [[ $changed = 0 ]]; then
+              echo "corndogs-changed=true" >> $GITHUB_OUTPUT
+          else
+              echo "corndogs-changed=false" >> $GITHUB_OUTPUT
+          fi
+      - if: ${{ check-corndogs.outputs.corndogs-changed == "true" }}
+        name: Release corndogs
+        uses: ./.github/workflows/corndogs_release.yaml
+        secrets:
+          AUTOMATION_PAT: ${{ secrets.AUTOMATION_PAT }}
+          QUAY_DOCKER_REGISTRY_USER: ${{ secrets.QUAY_DOCKER_REGISTRY_USER }}
+          QUAY_DOCKER_REGISTRY_PASSWORD: ${{ secrets.QUAY_DOCKER_REGISTRY_PASSWORD }}
+
+      - name: Check helm chart changed
+        id: check-helm
+        shell: bash
+        run: |
+          diff=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }}) 
+          set +e
+          changed=$(echo $diff | grep -q -m 1 -E '^helm_chart/chart/' ; echo $?)
+          set -e
+          if [[ $changed = 0 ]]; then
+              echo "helm-changed=true" >> $GITHUB_OUTPUT
+          else
+              echo "helm-changed=false" >> $GITHUB_OUTPUT
+          fi
+      - if: ${{  check-helm.outputs.helm-changed == "true" }}
+        name: Release helm chart
+        uses: ./.github/workflows/helm_release.yaml
+        secrets:
+          AUTOMATION_PAT: ${{ secrets.AUTOMATION_PAT }}

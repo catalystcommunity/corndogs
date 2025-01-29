@@ -1,12 +1,9 @@
 name: Helm chart release
 on:
-  pull_request:
-    types:
-      - closed
-    branches:
-      - main
-    paths:
-      - 'helm_chart/chart/**'
+  workflow_call:
+    secrets:
+      AUTOMATION_PAT:
+        required: true
 jobs:
   helm-release:
     name: Helm chart release

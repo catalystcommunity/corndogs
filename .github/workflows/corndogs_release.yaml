@@ -1,12 +1,13 @@
 name: Corndogs release
 on:
-  pull_request:
-    types:
-      - closed
-    branches:
-      - main
-    paths:
-      - corndogs/**
+  workflow_call:
+    secrets:
+      AUTOMATION_PAT:
+        required: true
+      QUAY_DOCKER_REGISTRY_USER:
+        required: true
+      QUAY_DOCKER_REGISTRY_PASSWORD:
+        required: true
 jobs:
   corndogs-release:
     name: Corndogs release
@@ -61,22 +62,8 @@ jobs:
         shell: bash
         run: |
           sed -i "0,/appVersion:.*/s//appVersion: \"${{ steps.semver-tags.outputs.new_release_version }}\"/g" helm_chart/chart/Chart.yaml
-      - if: steps.semver-tags.outputs.new_release_published == 'true'
-        name: Make PR for chart
-        id: make-chart-pr
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{ secrets.AUTOMATION_PAT }}
-          title: "ci: Update helm appVersion to ${{ steps.semver-tags.outputs.new_release_version }} for ${{ github.event.pull_request.title }}"
-          body: 'Automated changes triggered by [pull request](${{ github.event.pull_request._links.html.href }})<br />${{ github.event.pull_request.body }}'
-          commit-message: ${{ github.event.pull_request.title }}
-          branch: 'update-chart-appversion-to-${{ steps.semver-tags.outputs.new_release_version }}'
-          delete-branch: true
-          labels: automerge
-      - if: steps.semver-tags.outputs.new_release_published == 'true'
-        name: Enable automerge for chart PR
-        env:
-          GH_TOKEN: ${{ secrets.AUTOMATION_PAT }}
-        run: gh pr merge --rebase --auto ${{ steps.make-chart-pr.outputs.pull-request-url }}
+          git add helm_chart/chart/Chart.yaml
+          git commit -m "ci: Update helm appVersion to ${{ steps.semver-tags.outputs.new_release_version }} for ${{ github.event.pull_request.title }}"
+          git push
 
 

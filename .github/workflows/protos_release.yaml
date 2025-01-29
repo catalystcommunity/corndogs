@@ -1,12 +1,11 @@
 name: Protos release
 on:
-  pull_request:
-    types:
-      - closed
-    branches:
-      - main
-    paths:
-      - protos/**
+  workflow_call:
+    secrets:
+      AUTOMATION_PAT:
+        required: true
+      PYPI_TOKEN:
+        required: true
 jobs:
   protos-release:
     name: Protos release
