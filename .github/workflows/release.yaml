@@ -29,15 +29,12 @@ jobs:
           else\
             echo "workflow_changed=false" >> "$GITHUB_OUTPUT"\
           fi
-
-          
           protos_changed=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\protos/')
           if [[ $protos_changed ]]; then\
             echo "protos_changed=true" >> "$GITHUB_OUTPUT"\
           else\
             echo "protos_changed=false" >> "$GITHUB_OUTPUT"\
           fi
-
           echo "corndogs=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^corndogs/')"
           echo "helm_chart=$(git diff --name-only ${{ github.sha }} ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^helm_chart/chart/')"
       - run: |
