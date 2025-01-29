@@ -1,6 +1,6 @@
 name: Protos release
 on:
-  workflow_dispatch:
+  workflow_call:
 jobs:
   protos-release:
     name: Protos release

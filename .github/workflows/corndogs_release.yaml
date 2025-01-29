@@ -1,6 +1,6 @@
 name: Corndogs release
 on:
-  workflow_dispatch:
+  workflow_call:
 jobs:
   corndogs-release:
     name: Corndogs release

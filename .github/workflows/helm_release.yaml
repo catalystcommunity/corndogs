@@ -1,6 +1,6 @@
 name: Helm chart release
 on:
-  workflow_dispatch:
+  workflow_call:
 jobs:
   helm-release:
     name: Helm chart release
