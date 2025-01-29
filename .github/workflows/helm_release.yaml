@@ -1,6 +1,9 @@
 name: Helm chart release
 on:
   workflow_call:
+    secrets:
+      AUTOMATION_PAT:
+        required: true
 jobs:
   helm-release:
     name: Helm chart release
