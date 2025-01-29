@@ -31,9 +31,9 @@ jobs:
             echo "workflow_changed=true" >> $GITHUB_OUTPUT
           fi
           echo "Moving on"
-          git diff --name-only HEAD ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\protos\/'
+          git diff --name-only HEAD ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^protos\/'
           echo "Ran once"
-          protos_changed=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^\protos\/')
+          protos_changed=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }} | grep -m 1 -E '^protos\/')
           echo "GOT PROTOS $protos_changed"
           if [[ -z $protos_changed ]]; then
             echo "protos_changed=false" >> $GITHUB_OUTPUT
