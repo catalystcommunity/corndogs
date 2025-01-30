@@ -16,7 +16,8 @@ jobs:
   should-run:
     name: Check corndogs changed and should run release
     runs-on: ubuntu-latest
-    corndogs-changed: "${{ steps.check-changed.outputs.corndogs-changed }}"
+    outputs:
+      corndogs-changed: "${{ steps.check-changed.outputs.corndogs-changed }}"
     steps:
       - name: Checkout
         uses: actions/checkout@v3

@@ -14,7 +14,8 @@ jobs:
   should-run:
     name: Check protos changed and should run release
     runs-on: ubuntu-latest
-    protos-changed: "${{ steps.check-changed.outputs.protos-changed }}"
+    outputs:
+      protos-changed: "${{ steps.check-changed.outputs.protos-changed }}"
     steps:
       - name: Checkout
         uses: actions/checkout@v3
