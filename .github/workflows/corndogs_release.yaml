@@ -78,6 +78,16 @@ jobs:
           RELEASE_NAME: ${{ steps.semver-tags.outputs.new_release_git_tag }}
         run: |
           ./.github/scripts/make_general_release.sh "${RELEASE_NAME}"
+      
+      - if: steps.semver-tags.outputs.new_release_published == 'true'
+        name: Update chart appVersion
+        shell: bash
+        run: |
+          sed -i "0,/appVersion:.*/s//appVersion: \"${{ steps.semver-tags.outputs.new_release_version }}\"/g" helm_chart/chart/Chart.yaml
+          git add helm_chart/chart/Chart.yaml
+          git commit -m "ci: Update helm appVersion to ${{ steps.semver-tags.outputs.new_release_version }} for ${{ github.event.pull_request.title }}"
+          git push
+
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Build and push server docker image to Quay
         uses: catalystcommunity/action-build-push-image-quay@v2
@@ -87,13 +97,5 @@ jobs:
           tag-versions: "latest,${{ steps.semver-tags.outputs.new_release_version }}"
           docker-context: "./corndogs"
 
-      - if: steps.semver-tags.outputs.new_release_published == 'true'
-        name: Update chart appVersion
-        shell: bash
-        run: |
-          sed -i "0,/appVersion:.*/s//appVersion: \"${{ steps.semver-tags.outputs.new_release_version }}\"/g" helm_chart/chart/Chart.yaml
-          git add helm_chart/chart/Chart.yaml
-          git commit -m "ci: Update helm appVersion to ${{ steps.semver-tags.outputs.new_release_version }} for ${{ github.event.pull_request.title }}"
-          git push
 
 
