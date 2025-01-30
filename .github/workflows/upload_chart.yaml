@@ -6,6 +6,7 @@ on:
 jobs:
   upload-chart:
     if: ${{ startsWith(github.event.release.name, 'helm_chart') }}
+    runs-on: ubuntu-latest
     steps:
       - name: Dump Context
         uses: crazy-max/ghaction-dump-context@v2
