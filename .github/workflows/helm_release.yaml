@@ -25,7 +25,7 @@ jobs:
         run: |
           diff=$(git diff --name-only HEAD ${{ inputs.base-sha }}) 
           set +e
-          changed=$(echo $diff | grep -q -m 1 -E '^helm_chart/chart/' ; echo $?)
+          changed=$(echo "$diff" | grep -q -m 1 -E '^helm_chart/chart/' ; echo $?)
           set -e
           if [[ $changed = 0 ]]; then
               echo "helm-changed=true" >> $GITHUB_OUTPUT
