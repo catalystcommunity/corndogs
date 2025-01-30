@@ -34,6 +34,17 @@ jobs:
           else
               echo "protos-changed=false" >> $GITHUB_OUTPUT
           fi
+      - shell: bash
+        run: |
+          echo "|${{steps.check-changed.outputs.protos-changed}}|"
+  temp-job:
+    name: Remove me
+    needs: should-run
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        run: |
+          echo "|${{needs.should-run.outputs.protos-changed}}|"
   protos-release:
     name: Protos release
     needs: should-run
