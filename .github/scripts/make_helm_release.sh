@@ -3,13 +3,13 @@
 set -e
 
 RELEASE_NAME="${RELEASE_NAME:-$1}"
-RELEASE_VERSION="${RELEASE_VERSION:-$1}"
+RELEASE_VERSION="${RELEASE_VERSION:-$2}"
 GITHUB_TOKEN="${GITHUB_TOKEN:-notarealtoken}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-catalystcommunity/corndogs}"
 DEFAULT_GITHUB_API_URL="https://api.github.com"
 GITHUB_API_URL="${GITHUB_API_URL:-${DEFAULT_GITHUB_API_URL}}"
 
-CHART_ASSET_NAME="Helm_chart"
+CHART_ASSET_NAME="corndogs-${RELEASE_VERSION}.tgz"
 CHART_LABEL_NAME="Helm%20chart"
 CHART_TARFILE_PATH=$(find . -maxdepth 1 -type f -iname "*.tgz")
 
