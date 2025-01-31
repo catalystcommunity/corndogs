@@ -10,6 +10,7 @@ DEFAULT_GITHUB_API_URL="https://api.github.com"
 GITHUB_API_URL="${GITHUB_API_URL:-${DEFAULT_GITHUB_API_URL}}"
 
 CHART_ASSET_NAME="Helm_chart"
+CHART_LABEL_NAME="Helm chart"
 CHART_TARFILE_PATH=$(find . -maxdepth 1 -type f -iname "*.tgz")
 
 echo ${RELEASE_NAME}
@@ -36,7 +37,7 @@ curl -L \
   -H "Authorization: Bearer ${GITHUB_TOKEN}"\
   -H "X-GitHub-Api-Version: 2022-11-28" \
   -H "Content-Type: application/octet-stream" \
-  "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${TAGGED_RELEASE_ID}/assets?name=${CHART_ASSET_NAME}" \
+  "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${TAGGED_RELEASE_ID}/assets?name=${CHART_ASSET_NAME}&label=${CHART_LABEL_NAME}" \
   --data-binary "@${CHART_TARFILE_PATH}"
 
 # Change pre-release to release

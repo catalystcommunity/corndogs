@@ -15,4 +15,4 @@ jobs:
         with:
           token: ${{ secrets.AUTOMATION_PAT }}
           tag: ${{ steps.semver-tags.outputs.new_release_git_tag }}
-          release-asset-label-contains: "Helm_chart"
+          release-asset-label-contains: "helm chart"
