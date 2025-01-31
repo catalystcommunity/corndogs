@@ -2,7 +2,7 @@ name: Upload chart
 on:
   release:
     types:
-      - published
+      - released
 jobs:
   upload-chart:
     if: ${{ startsWith(github.event.release.name, 'helm_chart') }}
