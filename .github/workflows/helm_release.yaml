@@ -69,7 +69,7 @@ jobs:
         run: |
           sed -i "0,/version:.*/s//version: \"${{ steps.semver-tags.outputs.new_release_version }}\"/g" helm_chart/chart/Chart.yaml
           git add helm_chart/chart/Chart.yaml
-          git commit -m "ci: Update chart version to ${{ steps.semver-tags.outputs.new_release_version }}"
+          git commit -m "chore(ci): Update chart version to ${{ steps.semver-tags.outputs.new_release_version }}"
       - if: steps.semver-tags.outputs.new_release_published == 'true'
         name: Semver Tags real run
         shell: bash
