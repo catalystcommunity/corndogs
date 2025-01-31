@@ -23,11 +23,11 @@ curl -L \
   "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases" \
   -d '{"tag_name":"'${RELEASE_NAME}'","target_commitish":"main","name":"'${RELEASE_NAME}'","body":"Released by Github Action","draft":false,"prerelease":true,"generate_release_notes":false}'
 
-LATEST_RELEASE_ID=$(curl -L \
+TAGGED_RELEASE_ID=$(curl -L \
   -H "Accept: application/vnd.github+json" \
   -H "Authorization: Bearer ${GITHUB_TOKEN}"\
   -H "X-GitHub-Api-Version: 2022-11-28" \
-  "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/latest" | yq ".id")
+  https://api.github.com/repos/OWNER/REPO/releases/tags/${RELEASE_NAME} | yq ".id")
 
 # Add chart tarfile to release
 curl -L \
@@ -36,7 +36,7 @@ curl -L \
   -H "Authorization: Bearer ${GITHUB_TOKEN}"\
   -H "X-GitHub-Api-Version: 2022-11-28" \
   -H "Content-Type: application/octet-stream" \
-  "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${LATEST_RELEASE_ID}/assets?name=${CHART_ASSET_NAME}" \
+  "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${TAGGED_RELEASE_ID}/assets?name=${CHART_ASSET_NAME}" \
   --data-binary "@${CHART_TARFILE_PATH}"
 
 # Change pre-release to release
@@ -45,5 +45,5 @@ curl -L \
   -H "Accept: application/vnd.github+json" \
   -H "Authorization: Bearer ${GITHUB_TOKEN}" \
   -H "X-GitHub-Api-Version: 2022-11-28" \
-  ${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/${LATEST_RELEASE_ID} \
+  ${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/${TAGGED_RELEASE_ID} \
   -d '{"prerelease": false}'
