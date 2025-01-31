@@ -86,9 +86,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.AUTOMATION_PAT }}
           RELEASE_NAME: ${{ steps.semver-tags.outputs.new_release_git_tag }}
+          RELEASE_VERSION: ${{ steps.semver-tags.outputs.new_release_version }}
         run: |
           helm dependency update ./helm_chart/chart/
           helm lint ./helm_chart/chart/
           helm template ./helm_chart/chart/
           helm package ./helm_chart/chart/
-          ./.github/scripts/make_helm_release.sh "${RELEASE_NAME}"
+          ./.github/scripts/make_helm_release.sh "${RELEASE_NAME}" "${RELEASE_VERSION}"
