@@ -6,16 +6,6 @@ on:
     branches:
       - main
 jobs:
-  do-releases:
-    name: Do releases
-    if: github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.AUTOMATION_PAT }}
-          fetch-depth: 0
   release-protos:
     name: Release protos
     uses: ./.github/workflows/protos_release.yaml
