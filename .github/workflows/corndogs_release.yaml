@@ -85,7 +85,7 @@ jobs:
         run: |
           sed -i "0,/appVersion:.*/s//appVersion: \"${{ steps.semver-tags.outputs.new_release_version }}\"/g" helm_chart/chart/Chart.yaml
           git add helm_chart/chart/Chart.yaml
-          git commit -m "ci: Update helm appVersion to ${{ steps.semver-tags.outputs.new_release_version }} for ${{ github.event.pull_request.title }}"
+          git commit -m "chore(ci): Update helm appVersion to ${{ steps.semver-tags.outputs.new_release_version }} for ${{ github.event.pull_request.title }}"
           git push
 
       - if: steps.semver-tags.outputs.new_release_published == 'true'
