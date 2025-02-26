@@ -136,7 +136,7 @@ func (s PostgresStore) GetNextTask(ctx context.Context, req *corndogsv1alpha1.Ge
 				 WHERE uuid = (
 					 SELECT uuid FROM tasks
 					 WHERE queue = ? AND current_state = ?
-                     ORDER BY priority DESC, update_time DESC
+                     ORDER BY priority DESC, update_time ASC
 					 FOR UPDATE SKIP LOCKED
 					 LIMIT 1)
 				 RETURNING uuid`,
