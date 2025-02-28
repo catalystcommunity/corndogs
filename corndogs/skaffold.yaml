@@ -7,6 +7,7 @@ portForward:
   # pf for grpc server
   - resourceType: service
     resourceName: corndogs
+    namespace: skaffoldcorndogs
     port: 5080
     localPort: 5080
   # pf for prometheus metrics
@@ -17,6 +18,7 @@ portForward:
   # pf for postgresdb
   - resourceType: service
     resourceName: corndogs-postgresql
+    namespace: skaffoldcorndogs
     port: 5432
     localPort: 5432
 deploy:
