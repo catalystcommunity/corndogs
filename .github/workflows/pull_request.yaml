@@ -33,11 +33,12 @@ jobs:
       - name: Dump Context
         uses: crazy-max/ghaction-dump-context@v2
       - name: Run Tests
-        uses: catalystsquad/action-kind-test@v1
+        uses: catalystscommunity/action-kind-test@v1
         with:
           token: ${{ github.token }}
           ref: ${{ github.ref }}
           wait-for-ports: 5080
+          skaffold-working-directory: "corndogs"
           add-private-helm-repo: "true"
           helm-repo-name: catalystcommunity
           helm-repo-url: https://catalystcommunity.github.io/charts
