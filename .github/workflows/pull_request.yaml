@@ -44,4 +44,5 @@ jobs:
           helm-repo-url: https://catalystcommunity.github.io/charts
           helm-repo-username: ${{ github.token }}
           helm-repo-password: ${{ github.token }}
+          go-version: "1.23.x"
           test-command: go test -v ./...
