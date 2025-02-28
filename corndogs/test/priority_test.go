@@ -11,6 +11,7 @@ import (
 
 func TestBasicPriority(t *testing.T) {
 	testID := GetTestID()
+
 	corndogsClient := GetCorndogsClient()
 	workingTaskSuffix := "-working"
 	testPayload := []byte("testPayload" + testID)
@@ -66,6 +67,66 @@ func TestBasicPriority(t *testing.T) {
 	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
 	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
 	require.Equal(t, int64(0), getNextTaskResponse.Task.Priority, "expected priority to be zero")
+}
+
+func TestOldestWithinPriority(t *testing.T) {
+	testID := GetTestID()
+	corndogsClient := GetCorndogsClient()
+	workingTaskSuffix := "-working"
+	testPayload := []byte("testPayload" + testID)
+	testQueue := "testQueue" + testID
+
+	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+		Queue:           testQueue,
+		CurrentState:    "testSubmitted",
+		AutoTargetState: "testSubmitted" + workingTaskSuffix,
+		Payload:         testPayload,
+	}
+
+	// Oldest, priority 0
+	submitTaskResponse, err := corndogsClient.SubmitTask(context.Background(), submitTaskRequest)
+	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
+	require.NotNil(t, submitTaskResponse.Task, "Task in response was nil")
+	require.Equal(t, submitTaskRequest.Queue, submitTaskResponse.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(0), submitTaskResponse.Task.Priority)
+	require.NotEmpty(t, submitTaskResponse.Task.SubmitTime, "submit_time should not be empty")
+	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
+	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
+	oldestUuid := submitTaskResponse.Task.Uuid
+	oldestUpdateTime := submitTaskResponse.Task.UpdateTime
+
+	// Newest, priority 0
+	submitTaskResponse, err = corndogsClient.SubmitTask(context.Background(), submitTaskRequest)
+	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
+	require.NotNil(t, submitTaskResponse.Task, "Task in response was nil")
+	require.Equal(t, submitTaskRequest.Queue, submitTaskResponse.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(0), submitTaskResponse.Task.Priority)
+	require.NotEmpty(t, submitTaskResponse.Task.SubmitTime, "submit_time should not be empty")
+	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
+	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
+	newestUuid := submitTaskResponse.Task.Uuid
+	newestUpdateTime := submitTaskResponse.Task.UpdateTime
+
+	// Check that time has passed and we're not within a single transaction or something.
+	require.Less(t, oldestUpdateTime, newestUpdateTime)
+
+	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+		Queue:        testQueue,
+		CurrentState: "testSubmitted",
+	}
+	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
+	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
+	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(0), getNextTaskResponse.Task.Priority, "expected priority to be zero")
+	require.Equal(t, oldestUuid, getNextTaskResponse.Task.Uuid, "didnt get expected oldest task")
+
+	getNextTaskResponse, err = corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
+	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
+	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(0), getNextTaskResponse.Task.Priority, "expected priority to be zero")
+	require.Equal(t, newestUuid, getNextTaskResponse.Task.Uuid, "didnt get expected newest task")
 }
 
 func TestBasicDeprioritize(t *testing.T) {
