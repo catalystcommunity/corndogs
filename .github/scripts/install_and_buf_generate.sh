@@ -1,10 +1,8 @@
 # install protoc
 PB_REL="https://github.com/protocolbuffers/protobuf/releases"
 curl -LO $PB_REL/download/v3.12.4/protoc-3.12.4-linux-x86_64.zip
-ls -l
 unzip protoc-3.12.4-linux-x86_64.zip -d $HOME/.local
 export PATH="$PATH:$HOME/.local/bin"
-
 
 # install buf
 GOBIN=/usr/local/bin go install github.com/bufbuild/buf/cmd/buf@v1.50.1
@@ -20,5 +18,4 @@ cd protos
 buf lint
 # buf dep prune
 # buf dep update
-echo YO WERE RUNNIN GENERATE
 buf generate
