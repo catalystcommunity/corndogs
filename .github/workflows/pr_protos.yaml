@@ -9,6 +9,7 @@ on:
       - 'protos/buf.work.yaml'
 jobs:
   buf:
+    if: ${{ !startsWith( github.head_ref, 'chore(ci)' ) }}
     name: Run buf commands
     runs-on: ubuntu-latest
     steps:
