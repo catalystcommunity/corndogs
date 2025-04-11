@@ -20,6 +20,10 @@ jobs:
           token: ${{ secrets.AUTOMATION_PAT }}
           ref: main
           fetch-depth: 0
+      - name: Setup git config
+        run: |
+          git config --global user.name "Catalyst Community Automation"
+          git config --global user.email "<catalyst-community@todandlorna.com>"
       - name: Install Go
         uses: actions/setup-go@v4
         with:
@@ -41,3 +45,8 @@ jobs:
         with:
           input: "protos"
           against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=main,subdir=protos"
+      - name: Commit changes
+        run: |
+          git add .
+          git commit -m "chore(ci): generate buf stuff"
+          git push
