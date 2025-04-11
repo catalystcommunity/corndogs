@@ -9,4 +9,5 @@ cd protos
 buf lint
 # buf dep prune
 # buf dep update
+echo YO WERE RUNNIN GENERATE
 buf generate
