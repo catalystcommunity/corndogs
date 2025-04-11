@@ -13,6 +13,9 @@ jobs:
     name: Run buf commands
     runs-on: ubuntu-latest
     steps:
+      - name: ECHO NONSENSE
+        run: |
+         echo ${{ github.event.head_commit.message }}
       - name: Dump Context
         uses: crazy-max/ghaction-dump-context@v2
       - name: Checkout
