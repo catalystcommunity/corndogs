@@ -10,7 +10,7 @@ GOBIN=/usr/local/bin go install github.com/bufbuild/buf/cmd/buf@v1.50.1
 
 # install plugins
 go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@1.5.1
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
 python3 -m pip install --upgrade pip
 python3 -m pip install grpclib protobuf
 
