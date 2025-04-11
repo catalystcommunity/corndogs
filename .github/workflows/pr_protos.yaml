@@ -9,13 +9,10 @@ on:
       - 'protos/buf.work.yaml'
 jobs:
   buf:
-    if: ${{ !startsWith( github.event.head_commit.message, 'chore(ci)' ) }}
+    if: ${{ !startsWith( github.event.sender.login, 'catalystcommunityci' ) }}
     name: Run buf commands
     runs-on: ubuntu-latest
     steps:
-      - name: ECHO NONSENSE
-        run: |
-         echo ${{ github.event }}
       - name: Dump Context
         uses: crazy-max/ghaction-dump-context@v2
       - name: Checkout
