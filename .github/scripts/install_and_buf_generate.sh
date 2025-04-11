@@ -7,6 +7,9 @@ python3 -m pip install grpclib protobuf
 
 cd protos
 buf lint
-buf dep prune
-buf dep update
+# buf dep prune
+# buf dep update
 buf generate
+git add .
+git commit -m "chore(ci): generate buf stuff"
+git push
