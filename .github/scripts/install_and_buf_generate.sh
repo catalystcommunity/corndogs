@@ -7,6 +7,6 @@ python3 -m pip install grpclib protobuf
 
 cd protos
 buf lint
-buf dep prune
-buf dep update
+# buf dep prune
+# buf dep update
 buf generate
