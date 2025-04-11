@@ -15,7 +15,7 @@ jobs:
     steps:
       - name: ECHO NONSENSE
         run: |
-         echo ${{ github.event.head_commit.message }}
+         echo ${{ github.event }}
       - name: Dump Context
         uses: crazy-max/ghaction-dump-context@v2
       - name: Checkout
