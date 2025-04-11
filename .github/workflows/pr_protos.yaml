@@ -22,21 +22,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13' 
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ github.token }}
       - name: Install protoc plugin dependencies
         shell: bash
         run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-          python3 -m pip install --upgrade pip
-          python3 -m pip install grpclib protobuf
-          echo "Show versions"
-          protoc-gen-go --version
-          protoc-gen-go-grpc --version
-          python3 -m pip --version
-          python3 -m pip show grpclib protobuf
-      - uses: catalystcommunity/action-buf@v2
+          ./.github/scripts/install_and_buf_generate.sh  
+      - name: Run buf breaking
+        uses: bufbuild/buf-breaking-action@v1
         with:
-          working-directory: "protos"
-          token: ${{ secrets.AUTOMATION_PAT }}
-          registry-login: false
-          breaking-against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=main,subdir=protos"
+          input: "protos"
+          against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=main,subdir=protos"
