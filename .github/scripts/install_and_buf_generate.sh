@@ -10,3 +10,6 @@ buf lint
 # buf dep prune
 # buf dep update
 buf generate
+git add .
+git commit -m "chore(ci): generate buf stuff"
+git push
