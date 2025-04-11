@@ -5,8 +5,8 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 python3 -m pip install --upgrade pip
 python3 -m pip install grpclib protobuf
 
+cd protos
 buf lint
 buf mod prune
 buf mod update
 buf generate
-buf breaking
