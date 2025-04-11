@@ -43,6 +43,8 @@ jobs:
           against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=main,subdir=protos"
       - name: Commit changes
         run: |
-          git add .
-          git commit -m "chore(ci): generate buf stuff"
-          git push
+          if [[ `git status --porcelain` ]]; then
+            git add .
+            git commit -m "chore(ci): generate buf stuff"
+            git push
+          fi
