@@ -1,8 +1,8 @@
 # install protoc
 PB_REL="https://github.com/protocolbuffers/protobuf/releases"
-curl -LO $PB_REL/download/v3.12.4/protoc-v3.12.4-linux-x86_64.zip
+curl -LO $PB_REL/download/v3.13.0/protoc-v3.13.0-linux-x86_64.zip
 echo "yet another echo"
-unzip protoc-v3.12.4-linux-x86_64.zip -d $HOME/.local
+unzip protoc-v3.13.0-linux-x86_64.zip -d $HOME/.local
 export PATH="$PATH:$HOME/.local/bin"
 
 
