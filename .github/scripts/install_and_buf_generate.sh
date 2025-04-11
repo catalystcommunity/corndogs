@@ -1,7 +1,7 @@
 # install protoc
 PB_REL="https://github.com/protocolbuffers/protobuf/releases"
-curl -LO $PB_REL/download/v30.2/protoc-30.2-linux-x86_64.zip
-unzip protoc-30.2-linux-x86_64.zip -d $HOME/.local
+curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v3.12.4/protoc-v3.12.4-linux-x86_64.zip
+unzip protoc-v3.12.4-linux-x86_64.zip -d $HOME/.local
 export PATH="$PATH:$HOME/.local/bin"
 
 
@@ -9,8 +9,8 @@ export PATH="$PATH:$HOME/.local/bin"
 GOBIN=/usr/local/bin go install github.com/bufbuild/buf/cmd/buf@v1.50.1
 
 # install plugins
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@1.5.1
 python3 -m pip install --upgrade pip
 python3 -m pip install grpclib protobuf
 
