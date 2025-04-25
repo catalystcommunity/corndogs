@@ -1,9 +1,9 @@
 # install protoc
 PB_REL="https://github.com/protocolbuffers/protobuf/releases"
-curl -LO $PB_REL/download/v3.12.4/protoc-3.12.4-linux-x86_64.zip
-unzip protoc-3.12.4-linux-x86_64.zip -d $HOME/.local
+curl -LO $PB_REL/download/v30.2/protoc-30.2-linux-x86_64.zip
+unzip protoc-30.2-linux-x86_64.zip -d $HOME/.local
 export PATH="$PATH:$HOME/.local/bin"
-rm protoc-3.12.4-linux-x86_64.zip
+rm protoc-30.2-linux-x86_64.zip
 
 # install buf
 GOBIN=/usr/local/bin go install github.com/bufbuild/buf/cmd/buf@v1.50.1
