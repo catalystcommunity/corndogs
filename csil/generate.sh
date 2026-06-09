@@ -9,6 +9,15 @@
 # Requires `csilgen` on PATH (build: `cargo install --path crates/csilgen-cli`
 # in ~/repos/catalystcommunity/csilgen, then `cargo run -p xtask install-wasm`).
 #
+# IMPORTANT: regenerate with the SAME csilgen binary CI uses — the
+# corndogs-test-env image (which bakes csilgen at the pinned rev) — e.g.:
+#   docker run --rm -v "$PWD:/src" -w /src --entrypoint bash \
+#     containers.catalystsquad.com/public/catalystcommunity/corndogs-test-env:latest \
+#     -lc 'HOME=/home/runner ./csil/generate.sh'
+# A locally-built csilgen can emit byte-different output (e.g. Python import
+# ordering) and trip csil-gen-check. See csilgen request
+# 2026-06-09-nondeterministic-python-imports.md.
+#
 # All four languages now generate real, typed, transport-agnostic clients via the
 # *-client targets (csilgen requests resolved 2026-06-08). See clients/README.md.
 set -euo pipefail
