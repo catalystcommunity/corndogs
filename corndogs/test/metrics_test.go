@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
+	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +16,7 @@ func TestGetQueues(t *testing.T) {
 	testPayload := []byte("testPayload" + testID)
 	testQueue := "testQueue" + testID
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -31,7 +31,7 @@ func TestGetQueues(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	getQueuesResponse, err := corndogsClient.GetQueues(context.Background(), &corndogsv1alpha1.GetQueuesRequest{})
+	getQueuesResponse, err := corndogsClient.GetQueues(context.Background(), &api.GetQueuesRequest{})
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
 	require.GreaterOrEqual(t, len(getQueuesResponse.Queues), 1, "expected at least one queue in list of queues")
 	require.GreaterOrEqual(t, getQueuesResponse.TotalTaskCount, int64(1), "expected a total_task_count value")
@@ -45,7 +45,7 @@ func TestGetQueueTaskCounts(t *testing.T) {
 	testPayload := []byte("testPayload" + testID)
 	testQueue := "testQueue" + testID
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -60,7 +60,7 @@ func TestGetQueueTaskCounts(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	getQueueTaskCountsResponse, err := corndogsClient.GetQueueTaskCounts(context.Background(), &corndogsv1alpha1.GetQueueTaskCountsRequest{})
+	getQueueTaskCountsResponse, err := corndogsClient.GetQueueTaskCounts(context.Background(), &api.GetQueueTaskCountsRequest{})
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
 	require.GreaterOrEqual(t, len(getQueueTaskCountsResponse.QueueCounts), 1, "expected at least one queue in queue_counts")
 	require.GreaterOrEqual(t, getQueueTaskCountsResponse.TotalTaskCount, int64(1), "expected a total_task_count value")
@@ -74,7 +74,7 @@ func TestGetTaskStateCounts(t *testing.T) {
 	testPayload := []byte("testPayload" + testID)
 	testQueue := "testQueue" + testID
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -94,7 +94,7 @@ func TestGetTaskStateCounts(t *testing.T) {
 	require.NotNil(t, submitTaskResponse.Task, "Task in response was nil")
 
 	// Move one to the AutoTargetState
-	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest := &api.GetNextTaskRequest{
 		Queue:        testQueue,
 		CurrentState: "testSubmitted",
 	}
@@ -103,7 +103,7 @@ func TestGetTaskStateCounts(t *testing.T) {
 	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
 	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
 
-	getTaskStateCountsRequest := &corndogsv1alpha1.GetTaskStateCountsRequest{
+	getTaskStateCountsRequest := &api.GetTaskStateCountsRequest{
 		Queue: testQueue,
 	}
 
@@ -127,7 +127,7 @@ func TestGetQueueAndStateCounts(t *testing.T) {
 
 	// Create and get a task in each queue
 	for _, suffix := range queueSuffix {
-		submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+		submitTaskRequest := &api.SubmitTaskRequest{
 			Queue:           testQueue + suffix,
 			CurrentState:    currentState,
 			AutoTargetState: autoTargetState,
@@ -147,7 +147,7 @@ func TestGetQueueAndStateCounts(t *testing.T) {
 		require.NotNil(t, submitTaskResponse.Task, "Task in response was nil")
 
 		// Move one to the AutoTargetState
-		getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+		getNextTaskRequest := &api.GetNextTaskRequest{
 			Queue:        testQueue + suffix,
 			CurrentState: "testSubmitted",
 		}
@@ -157,7 +157,7 @@ func TestGetQueueAndStateCounts(t *testing.T) {
 		require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
 	}
 
-	getQueueAndStateCountsResponse, err := corndogsClient.GetQueueAndStateCounts(context.Background(), &corndogsv1alpha1.GetQueueAndStateCountsRequest{})
+	getQueueAndStateCountsResponse, err := corndogsClient.GetQueueAndStateCounts(context.Background(), &api.GetQueueAndStateCountsRequest{})
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
 	queueAndStateCounts := getQueueAndStateCountsResponse.QueueAndStateCounts
 

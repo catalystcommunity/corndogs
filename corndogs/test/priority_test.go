@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
+	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,7 +17,7 @@ func TestBasicPriority(t *testing.T) {
 	testPayload := []byte("testPayload" + testID)
 	testQueue := "testQueue" + testID
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -51,7 +51,7 @@ func TestBasicPriority(t *testing.T) {
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
 	require.NotNil(t, submitTaskResponse.Task, "Task in response was nil")
 
-	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest := &api.GetNextTaskRequest{
 		Queue:        testQueue,
 		CurrentState: "testSubmitted",
 	}
@@ -76,7 +76,7 @@ func TestOldestWithinPriority(t *testing.T) {
 	testPayload := []byte("testPayload" + testID)
 	testQueue := "testQueue" + testID
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -110,7 +110,7 @@ func TestOldestWithinPriority(t *testing.T) {
 	// Check that time has passed and we're not within a single transaction or something.
 	require.Less(t, oldestUpdateTime, newestUpdateTime)
 
-	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest := &api.GetNextTaskRequest{
 		Queue:        testQueue,
 		CurrentState: "testSubmitted",
 	}
@@ -136,7 +136,7 @@ func TestBasicDeprioritize(t *testing.T) {
 	testPayload := []byte("testPayload" + testID)
 	testQueue := "testQueue" + testID
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -171,7 +171,7 @@ func TestBasicDeprioritize(t *testing.T) {
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
 	require.NotNil(t, submitTaskResponse.Task, "Task in response was nil")
 
-	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest := &api.GetNextTaskRequest{
 		Queue:        testQueue,
 		CurrentState: "testSubmitted",
 	}
@@ -196,7 +196,7 @@ func TestUpdatePriorityUp(t *testing.T) {
 	testPayload := []byte("testPayload" + testID)
 	testQueue := "testQueue" + testID
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -212,7 +212,7 @@ func TestUpdatePriorityUp(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	updateTaskRequest := &corndogsv1alpha1.UpdateTaskRequest{
+	updateTaskRequest := &api.UpdateTaskRequest{
 		Uuid:     submitTaskResponse.Task.Uuid,
 		Queue:    "testQueue" + testID,
 		Priority: 1,
@@ -234,7 +234,7 @@ func TestUpdatePriorityDown(t *testing.T) {
 	testPayload := []byte("testPayload" + testID)
 	testQueue := "testQueue" + testID
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -250,7 +250,7 @@ func TestUpdatePriorityDown(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	updateTaskRequest := &corndogsv1alpha1.UpdateTaskRequest{
+	updateTaskRequest := &api.UpdateTaskRequest{
 		Uuid:     submitTaskResponse.Task.Uuid,
 		Queue:    "testQueue" + testID,
 		Priority: -1,
@@ -272,7 +272,7 @@ func TestUpdatePriorityNotSpecified(t *testing.T) {
 	testPayload := []byte("testPayload" + testID)
 	testQueue := "testQueue" + testID
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -288,7 +288,7 @@ func TestUpdatePriorityNotSpecified(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	updateTaskRequest := &corndogsv1alpha1.UpdateTaskRequest{
+	updateTaskRequest := &api.UpdateTaskRequest{
 		Uuid:  submitTaskResponse.Task.Uuid,
 		Queue: "testQueue" + testID,
 	}

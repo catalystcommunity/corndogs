@@ -1,0 +1,44 @@
+name: corndogs-csil-gen-check
+description: "Validate the CSIL and fail if the committed generated clients are stale"
+triggers:
+  events:
+    - pull_request_opened
+    - pull_request_updated
+  branches:
+    - main
+paths:
+  include:
+    - "csil/**"
+    - "clients/**"
+job:
+  # corndogs-test-env bakes in csilgen + its wasm generators under
+  # /home/runner/.csilgen (world-readable), so HOME=/home/runner lets csilgen
+  # discover them. Pinned csilgen rev lives in the image + csil/generate.sh.
+  image: containers.catalystsquad.com/public/catalystcommunity/corndogs-test-env:latest
+  command: |
+    set -e
+    # Writes regenerated clients back INTO the worktree (clients/) and git-diffs
+    # it, so it must run as the user that owns the tree: the run-local host-uid
+    # default, or the worker's runner uid (the workspace is chowned to it). Do
+    # NOT opt this job into run-local uid parity — that would make 1001 write a
+    # host-owned tree. (Run via run-local, it regenerates into your checkout.)
+    export HOME=/home/runner    # where the baked csilgen generators live
+    if [ "${REACTORCIDE_WORKER_MODE:-remote}" = "local" ]; then
+      cd /job/src
+    else
+      git clone --branch "${REACTORCIDE_HEAD_REF:-$REACTORCIDE_PR_REF}" \
+        "${REACTORCIDE_HEAD_URL:-$REACTORCIDE_SOURCE_URL}" /job/src
+      cd /job/src
+    fi
+
+    csilgen validate --input csil/corndogs.csil
+    ./csil/generate.sh                 # clients/<lang>/gen/ + corndogs/server/csilapi/
+    git diff --exit-code -- clients/ corndogs/server/csilapi/ || {
+      echo ""
+      echo "Generated code is stale — run ./csil/generate.sh and commit the result."
+      exit 1
+    }
+    echo "Generated clients + server types are up to date."
+  timeout: 600
+  priority: 10
+  raw_command: true

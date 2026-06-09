@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
+	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,7 +19,7 @@ func TestBasicTimeout(t *testing.T) {
 	var timeout int64 = 5
 	timeoutDuration := time.Duration(timeout) * time.Second
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -35,7 +35,7 @@ func TestBasicTimeout(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest := &api.GetNextTaskRequest{
 		Queue:        testQueue,
 		CurrentState: "testSubmitted",
 	}
@@ -51,7 +51,7 @@ func TestBasicTimeout(t *testing.T) {
 	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
 
 	timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
-	cleanUpTimedOutRequest := &corndogsv1alpha1.CleanUpTimedOutRequest{
+	cleanUpTimedOutRequest := &api.CleanUpTimedOutRequest{
 		AtTime: timeWhenTimedout,
 		Queue:  testQueue,
 	}
@@ -80,7 +80,7 @@ func TestNoTimeout(t *testing.T) {
 	testQueue := "testQueue" + testID
 	var timeout int64 = -1
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -97,7 +97,7 @@ func TestNoTimeout(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest := &api.GetNextTaskRequest{
 		Queue:        testQueue,
 		CurrentState: "testSubmitted",
 	}
@@ -114,7 +114,7 @@ func TestNoTimeout(t *testing.T) {
 
 	timeoutDuration := time.Duration(5) * time.Second
 	timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
-	cleanUpTimedOutRequest := &corndogsv1alpha1.CleanUpTimedOutRequest{
+	cleanUpTimedOutRequest := &api.CleanUpTimedOutRequest{
 		AtTime: timeWhenTimedout,
 		Queue:  testQueue,
 	}
@@ -135,7 +135,7 @@ func TestGetNextTaskOverrideTimeout(t *testing.T) {
 	testQueue := "testQueue" + testID
 	var timeout int64 = 5
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -150,7 +150,7 @@ func TestGetNextTaskOverrideTimeout(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest := &api.GetNextTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		OverrideTimeout: timeout,
@@ -166,7 +166,7 @@ func TestGetNextTaskOverrideTimeout(t *testing.T) {
 
 	timeoutDuration := time.Duration(timeout) * time.Second
 	timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
-	cleanUpTimedOutRequest := &corndogsv1alpha1.CleanUpTimedOutRequest{
+	cleanUpTimedOutRequest := &api.CleanUpTimedOutRequest{
 		AtTime: timeWhenTimedout,
 		Queue:  testQueue,
 	}
@@ -183,7 +183,7 @@ func TestGetNextTaskOverrideNoTimeout(t *testing.T) {
 	testQueue := "testQueue" + testID
 	var timeout int64 = 5
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -198,7 +198,7 @@ func TestGetNextTaskOverrideNoTimeout(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest := &api.GetNextTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		OverrideTimeout: -1, // No timeout
@@ -214,7 +214,7 @@ func TestGetNextTaskOverrideNoTimeout(t *testing.T) {
 
 	timeoutDuration := time.Duration(timeout) * time.Second
 	timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
-	cleanUpTimedOutRequest := &corndogsv1alpha1.CleanUpTimedOutRequest{
+	cleanUpTimedOutRequest := &api.CleanUpTimedOutRequest{
 		AtTime: timeWhenTimedout,
 		Queue:  testQueue,
 	}
@@ -231,7 +231,7 @@ func TestGetNextTaskOverrideTimeoutNotSet(t *testing.T) {
 	testQueue := "testQueue" + testID
 	var timeout int64 = 5
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           testQueue,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -246,7 +246,7 @@ func TestGetNextTaskOverrideTimeoutNotSet(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest := &api.GetNextTaskRequest{
 		Queue:        testQueue,
 		CurrentState: "testSubmitted",
 	}
@@ -262,7 +262,7 @@ func TestGetNextTaskOverrideTimeoutNotSet(t *testing.T) {
 
 	timeoutDuration := time.Duration(timeout) * time.Second
 	timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
-	cleanUpTimedOutRequest := &corndogsv1alpha1.CleanUpTimedOutRequest{
+	cleanUpTimedOutRequest := &api.CleanUpTimedOutRequest{
 		AtTime: timeWhenTimedout,
 		Queue:  testQueue,
 	}
@@ -282,7 +282,7 @@ func TestTimeoutSpecificQueue(t *testing.T) {
 
 	// Create and get a task in each queue
 	for _, suffix := range queueSuffix {
-		submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+		submitTaskRequest := &api.SubmitTaskRequest{
 			Queue:           testQueue + suffix,
 			CurrentState:    "testSubmitted",
 			AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -299,7 +299,7 @@ func TestTimeoutSpecificQueue(t *testing.T) {
 		require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 		require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-		getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+		getNextTaskRequest := &api.GetNextTaskRequest{
 			Queue:        testQueue + suffix,
 			CurrentState: "testSubmitted",
 		}
@@ -319,7 +319,7 @@ func TestTimeoutSpecificQueue(t *testing.T) {
 	for _, suffix := range queueSuffix {
 		timeoutDuration := time.Duration(timeout) * time.Second
 		timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
-		cleanUpTimedOutRequest := &corndogsv1alpha1.CleanUpTimedOutRequest{
+		cleanUpTimedOutRequest := &api.CleanUpTimedOutRequest{
 			AtTime: timeWhenTimedout,
 			Queue:  testQueue + suffix,
 		}
@@ -340,7 +340,7 @@ func TestTimeoutNoQueue(t *testing.T) {
 
 	// Create and get a task in each queue
 	for _, suffix := range queueSuffix {
-		submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+		submitTaskRequest := &api.SubmitTaskRequest{
 			Queue:           testQueue + suffix,
 			CurrentState:    "testSubmitted",
 			AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -357,7 +357,7 @@ func TestTimeoutNoQueue(t *testing.T) {
 		require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 		require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-		getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+		getNextTaskRequest := &api.GetNextTaskRequest{
 			Queue:        testQueue + suffix,
 			CurrentState: "testSubmitted",
 		}
@@ -376,7 +376,7 @@ func TestTimeoutNoQueue(t *testing.T) {
 	// Timeout both queues
 	timeoutDuration := time.Duration(timeout) * time.Second
 	timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
-	cleanUpTimedOutRequest := &corndogsv1alpha1.CleanUpTimedOutRequest{
+	cleanUpTimedOutRequest := &api.CleanUpTimedOutRequest{
 		AtTime: timeWhenTimedout,
 	}
 	cleanUpTimedOutResponse, err := corndogsClient.CleanUpTimedOut(context.Background(), cleanUpTimedOutRequest)

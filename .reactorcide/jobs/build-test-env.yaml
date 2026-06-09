@@ -1,0 +1,22 @@
+name: corndogs-build-test-env
+description: "Build + push the corndogs-test-env runner image (Go + Postgres + csilgen)"
+triggers:
+  events:
+    - push
+  branches:
+    - main
+paths:
+  include:
+    - ".reactorcide/images/corndogs-test-env/**"
+job:
+  image: containers.catalystsquad.com/public/reactorcide/runnerbase:dev
+  command: "bash /job/src/.reactorcide/jobs/scripts/build-test-env.sh"
+  timeout: 2400          # csilgen compiles from source in the image build
+  priority: 10
+  capabilities:
+    - docker
+environment:
+  REGISTRY: "containers.catalystsquad.com"
+  IMAGE_PATH: "public/catalystcommunity/corndogs-test-env"
+  REGISTRY_USER: "${secret:catalystcommunity/registry:user}"
+  REGISTRY_PASSWORD: "${secret:catalystcommunity/registry:password}"

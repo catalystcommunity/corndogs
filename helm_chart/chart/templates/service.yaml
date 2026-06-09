@@ -8,9 +8,9 @@ spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: corndogsgrpc
+      targetPort: corndogshttp
       protocol: TCP
-      name: corndogsgrpc
+      name: corndogshttp
     {{- if .Values.appconfig.prometheusEnabled }}
     - port: 8080
       targetPort: corndogsmetrics

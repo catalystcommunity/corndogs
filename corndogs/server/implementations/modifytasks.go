@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
+	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/metrics"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
-	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
 )
 
-func (s *V1Alpha1Server) UpdateTask(ctx context.Context, req *corndogsv1alpha1.UpdateTaskRequest) (*corndogsv1alpha1.UpdateTaskResponse, error) {
+func (s *V1Alpha1Server) UpdateTask(ctx context.Context, req api.UpdateTaskRequest) (api.UpdateTaskResponse, error) {
 	if req.CurrentState == "" {
 		req.CurrentState = config.DefaultStartingState
 	}
@@ -19,30 +19,42 @@ func (s *V1Alpha1Server) UpdateTask(ctx context.Context, req *corndogsv1alpha1.U
 	if req.AutoTargetState == "" {
 		req.AutoTargetState = req.NewState + config.DefaultWorkingSuffix
 	}
-	response, err := store.AppStore.UpdateTask(ctx, req)
-	return response, err
+	resp, err := store.AppStore.UpdateTask(ctx, &req)
+	if resp == nil {
+		return api.UpdateTaskResponse{}, err
+	}
+	return *resp, err
 }
 
-func (s *V1Alpha1Server) CompleteTask(ctx context.Context, req *corndogsv1alpha1.CompleteTaskRequest) (*corndogsv1alpha1.CompleteTaskResponse, error) {
-	response, err := store.AppStore.CompleteTask(ctx, req)
+func (s *V1Alpha1Server) CompleteTask(ctx context.Context, req api.CompleteTaskRequest) (api.CompleteTaskResponse, error) {
+	resp, err := store.AppStore.CompleteTask(ctx, &req)
 	if config.PrometheusEnabled && err == nil {
 		metrics.CompletedTasksTotal.Inc()
 	}
-	return response, err
+	if resp == nil {
+		return api.CompleteTaskResponse{}, err
+	}
+	return *resp, err
 }
 
-func (s *V1Alpha1Server) CancelTask(ctx context.Context, req *corndogsv1alpha1.CancelTaskRequest) (*corndogsv1alpha1.CancelTaskResponse, error) {
-	response, err := store.AppStore.CancelTask(ctx, req)
+func (s *V1Alpha1Server) CancelTask(ctx context.Context, req api.CancelTaskRequest) (api.CancelTaskResponse, error) {
+	resp, err := store.AppStore.CancelTask(ctx, &req)
 	if config.PrometheusEnabled && err == nil {
 		metrics.CanceledTasksTotal.Inc()
 	}
-	return response, err
+	if resp == nil {
+		return api.CancelTaskResponse{}, err
+	}
+	return *resp, err
 }
 
-func (s *V1Alpha1Server) CleanUpTimedOut(ctx context.Context, req *corndogsv1alpha1.CleanUpTimedOutRequest) (*corndogsv1alpha1.CleanUpTimedOutResponse, error) {
-	response, err := store.AppStore.CleanUpTimedOut(ctx, req)
+func (s *V1Alpha1Server) CleanUpTimedOut(ctx context.Context, req api.CleanUpTimedOutRequest) (api.CleanUpTimedOutResponse, error) {
+	resp, err := store.AppStore.CleanUpTimedOut(ctx, &req)
 	if config.PrometheusEnabled && err == nil {
 		metrics.TimedOutTasksTotal.Inc()
 	}
-	return response, err
+	if resp == nil {
+		return api.CleanUpTimedOutResponse{}, err
+	}
+	return *resp, err
 }

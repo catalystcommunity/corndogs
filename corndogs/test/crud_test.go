@@ -4,15 +4,13 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
-	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
+	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/stretchr/testify/require"
 
 	// This import path is based on the name declaration in the go.mod,
 	// and the gen/proto/go output location in the buf.gen.yaml.
-	"google.golang.org/grpc"
 )
 
 var client = GetCorndogsClient()
@@ -21,7 +19,7 @@ var testID = gofakeit.Breakfast() + gofakeit.Dessert()
 // assume an empty db, but we are using conventions to try to do this against a live server if needed
 func init() {
 	// Get the next task in the test_via_core_corndogs_repo queue, which should be none
-	getNextRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextRequest := &api.GetNextTaskRequest{
 		Queue:        "testQueue" + GetTestID(),
 		CurrentState: "submitted",
 	}
@@ -41,7 +39,7 @@ func TestBasicFlow(t *testing.T) {
 	testPayload := []byte("testPayload" + testID)
 
 	// Differentiate values so they can be run multiple at a time on a live environment easily
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           "testQueue" + testID,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -56,7 +54,7 @@ func TestBasicFlow(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest := &api.GetNextTaskRequest{
 		Queue:        "testQueue" + testID,
 		CurrentState: "testSubmitted",
 	}
@@ -70,7 +68,7 @@ func TestBasicFlow(t *testing.T) {
 	require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
 	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
 
-	updateTaskRequest := &corndogsv1alpha1.UpdateTaskRequest{
+	updateTaskRequest := &api.UpdateTaskRequest{
 		Uuid:            getNextTaskResponse.Task.Uuid,
 		Queue:           "testQueue" + testID,
 		CurrentState:    "testSubmitted" + workingTaskSuffix,
@@ -88,7 +86,7 @@ func TestBasicFlow(t *testing.T) {
 	require.Equal(t, updateTaskRequest.AutoTargetState, updateTaskResponse.Task.AutoTargetState, "Task State was not updated")
 
 	// Now get the updated task
-	getNextTaskRequest = &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest = &api.GetNextTaskRequest{
 		Queue:        "testQueue" + testID,
 		CurrentState: "testSubmitted-updated",
 	}
@@ -102,7 +100,7 @@ func TestBasicFlow(t *testing.T) {
 	require.Equal(t, "testSubmitted-completing", getNextTaskResponse.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
 	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Task.AutoTargetState, "Task CurrentState does not have correct suffix added")
 
-	completeTaskRequest := &corndogsv1alpha1.CompleteTaskRequest{
+	completeTaskRequest := &api.CompleteTaskRequest{
 		Uuid:         getNextTaskResponse.Task.Uuid,
 		Queue:        "testQueue" + testID,
 		CurrentState: "testSubmitted-updated" + workingTaskSuffix,
@@ -124,7 +122,7 @@ func TestGetNextTaskOverrideState(t *testing.T) {
 	workingTaskSuffix := "-working"
 	testPayload := []byte("testPayload" + testID)
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           "testQueue" + testID,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -139,7 +137,7 @@ func TestGetNextTaskOverrideState(t *testing.T) {
 	require.NotEmpty(t, submitTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, submitTaskResponse.Task.Uuid, "uuid should not be empty")
 
-	getNextTaskRequest := &corndogsv1alpha1.GetNextTaskRequest{
+	getNextTaskRequest := &api.GetNextTaskRequest{
 		Queue:                   "testQueue" + testID,
 		CurrentState:            "testSubmitted",
 		OverrideCurrentState:    "testOverriddenCurrentState",
@@ -162,7 +160,7 @@ func TestGetTaskStateByID(t *testing.T) {
 	workingTaskSuffix := "-working"
 	testPayload := []byte("testPayload" + testID)
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           "testQueue" + testID,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -188,7 +186,7 @@ func TestGetTaskStateByID(t *testing.T) {
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
 	require.NotNil(t, submitTaskResponse.Task, "Task in response was nil")
 
-	getTaskStateByIDRequest := &corndogsv1alpha1.GetTaskStateByIDRequest{
+	getTaskStateByIDRequest := &api.GetTaskStateByIDRequest{
 		Queue: task.Queue,
 		Uuid:  task.Uuid,
 	}
@@ -208,7 +206,7 @@ func TestGetTaskStateByIDArchived(t *testing.T) {
 	workingTaskSuffix := "-working"
 	testPayload := []byte("testPayload" + testID)
 
-	submitTaskRequest := &corndogsv1alpha1.SubmitTaskRequest{
+	submitTaskRequest := &api.SubmitTaskRequest{
 		Queue:           "testQueue" + testID,
 		CurrentState:    "testSubmitted",
 		AutoTargetState: "testSubmitted" + workingTaskSuffix,
@@ -220,7 +218,7 @@ func TestGetTaskStateByIDArchived(t *testing.T) {
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
 	require.NotNil(t, submitTaskResponse.Task, "Task in response was nil")
 
-	completeTaskRequest := &corndogsv1alpha1.CompleteTaskRequest{
+	completeTaskRequest := &api.CompleteTaskRequest{
 		Uuid:         submitTaskResponse.Task.Uuid,
 		Queue:        submitTaskResponse.Task.Queue,
 		CurrentState: submitTaskResponse.Task.CurrentState,
@@ -230,7 +228,7 @@ func TestGetTaskStateByIDArchived(t *testing.T) {
 	require.NotNil(t, completeTaskResponse.Task, "Task in response was nil")
 	task := completeTaskResponse.Task
 
-	getTaskStateByIDRequest := &corndogsv1alpha1.GetTaskStateByIDRequest{
+	getTaskStateByIDRequest := &api.GetTaskStateByIDRequest{
 		Queue: task.Queue,
 		Uuid:  task.Uuid,
 	}
@@ -244,17 +242,6 @@ func TestGetTaskStateByIDArchived(t *testing.T) {
 	require.Equal(t, getTaskStateByIDResponse.Task.Payload, task.Payload, "Payload is not equal")
 }
 
-func GetCorndogsClient() corndogsv1alpha1.CorndogsServiceClient {
-	// connect
-	connectTo := "127.0.0.1:5080"
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	conn, err := grpc.DialContext(ctx, connectTo, grpc.WithInsecure())
-	if err != nil {
-		panic(err)
-	}
-	cancel()
-	return corndogsv1alpha1.NewCorndogsServiceClient(conn)
-}
 
 func GetTestID() string {
 	return gofakeit.Breakfast() + gofakeit.Dessert()

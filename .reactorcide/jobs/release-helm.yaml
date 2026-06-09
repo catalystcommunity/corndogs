@@ -1,0 +1,19 @@
+name: corndogs-release-helm
+description: "On merge to main touching the chart: package it and publish a GitHub release"
+triggers:
+  events:
+    - pull_request_merged
+  branches:
+    - main
+paths:
+  include:
+    - "helm_chart/chart/**"
+job:
+  image: containers.catalystsquad.com/public/reactorcide/runnerbase:dev
+  command: "bash /job/src/.reactorcide/jobs/scripts/release-helm.sh"
+  timeout: 1200
+  priority: 15
+  raw_command: true
+  disable_run_local: true
+environment:
+  GITHUB_PAT: "${secret:catalystcommunity/ci:githubpat}"

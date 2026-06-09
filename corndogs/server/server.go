@@ -1,106 +1,145 @@
 package server
 
 import (
-	"fmt"
-	"log"
-	"net"
+	"context"
+	"io"
+	"net/http"
+	"strings"
 
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
+	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/implementations"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/logging"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/metrics"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store/postgresstore"
-	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/fxamacker/cbor/v2"
 	zlog "github.com/rs/zerolog/log"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/status"
-
-	// This import path is based on the name declaration in the go.mod,
-	// and the gen/proto/go output location in the buf.gen.yaml.
-	"google.golang.org/grpc"
 )
 
+const listenOn = "0.0.0.0:5080"
+
+// servicePath is the URL prefix for unary CSIL calls: /v1alpha1/corndogs/{Method}.
+const servicePath = "/v1alpha1/corndogs/"
+
 func SetupAndRun() {
-	// get logging setup
 	logging.InitLogging()
-	// use the postgres store
 	store.SetStore(postgresstore.PostgresStore{})
 	if err := run(); err != nil {
-		log.Fatal(err)
+		zlog.Fatal().Err(err).Msg("server exited")
+	}
+}
+
+// methodHandler decodes a CBOR request body, invokes the service, and returns the
+// CBOR-encoded response.
+type methodHandler func(ctx context.Context, body []byte) ([]byte, error)
+
+// wrap adapts a typed unary service method into a CBOR byte handler.
+func wrap[Req any, Resp any](fn func(context.Context, Req) (Resp, error)) methodHandler {
+	return func(ctx context.Context, body []byte) ([]byte, error) {
+		var req Req
+		if len(body) > 0 {
+			if err := cbor.Unmarshal(body, &req); err != nil {
+				return nil, err
+			}
+		}
+		resp, err := fn(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		return cbor.Marshal(resp)
 	}
 }
 
 func run() error {
-	// initialize store
 	deferredFunc, err := store.AppStore.Initialize()
 	if err != nil {
-		zlog.Err(err)
+		zlog.Error().Err(err).Msg("store initialize failed")
 		panic(err)
 	}
-	// if the store has a deferred call, defer it
 	if deferredFunc != nil {
 		defer deferredFunc()
 	}
-	// create listener
-	listenOn := "0.0.0.0:5080"
-	listener, err := net.Listen("tcp", listenOn)
-	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %w", listenOn, err)
-	}
-
-	// recovery handler - useless for now, fill in with sentry or something later
-	opts := []grpc_recovery.Option{
-		grpc_recovery.WithRecoveryHandler(func(p interface{}) (err error) {
-			fmt.Printf("panicked: %v", p)
-			return status.Errorf(codes.Unknown, "panic triggered: %v", p)
-		}),
-	}
-	// create grpc server
-	var grpcChain grpc.UnaryServerInterceptor
-	if config.PrometheusEnabled {
-		grpcChain = grpc_middleware.ChainUnaryServer(
-			grpc_recovery.UnaryServerInterceptor(opts...),
-			grpc_prometheus.UnaryServerInterceptor,
-		)
-	} else {
-		grpcChain = grpc_middleware.ChainUnaryServer(
-			grpc_recovery.UnaryServerInterceptor(opts...),
-		)
-	}
-	server := grpc.NewServer(
-		grpc.UnaryInterceptor(
-			grpcChain,
-		),
-	)
-
-	// register ingest service
-	corndogsv1alpha1.RegisterCorndogsServiceServer(server, &implementations.V1Alpha1Server{})
 
 	if config.PrometheusEnabled {
-		grpc_prometheus.EnableHandlingTimeHistogram()
-		// register server with grpc_prometheus
-		grpc_prometheus.Register(server)
 		metrics.StartMetricsEndpoint()
 		metrics.InitializeMetrics()
 		if config.PrometheusQueueSizeEnabled {
 			metrics.StartQueueSizeMetric(config.PrometheusQueueSizeInterval, config.PrometheusMetricQueryTimeout)
 		}
 	}
-	// register health service (used in k8s health checks)
-	healthService := implementations.NewHealthChecker()
-	grpc_health_v1.RegisterHealthServer(server, healthService)
 
-	// serve
-	log.Println("Listening on", listenOn)
-	err = server.Serve(listener)
-	if err != nil {
-		return fmt.Errorf("failed to serve gRPC server: %w", err)
+	srv := &implementations.V1Alpha1Server{}
+	handlers := map[string]methodHandler{
+		"SubmitTask":             wrap(srv.SubmitTask),
+		"GetTaskStateByID":       wrap(srv.GetTaskStateByID),
+		"GetNextTask":            wrap(srv.GetNextTask),
+		"UpdateTask":             wrap(srv.UpdateTask),
+		"CompleteTask":           wrap(srv.CompleteTask),
+		"CancelTask":             wrap(srv.CancelTask),
+		"CleanUpTimedOut":        wrap(srv.CleanUpTimedOut),
+		"GetQueues":              wrap(srv.GetQueues),
+		"GetQueueTaskCounts":     wrap(srv.GetQueueTaskCounts),
+		"GetTaskStateCounts":     wrap(srv.GetTaskStateCounts),
+		"GetQueueAndStateCounts": wrap(srv.GetQueueAndStateCounts),
 	}
 
-	return nil
+	mux := http.NewServeMux()
+	// Liveness/readiness for k8s (replaces the old gRPC health service).
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc(servicePath, func(w http.ResponseWriter, r *http.Request) {
+		dispatch(w, r, handlers)
+	})
+
+	zlog.Info().Str("addr", listenOn).Msg("corndogs listening (CBOR over HTTP)")
+	return http.ListenAndServe(listenOn, mux)
+}
+
+func dispatch(w http.ResponseWriter, r *http.Request, handlers map[string]methodHandler) {
+	defer func() {
+		if p := recover(); p != nil {
+			zlog.Error().Interface("panic", p).Msg("handler panicked")
+			writeError(w, http.StatusInternalServerError, 13, "internal error")
+		}
+	}()
+
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, 12, "method not allowed")
+		return
+	}
+	method := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+	h, ok := handlers[method]
+	if !ok {
+		writeError(w, http.StatusNotFound, 12, "unknown method: "+method)
+		return
+	}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 3, "read body: "+err.Error())
+		return
+	}
+	respBytes, err := h(r.Context(), body)
+	if err != nil {
+		zlog.Error().Err(err).Str("method", method).Msg("handler error")
+		writeError(w, http.StatusInternalServerError, 13, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/cbor")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(respBytes)
+}
+
+// writeError sends a CBOR-encoded ServiceError with the given HTTP status.
+func writeError(w http.ResponseWriter, status int, code uint64, msg string) {
+	b, err := cbor.Marshal(api.ServiceError{Code: code, Message: msg})
+	if err != nil {
+		http.Error(w, msg, status)
+		return
+	}
+	w.Header().Set("Content-Type", "application/cbor")
+	w.WriteHeader(status)
+	_, _ = w.Write(b)
 }

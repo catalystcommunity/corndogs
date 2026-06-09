@@ -4,22 +4,28 @@ import (
 	"context"
 
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
+	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
-	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
 )
 
-func (s *V1Alpha1Server) GetTaskStateByID(ctx context.Context, req *corndogsv1alpha1.GetTaskStateByIDRequest) (*corndogsv1alpha1.GetTaskStateByIDResponse, error) {
-	response, err := store.AppStore.MustGetTaskStateByID(ctx, req)
-	return response, err
+func (s *V1Alpha1Server) GetTaskStateByID(ctx context.Context, req api.GetTaskStateByIDRequest) (api.GetTaskStateByIDResponse, error) {
+	resp, err := store.AppStore.MustGetTaskStateByID(ctx, &req)
+	if resp == nil {
+		return api.GetTaskStateByIDResponse{}, err
+	}
+	return *resp, err
 }
 
-func (s *V1Alpha1Server) GetNextTask(ctx context.Context, req *corndogsv1alpha1.GetNextTaskRequest) (*corndogsv1alpha1.GetNextTaskResponse, error) {
+func (s *V1Alpha1Server) GetNextTask(ctx context.Context, req api.GetNextTaskRequest) (api.GetNextTaskResponse, error) {
 	if req.Queue == "" {
 		req.Queue = config.DefaultQueue
 	}
 	if req.CurrentState == "" {
 		req.CurrentState = config.DefaultStartingState
 	}
-	response, err := store.AppStore.GetNextTask(ctx, req)
-	return response, err
+	resp, err := store.AppStore.GetNextTask(ctx, &req)
+	if resp == nil {
+		return api.GetNextTaskResponse{}, err
+	}
+	return *resp, err
 }
