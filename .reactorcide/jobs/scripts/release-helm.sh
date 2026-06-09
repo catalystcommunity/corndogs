@@ -10,13 +10,10 @@ set -euo pipefail
 SEMVER_TAGS_VERSION="${SEMVER_TAGS_VERSION:-v0.4.0}"
 GHCLI_VERSION="${GHCLI_VERSION:-2.63.2}"
 
-cd /job/src
-
-# semver-tags pushes the tag (and main) via `origin`.
+# Runs in the dir the job command cloned/cd'd into (PWD): an authed full clone of
+# main, so origin can push and semver-tags sees full history.
 git config user.name "catalystcommunityci"
 git config user.email "ci@catalystcommunity.org"
-git remote set-url origin "https://x-access-token:${GITHUB_PAT}@github.com/${REACTORCIDE_REPO}.git"
-git fetch --unshallow origin 2>/dev/null || true
 git fetch --tags --force origin
 
 echo "=== install semver-tags ${SEMVER_TAGS_VERSION} ==="
