@@ -1,9 +1,6 @@
 FROM golang:1.22 AS builder
 
 WORKDIR /workspace
-# install grpc health probe
-ENV GRPC_HEALTH_PROBE_VERSION=v0.4.18
-RUN wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && chmod +x /bin/grpc_health_probe
 # copy relevant things
 COPY go.mod .
 COPY go.sum .
@@ -21,7 +18,6 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o main mai
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /workspace/main .
-COPY --from=builder /bin/grpc_health_probe ./grpc_health_probe
 USER 65532:65532
 
 ENTRYPOINT ["/main"]

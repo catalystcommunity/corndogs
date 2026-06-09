@@ -10,7 +10,7 @@ import (
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/conversions"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store/postgresstore/models"
-	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
+	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/google/uuid"
 	"github.com/pressly/goose/v3"
 	"github.com/rs/zerolog/log"
@@ -63,8 +63,8 @@ func (s PostgresStore) Initialize() (func(), error) {
 	return func() { sqlDb.Close() }, nil
 }
 
-func (s PostgresStore) SubmitTask(ctx context.Context, req *corndogsv1alpha1.SubmitTaskRequest) (*corndogsv1alpha1.SubmitTaskResponse, error) {
-	taskProto := &corndogsv1alpha1.Task{}
+func (s PostgresStore) SubmitTask(ctx context.Context, req *api.SubmitTaskRequest) (*api.SubmitTaskResponse, error) {
+	taskProto := &api.Task{}
 	newUuid, _ := uuid.NewRandom()
 
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -83,14 +83,14 @@ func (s PostgresStore) SubmitTask(ctx context.Context, req *corndogsv1alpha1.Sub
 			return result.Error
 		}
 		// marshall result to response
-		return conversions.StructToProto(model, taskProto)
+		return conversions.CopyStruct(model, taskProto)
 	})
 
-	return &corndogsv1alpha1.SubmitTaskResponse{Task: taskProto}, err
+	return &api.SubmitTaskResponse{Task: taskProto}, err
 }
 
-func (s PostgresStore) MustGetTaskStateByID(ctx context.Context, req *corndogsv1alpha1.GetTaskStateByIDRequest) (*corndogsv1alpha1.GetTaskStateByIDResponse, error) {
-	taskProto := &corndogsv1alpha1.Task{}
+func (s PostgresStore) MustGetTaskStateByID(ctx context.Context, req *api.GetTaskStateByIDRequest) (*api.GetTaskStateByIDResponse, error) {
+	taskProto := &api.Task{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := models.Task{UUID: req.Uuid}
 		result := tx.First(&model)
@@ -108,26 +108,26 @@ func (s PostgresStore) MustGetTaskStateByID(ctx context.Context, req *corndogsv1
 						return archived_result.Error
 					}
 				}
-				return conversions.StructToProto(archived_model, taskProto)
+				return conversions.CopyStruct(archived_model, taskProto)
 			} else {
 				log.Err(result.Error)
 				return result.Error
 			}
 		}
 		// marshall result to response
-		return conversions.StructToProto(model, taskProto)
+		return conversions.CopyStruct(model, taskProto)
 	},
 	)
 	if err != nil {
 		log.Err(err)
 		panic(err)
 	}
-	return &corndogsv1alpha1.GetTaskStateByIDResponse{Task: taskProto}, err
+	return &api.GetTaskStateByIDResponse{Task: taskProto}, err
 }
 
-func (s PostgresStore) GetNextTask(ctx context.Context, req *corndogsv1alpha1.GetNextTaskRequest) (*corndogsv1alpha1.GetNextTaskResponse, error) {
+func (s PostgresStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequest) (*api.GetNextTaskResponse, error) {
 	// TODO: This may be something that can be simplified, determine that and do so or explain why it can't
-	taskProto := &corndogsv1alpha1.Task{}
+	taskProto := &api.Task{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := models.Task{}
 		var nextUuid string
@@ -210,17 +210,17 @@ func (s PostgresStore) GetNextTask(ctx context.Context, req *corndogsv1alpha1.Ge
 			}
 		}
 		// marshall result to response
-		return conversions.StructToProto(model, taskProto)
+		return conversions.CopyStruct(model, taskProto)
 	})
 	if err != nil {
 		log.Err(err)
 		panic(err)
 	}
-	return &corndogsv1alpha1.GetNextTaskResponse{Task: taskProto}, err
+	return &api.GetNextTaskResponse{Task: taskProto}, err
 }
 
-func (s PostgresStore) UpdateTask(ctx context.Context, req *corndogsv1alpha1.UpdateTaskRequest) (*corndogsv1alpha1.UpdateTaskResponse, error) {
-	taskProto := &corndogsv1alpha1.Task{}
+func (s PostgresStore) UpdateTask(ctx context.Context, req *api.UpdateTaskRequest) (*api.UpdateTaskResponse, error) {
+	taskProto := &api.Task{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := models.Task{
 			UUID:         req.Uuid,
@@ -257,18 +257,18 @@ func (s PostgresStore) UpdateTask(ctx context.Context, req *corndogsv1alpha1.Upd
 			}
 		}
 		// marshall result to response
-		return conversions.StructToProto(model, taskProto)
+		return conversions.CopyStruct(model, taskProto)
 	})
 	if err != nil {
 		log.Err(err)
 		panic(err)
 	}
 
-	return &corndogsv1alpha1.UpdateTaskResponse{Task: taskProto}, err
+	return &api.UpdateTaskResponse{Task: taskProto}, err
 }
 
-func (s PostgresStore) CompleteTask(ctx context.Context, req *corndogsv1alpha1.CompleteTaskRequest) (*corndogsv1alpha1.CompleteTaskResponse, error) {
-	taskProto := &corndogsv1alpha1.Task{}
+func (s PostgresStore) CompleteTask(ctx context.Context, req *api.CompleteTaskRequest) (*api.CompleteTaskResponse, error) {
+	taskProto := &api.Task{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Queue and CurrentState are required to validate you know the current state
 		// and not accidentally pass something someone else is working on
@@ -300,17 +300,17 @@ func (s PostgresStore) CompleteTask(ctx context.Context, req *corndogsv1alpha1.C
 			return result.Error
 		}
 		// marshall result to response
-		return conversions.StructToProto(archiveModel, taskProto)
+		return conversions.CopyStruct(archiveModel, taskProto)
 	})
 	if err != nil {
 		log.Err(err)
 		panic(err)
 	}
-	return &corndogsv1alpha1.CompleteTaskResponse{Task: taskProto}, err
+	return &api.CompleteTaskResponse{Task: taskProto}, err
 }
 
-func (s PostgresStore) CancelTask(ctx context.Context, req *corndogsv1alpha1.CancelTaskRequest) (*corndogsv1alpha1.CancelTaskResponse, error) {
-	taskProto := &corndogsv1alpha1.Task{}
+func (s PostgresStore) CancelTask(ctx context.Context, req *api.CancelTaskRequest) (*api.CancelTaskResponse, error) {
+	taskProto := &api.Task{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Queue and CurrentState are required to validate you know the current state
 		// and not accidentally pass something someone else is working on
@@ -344,16 +344,16 @@ func (s PostgresStore) CancelTask(ctx context.Context, req *corndogsv1alpha1.Can
 			return result.Error
 		}
 		// marshall result to response
-		return conversions.StructToProto(archiveModel, taskProto)
+		return conversions.CopyStruct(archiveModel, taskProto)
 	})
 	if err != nil {
 		log.Err(err)
 		panic(err)
 	}
-	return &corndogsv1alpha1.CancelTaskResponse{Task: taskProto}, err
+	return &api.CancelTaskResponse{Task: taskProto}, err
 }
 
-func (s PostgresStore) CleanUpTimedOut(ctx context.Context, req *corndogsv1alpha1.CleanUpTimedOutRequest) (*corndogsv1alpha1.CleanUpTimedOutResponse, error) {
+func (s PostgresStore) CleanUpTimedOut(ctx context.Context, req *api.CleanUpTimedOutRequest) (*api.CleanUpTimedOutResponse, error) {
 	var count int64 = 0
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := models.Task{}
@@ -382,10 +382,10 @@ func (s PostgresStore) CleanUpTimedOut(ctx context.Context, req *corndogsv1alpha
 		log.Err(err)
 		panic(err)
 	}
-	return &corndogsv1alpha1.CleanUpTimedOutResponse{TimedOut: count}, err
+	return &api.CleanUpTimedOutResponse{TimedOut: count}, err
 }
 
-func (s PostgresStore) GetQueues(ctx context.Context, req *corndogsv1alpha1.GetQueuesRequest) (*corndogsv1alpha1.GetQueuesResponse, error) {
+func (s PostgresStore) GetQueues(ctx context.Context, req *api.GetQueuesRequest) (*api.GetQueuesResponse, error) {
 	queues := []string{}
 	var count int64 = 0
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -406,10 +406,10 @@ func (s PostgresStore) GetQueues(ctx context.Context, req *corndogsv1alpha1.GetQ
 		log.Err(err)
 		panic(err)
 	}
-	return &corndogsv1alpha1.GetQueuesResponse{Queues: queues, TotalTaskCount: count}, err
+	return &api.GetQueuesResponse{Queues: queues, TotalTaskCount: count}, err
 }
 
-func (s PostgresStore) GetQueueTaskCounts(ctx context.Context, req *corndogsv1alpha1.GetQueueTaskCountsRequest) (*corndogsv1alpha1.GetQueueTaskCountsResponse, error) {
+func (s PostgresStore) GetQueueTaskCounts(ctx context.Context, req *api.GetQueueTaskCountsRequest) (*api.GetQueueTaskCountsResponse, error) {
 	queues := make(map[string]int64)
 	var count int64 = 0
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -441,10 +441,10 @@ func (s PostgresStore) GetQueueTaskCounts(ctx context.Context, req *corndogsv1al
 		log.Err(err)
 		panic(err)
 	}
-	return &corndogsv1alpha1.GetQueueTaskCountsResponse{QueueCounts: queues, TotalTaskCount: count}, err
+	return &api.GetQueueTaskCountsResponse{QueueCounts: queues, TotalTaskCount: count}, err
 }
 
-func (s PostgresStore) GetTaskStateCounts(ctx context.Context, req *corndogsv1alpha1.GetTaskStateCountsRequest) (*corndogsv1alpha1.GetTaskStateCountsResponse, error) {
+func (s PostgresStore) GetTaskStateCounts(ctx context.Context, req *api.GetTaskStateCountsRequest) (*api.GetTaskStateCountsResponse, error) {
 	stateCounts := make(map[string]int64)
 	var count int64 = 0
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -477,11 +477,11 @@ func (s PostgresStore) GetTaskStateCounts(ctx context.Context, req *corndogsv1al
 		log.Err(err)
 		panic(err)
 	}
-	return &corndogsv1alpha1.GetTaskStateCountsResponse{Queue: req.Queue, Count: count, StateCounts: stateCounts}, err
+	return &api.GetTaskStateCountsResponse{Queue: req.Queue, Count: count, StateCounts: stateCounts}, err
 }
 
-func (s PostgresStore) GetQueueAndStateCounts(ctx context.Context, req *corndogsv1alpha1.GetQueueAndStateCountsRequest) (*corndogsv1alpha1.GetQueueAndStateCountsResponse, error) {
-	queueAndStateCounts := make(map[string]*corndogsv1alpha1.QueueAndStateCounts)
+func (s PostgresStore) GetQueueAndStateCounts(ctx context.Context, req *api.GetQueueAndStateCountsRequest) (*api.GetQueueAndStateCountsResponse, error) {
+	queueAndStateCounts := make(map[string]*api.QueueAndStateCounts)
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := models.Task{}
 		rows, err := tx.Model(model).Select("queue", "current_state", "COUNT(current_state)").Group("queue").Group("current_state").Rows()
@@ -500,7 +500,7 @@ func (s PostgresStore) GetQueueAndStateCounts(ctx context.Context, req *corndogs
 				return err
 			}
 			if _, ok := queueAndStateCounts[queue]; !ok {
-				queueAndStateCounts[queue] = &corndogsv1alpha1.QueueAndStateCounts{
+				queueAndStateCounts[queue] = &api.QueueAndStateCounts{
 					Queue:       queue,
 					Count:       0,
 					StateCounts: make(map[string]int64),
@@ -515,5 +515,9 @@ func (s PostgresStore) GetQueueAndStateCounts(ctx context.Context, req *corndogs
 		log.Err(err)
 		panic(err)
 	}
-	return &corndogsv1alpha1.GetQueueAndStateCountsResponse{QueueAndStateCounts: queueAndStateCounts}, err
+	result := make(api.QueueAndStateCountsMap, len(queueAndStateCounts))
+	for q, v := range queueAndStateCounts {
+		result[q] = *v
+	}
+	return &api.GetQueueAndStateCountsResponse{QueueAndStateCounts: result}, err
 }

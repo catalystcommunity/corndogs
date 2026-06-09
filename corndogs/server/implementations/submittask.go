@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
+	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/metrics"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
-	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
 )
 
-func (s *V1Alpha1Server) SubmitTask(ctx context.Context, req *corndogsv1alpha1.SubmitTaskRequest) (*corndogsv1alpha1.SubmitTaskResponse, error) {
+func (s *V1Alpha1Server) SubmitTask(ctx context.Context, req api.SubmitTaskRequest) (api.SubmitTaskResponse, error) {
 	if req.Queue == "" {
 		req.Queue = config.DefaultQueue
 	}
@@ -19,18 +19,20 @@ func (s *V1Alpha1Server) SubmitTask(ctx context.Context, req *corndogsv1alpha1.S
 	if req.AutoTargetState == "" {
 		req.AutoTargetState = req.CurrentState + config.DefaultWorkingSuffix
 	}
-
-	// Since protobuf default int values are 0, if they wanted 0, they have to send a negative value
-	// which is otherwise invalid as a timeout
+	// A 0 timeout means "use the default"; callers who genuinely want 0 send a
+	// negative value (otherwise invalid), which we clamp back to 0 here.
 	if req.Timeout == 0 {
 		req.Timeout = config.DefaultTimeout
 	}
 	if req.Timeout < 0 {
 		req.Timeout = 0
 	}
-	response, err := store.AppStore.SubmitTask(ctx, req)
+	resp, err := store.AppStore.SubmitTask(ctx, &req)
 	if config.PrometheusEnabled && err == nil {
 		metrics.TasksTotal.Inc()
 	}
-	return response, err
+	if resp == nil {
+		return api.SubmitTaskResponse{}, err
+	}
+	return *resp, err
 }

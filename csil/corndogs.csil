@@ -1,0 +1,110 @@
+options {
+    package: "corndogs",
+    version: "v1alpha1"
+}
+
+;;; Corndogs task-state service, translated from corndogs.proto to CSIL
+;;; for a CBOR-over-HTTP transport (no gRPC/protobuf).
+
+;; Named map aliases (inline map-typed fields are not supported by the parser;
+;; named aliases are the correct CSIL idiom).
+StringInt64Map = {* text => int}
+
+;;; A task as returned by the service. Response-only shape.
+Task = {
+    uuid: text,
+    queue: text,
+    current_state: text,
+    auto_target_state: text,
+    submit_time: int,
+    update_time: int,
+    timeout: int,
+    payload: bytes,
+    priority: int
+}
+
+SubmitTaskRequest = {
+    queue: text,
+    current_state: text,
+    auto_target_state: text,
+    timeout: int,
+    payload: bytes,
+    priority: int
+}
+SubmitTaskResponse = { ? task: Task }
+
+GetTaskStateByIDRequest = { uuid: text, queue: text }
+GetTaskStateByIDResponse = { ? task: Task }
+
+GetNextTaskRequest = {
+    queue: text,
+    current_state: text,
+    override_timeout: int,
+    override_current_state: text,
+    override_auto_target_state: text
+}
+GetNextTaskResponse = { ? task: Task }
+
+CompleteTaskRequest = { uuid: text, queue: text, current_state: text }
+CompleteTaskResponse = { ? task: Task }
+
+UpdateTaskRequest = {
+    uuid: text,
+    queue: text,
+    current_state: text,
+    auto_target_state: text,
+    timeout: int,
+    new_state: text,
+    payload: bytes,
+    priority: int
+}
+UpdateTaskResponse = { ? task: Task }
+
+CancelTaskRequest = { uuid: text, queue: text, current_state: text }
+CancelTaskResponse = { ? task: Task }
+
+CleanUpTimedOutRequest = { at_time: int, queue: text }
+CleanUpTimedOutResponse = { timed_out: int }
+
+GetQueuesRequest = {}
+GetQueuesResponse = { queues: [* text], total_task_count: int }
+
+GetQueueTaskCountsRequest = {}
+GetQueueTaskCountsResponse = {
+    queue_counts: StringInt64Map,
+    total_task_count: int
+}
+
+GetTaskStateCountsRequest = { queue: text }
+GetTaskStateCountsResponse = {
+    queue: text,
+    count: int,
+    state_counts: StringInt64Map
+}
+
+QueueAndStateCounts = {
+    queue: text,
+    count: int,
+    state_counts: StringInt64Map
+}
+QueueAndStateCountsMap = {* text => QueueAndStateCounts}
+GetQueueAndStateCountsRequest = {}
+GetQueueAndStateCountsResponse = {
+    queue_and_state_counts: QueueAndStateCountsMap
+}
+
+ServiceError = { code: uint, message: text }
+
+service CorndogsService {
+    SubmitTask: SubmitTaskRequest -> SubmitTaskResponse / ServiceError,
+    GetTaskStateByID: GetTaskStateByIDRequest -> GetTaskStateByIDResponse / ServiceError,
+    GetNextTask: GetNextTaskRequest -> GetNextTaskResponse / ServiceError,
+    UpdateTask: UpdateTaskRequest -> UpdateTaskResponse / ServiceError,
+    CompleteTask: CompleteTaskRequest -> CompleteTaskResponse / ServiceError,
+    CancelTask: CancelTaskRequest -> CancelTaskResponse / ServiceError,
+    CleanUpTimedOut: CleanUpTimedOutRequest -> CleanUpTimedOutResponse / ServiceError,
+    GetQueues: GetQueuesRequest -> GetQueuesResponse / ServiceError,
+    GetQueueTaskCounts: GetQueueTaskCountsRequest -> GetQueueTaskCountsResponse / ServiceError,
+    GetTaskStateCounts: GetTaskStateCountsRequest -> GetTaskStateCountsResponse / ServiceError,
+    GetQueueAndStateCounts: GetQueueAndStateCountsRequest -> GetQueueAndStateCountsResponse / ServiceError
+}

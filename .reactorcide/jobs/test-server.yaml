@@ -1,0 +1,66 @@
+name: corndogs-test-server
+description: "Build the server, run it against a user-owned postgres, run the integration tests"
+triggers:
+  events:
+    - pull_request_opened
+    - pull_request_updated
+  branches:
+    - main
+paths:
+  include:
+    - "corndogs/**"
+    - "csil/**"        # a contract change must still build + pass the suite
+job:
+  # corndogs-test-env bakes in Go + PostgreSQL (+ csilgen), so there's no
+  # per-run apt/sudo. It writes only to /tmp, so it runs identically as the
+  # worker's runner uid and under `reactorcide run-local` (host uid).
+  image: containers.catalystsquad.com/public/catalystcommunity/corndogs-test-env:latest
+  command: |
+    set -e
+    # Keep all writes in /tmp so any uid works (see corndogs-test-env Dockerfile).
+    export HOME=/tmp/home GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomod GOPATH=/tmp/gopath
+    mkdir -p "$HOME" "$GOCACHE" "$GOMODCACHE" "$GOPATH"
+
+    echo "=== start a user-owned postgres on 127.0.0.1:5432 (trust auth) ==="
+    PGDATA=/tmp/pgdata
+    initdb -D "${PGDATA}" --auth=trust --username=postgres
+    pg_ctl -D "${PGDATA}" -l /tmp/pg.log -o "-k /tmp -h 127.0.0.1 -p 5432" start
+    for _ in $(seq 1 30); do pg_isready -h 127.0.0.1 -p 5432 && break; sleep 1; done
+    createdb -h 127.0.0.1 -U postgres corndogs
+
+    export DATABASE_HOST=127.0.0.1
+    export DATABASE_PORT=5432
+    export DATABASE_USER=postgres
+    export DATABASE_PASSWORD=unused-trust-auth
+    export DATABASE_NAME=corndogs
+    export DATABASE_SSL_MODE=disable
+
+    if [ "${REACTORCIDE_WORKER_MODE:-remote}" = "local" ]; then
+      cd /job/src
+    else
+      git clone --branch "${REACTORCIDE_HEAD_REF:-$REACTORCIDE_PR_REF}" \
+        "${REACTORCIDE_HEAD_URL:-$REACTORCIDE_SOURCE_URL}" /job/src
+      cd /job/src
+    fi
+    cd corndogs
+
+    echo "=== build ==="
+    go build -o /tmp/corndogs .
+
+    echo "=== run server (auto-applies goose migrations on startup) ==="
+    /tmp/corndogs run &
+    SERVER_PID=$!
+    trap 'kill ${SERVER_PID} >/dev/null 2>&1 || true; pg_ctl -D "${PGDATA}" stop >/dev/null 2>&1 || true' EXIT
+
+    echo "=== wait for the service on :5080 ==="
+    # /dev/tcp is bash-only and the runner executes under sh; call bash explicitly.
+    for _ in $(seq 1 30); do
+      bash -c '(exec 3<>/dev/tcp/127.0.0.1/5080) 2>/dev/null' && break
+      sleep 1
+    done
+
+    echo "=== test ==="
+    go test -v ./...
+  timeout: 1800
+  priority: 10
+  raw_command: true

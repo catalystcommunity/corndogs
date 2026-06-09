@@ -1,0 +1,33 @@
+name: corndogs-helm-validate
+description: "Lint and template the helm chart on PRs that touch it"
+triggers:
+  events:
+    - pull_request_opened
+    - pull_request_updated
+  branches:
+    - main
+paths:
+  include:
+    - "helm_chart/chart/**"
+job:
+  image: alpine/helm:3.14.0
+  command: |
+    set -e
+    # `helm dependency update` writes charts/ + Chart.lock INTO the mounted chart
+    # dir, so this runs as the tree-owning user (run-local host-uid default); don't
+    # opt into uid parity here.
+    if [ "${REACTORCIDE_WORKER_MODE:-remote}" = "local" ]; then
+      cd /job/src
+    else
+      git clone --branch "${REACTORCIDE_HEAD_REF:-$REACTORCIDE_PR_REF}" \
+        "${REACTORCIDE_HEAD_URL:-$REACTORCIDE_SOURCE_URL}" /job/src
+      cd /job/src
+    fi
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm dependency update ./helm_chart/chart
+    helm lint ./helm_chart/chart
+    helm template ./helm_chart/chart >/dev/null
+    echo "helm chart OK"
+  timeout: 600
+  priority: 10
+  raw_command: true

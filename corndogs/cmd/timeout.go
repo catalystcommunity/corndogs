@@ -1,13 +1,11 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"time"
 
-	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
+	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
 )
 
 var timeoutCommand = NewTimeoutCommand()
@@ -33,33 +31,23 @@ func NewTimeoutCommand() *cobra.Command {
 }
 
 func SendCleanUpTimedOut(address, port, queue string) {
-	// connect
-	connectTo := fmt.Sprintf("%s:%s", address, port)
-	fmt.Println("Connecting to:", connectTo)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	conn, err := grpc.DialContext(ctx, connectTo, grpc.WithInsecure())
-	if err != nil {
-		panic(err)
-	}
-	cancel()
-	corndogsClient := corndogsv1alpha1.NewCorndogsServiceClient(conn)
-	fmt.Println("Connected")
+	base := baseURL(address, port)
+	fmt.Println("Connecting to:", base)
 
 	nowUTC := time.Now().Add(time.Duration(7) * time.Second).UTC()
-
 	if queue != "" {
 		fmt.Printf("Sending for queue '%s' at time: %s\n", queue, nowUTC)
 	} else {
 		fmt.Println("Sending at time:", nowUTC)
 	}
-	timeToTimeout := nowUTC.UnixNano()
-	cleanUpTimedOutRequest := &corndogsv1alpha1.CleanUpTimedOutRequest{
-		AtTime: timeToTimeout,
+
+	req := api.CleanUpTimedOutRequest{
+		AtTime: nowUTC.UnixNano(),
 		Queue:  queue,
 	}
-	cleanUpTimedOutResponse, err := corndogsClient.CleanUpTimedOut(context.Background(), cleanUpTimedOutRequest)
-	if err != nil {
+	var resp api.CleanUpTimedOutResponse
+	if err := cborCall(base, "CleanUpTimedOut", &req, &resp); err != nil {
 		panic(err)
 	}
-	fmt.Printf("Timed out: %d\n", cleanUpTimedOutResponse.TimedOut)
+	fmt.Printf("Timed out: %d\n", resp.TimedOut)
 }

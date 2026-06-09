@@ -89,7 +89,7 @@ spec:
                   key: password
             {{- end }}
           ports:
-            - name: corndogsgrpc
+            - name: corndogshttp
               containerPort: 5080
               protocol: TCP
             {{- if .Values.appconfig.prometheusEnabled }}
@@ -98,15 +98,13 @@ spec:
               protocol: TCP
             {{- end }}
           livenessProbe:
-            exec:
-              command:
-                - "/grpc_health_probe"
-                - "-addr=:5080"
+            httpGet:
+              path: /healthz
+              port: 5080
           readinessProbe:
-            exec:
-              command:
-                - "/grpc_health_probe"
-                - "-addr=:5080"
+            httpGet:
+              path: /healthz
+              port: 5080
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

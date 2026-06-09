@@ -7,7 +7,7 @@ import (
 
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
-	corndogsv1alpha1 "github.com/CatalystCommunity/corndogs/protos/gen/proto/go/corndogs/v1alpha1"
+	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -79,8 +79,8 @@ func StartQueueSizeMetric(interval time.Duration, queryTimeout time.Duration) {
 	}()
 }
 
-func getQueueAndStateCounts(timeout time.Duration) (*corndogsv1alpha1.GetQueueAndStateCountsResponse, error) {
+func getQueueAndStateCounts(timeout time.Duration) (*api.GetQueueAndStateCountsResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	return store.AppStore.GetQueueAndStateCounts(ctx, &corndogsv1alpha1.GetQueueAndStateCountsRequest{})
+	return store.AppStore.GetQueueAndStateCounts(ctx, &api.GetQueueAndStateCountsRequest{})
 }
