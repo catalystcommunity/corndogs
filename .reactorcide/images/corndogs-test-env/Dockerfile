@@ -25,11 +25,16 @@ FROM containers.catalystsquad.com/public/reactorcide/runnerbase:dev
 
 USER root
 
-# PostgreSQL (bookworm ships 15) + the build essentials corndogs' tests want.
+# PostgreSQL (version depends on the base distro: bookworm=15, trixie=17, ...) +
+# build essentials. The server binaries (initdb/pg_ctl/...) live in a
+# version-specific /usr/lib/postgresql/<ver>/bin, so symlink them into
+# /usr/local/bin (a stable, on-PATH location) rather than hardcoding the version.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       postgresql postgresql-client ca-certificates curl git \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && PGBIN="$(dirname "$(find /usr/lib/postgresql -name initdb -type f | sort -V | tail -1)")" \
+ && for b in initdb pg_ctl createdb pg_isready postgres psql; do ln -sf "${PGBIN}/${b}" "/usr/local/bin/${b}"; done
 
 # Go toolchain.
 ARG GO_VERSION=1.23.4
@@ -41,8 +46,8 @@ COPY --from=csilgen /src/csilgen/target/release/csilgen /usr/local/bin/csilgen
 COPY --from=csilgen /root/.csilgen/generators /home/runner/.csilgen/generators
 RUN chmod -R a+rX /home/runner/.csilgen
 
-# go + postgres binaries on PATH for every user.
-ENV PATH="/usr/local/go/bin:/usr/lib/postgresql/15/bin:${PATH}"
+# Go on PATH; postgres binaries are symlinked into /usr/local/bin above.
+ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Smoke-check the toolchain is wired up at build time.
 RUN go version && csilgen --help >/dev/null && initdb --version
