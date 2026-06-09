@@ -1,5 +1,5 @@
 name: corndogs-conventional-commits
-description: "Validate PR commits follow conventional commits, then trigger PR checks"
+description: "Validate PR commits follow conventional commits (lint only; PR-check jobs self-trigger on their own paths)"
 triggers:
   events:
     - pull_request_opened
@@ -43,12 +43,6 @@ job:
       exit 1
     fi
     echo "All commits follow conventional commit format."
-
-    # Fan out the PR checks (runnerlib reads the YAML, submits inline specs).
-    runnerlib trigger \
-      .reactorcide/jobs/test-server.yaml \
-      .reactorcide/jobs/csil-gen-check.yaml \
-      .reactorcide/jobs/helm-validate.yaml
   timeout: 300
   priority: 10
   raw_command: true
