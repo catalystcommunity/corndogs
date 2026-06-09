@@ -1,6 +1,7 @@
 # Default values for corndogs.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
+# corndogs serves CBOR over HTTP on the service port; k8s probes hit /healthz.
 
 replicaCount: 1
 namespace: corndogs

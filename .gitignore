@@ -26,3 +26,18 @@ helm_chart/chart/charts/
 # Node nonsense
 node_modules
 package-lock.json
+
+# Rust build artifacts (clients/rust). Cargo.lock is not committed for the
+# generated client library.
+target/
+Cargo.lock
+
+# Python build artifacts (clients/python)
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Go build output (the server binary is built into images/tmp, never committed)
+corndogs/main
