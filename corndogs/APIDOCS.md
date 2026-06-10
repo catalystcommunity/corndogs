@@ -64,3 +64,8 @@ Returns `GetQueueAndStateCountsResponse` containing:
 - `queue` requested
 - `count` of the total tasks in the queue
 - `state_counts` map of state name to number of tasks in that state.
+
+## Health & metrics
+The server exposes `GET /healthz` for Kubernetes liveness/readiness probes
+(returns `200` while serving). When `PROMETHEUS_ENABLED=true`, Prometheus metrics
+are served on `:8080/metrics`.
