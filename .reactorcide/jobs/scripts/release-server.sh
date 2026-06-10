@@ -2,28 +2,33 @@
 #
 # Server release. semver-tags analyzes commits under corndogs/ (scoped with
 # --directories) and, on a real bump, creates + pushes a prefixed tag
-# `corndogs/vX.Y.Z`. We then build+push the image and bump the chart appVersion.
-# Each component (corndogs, helm_chart) has its own prefixed tag sequence, so this
-# job and release-helm run independently without colliding.
+# `corndogs/vX.Y.Z`. We then build + push the image and bump the chart appVersion.
+# Independent of release-helm (separate prefixed tag sequence).
 #
-# Publishes to containers.catalystsquad.com/public/catalystcommunity/corndogs.
+# The runnerbase image ships only curl/git/bash, so semver-tags, the docker CLI,
+# crane, and gh are all curl-installed (the longhouse api-build-and-deploy /
+# linkkeys release pattern). Runs in the dir the job command cloned (an authed
+# full clone of main).
 set -euo pipefail
 
 SEMVER_TAGS_VERSION="${SEMVER_TAGS_VERSION:-v0.4.0}"
 GHCLI_VERSION="${GHCLI_VERSION:-2.63.2}"
+CRANE_VERSION="${CRANE_VERSION:-0.20.3}"
+DOCKER_VERSION="${DOCKER_VERSION:-27.5.1}"
 
-# Runs in the dir the job command cloned/cd'd into (PWD): an authed full clone of
-# main, so origin can push and semver-tags sees full history.
+export HOME="${HOME:-/root}"
+LOCAL_BIN="${HOME}/.local/bin"
+mkdir -p "${LOCAL_BIN}" "${HOME}/.docker"
+export PATH="${LOCAL_BIN}:${PATH}"
+
 git config user.name "catalystcommunityci"
 git config user.email "ci@catalystcommunity.org"
 git fetch --tags --force origin
 
 echo "=== install semver-tags ${SEMVER_TAGS_VERSION} ==="
-wget -q "https://github.com/catalystcommunity/semver-tags/releases/download/${SEMVER_TAGS_VERSION}/semver-tags.tar.gz" \
-  -O /tmp/semver-tags.tar.gz
-tar -xzf /tmp/semver-tags.tar.gz -C /tmp
-chmod +x /tmp/semver-tags
-export PATH="/tmp:${PATH}"
+curl -fsSL "https://github.com/catalystcommunity/semver-tags/releases/download/${SEMVER_TAGS_VERSION}/semver-tags.tar.gz" -o /tmp/semver-tags.tar.gz
+tar -xzf /tmp/semver-tags.tar.gz -C "${LOCAL_BIN}"
+chmod +x "${LOCAL_BIN}/semver-tags"
 
 echo "=== compute version bump for corndogs/ ==="
 semver-tags run --output_json --directories corndogs > /tmp/semver.txt 2>&1
@@ -40,12 +45,37 @@ VERSION="${NEW_TAG##*/}"
 VERSION="${VERSION#v}"
 echo "=== releasing ${NEW_TAG} (version ${VERSION}) ==="
 
-echo "=== build + push image ==="
 IMAGE="${REGISTRY}/${IMAGE_PATH}"
-echo "${REGISTRY_PASSWORD}" | docker login "${REGISTRY}" -u "${REGISTRY_USER}" --password-stdin
-docker build -t "${IMAGE}:${VERSION}" -t "${IMAGE}:latest" ./corndogs
-docker push "${IMAGE}:${VERSION}"
-docker push "${IMAGE}:latest"
+
+echo "=== install crane ==="
+if ! command -v crane >/dev/null 2>&1; then
+  curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" -o /tmp/crane.tar.gz
+  tar -xzf /tmp/crane.tar.gz -C "${LOCAL_BIN}" crane
+  rm /tmp/crane.tar.gz
+fi
+
+# Registry auth for crane (docker config.json).
+AUTH=$(printf "%s:%s" "${REGISTRY_USER}" "${REGISTRY_PASSWORD}" | base64 -w 0)
+cat > "${HOME}/.docker/config.json" <<EOF
+{ "auths": { "${REGISTRY}": {"auth": "${AUTH}"} } }
+EOF
+
+echo "=== build + push ${IMAGE}:${VERSION} ==="
+if [ -z "${DOCKER_HOST:-}" ]; then
+  echo "ERROR: DOCKER_HOST not set (this job needs the 'docker' capability)" >&2
+  exit 1
+fi
+if ! command -v docker >/dev/null 2>&1; then
+  curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz" -o /tmp/docker.tgz
+  tar -xzf /tmp/docker.tgz --strip-components=1 -C "${LOCAL_BIN}" docker/docker
+  rm /tmp/docker.tgz
+fi
+for _ in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
+docker build -t "${IMAGE}:${VERSION}" ./corndogs
+docker save "${IMAGE}:${VERSION}" -o /tmp/image.tar
+crane push /tmp/image.tar "${IMAGE}:${VERSION}"
+crane push /tmp/image.tar "${IMAGE}:latest"
+rm /tmp/image.tar
 
 echo "=== bump chart appVersion to ${VERSION} ==="
 sed -i "s/^appVersion: .*/appVersion: \"${VERSION}\"/" helm_chart/chart/Chart.yaml
@@ -59,9 +89,11 @@ if ! git diff --cached --quiet; then
 fi
 
 echo "=== create GitHub release ${NEW_TAG} ==="
-wget -q "https://github.com/cli/cli/releases/download/v${GHCLI_VERSION}/gh_${GHCLI_VERSION}_linux_amd64.tar.gz" -O /tmp/gh.tar.gz
-tar -xzf /tmp/gh.tar.gz -C /tmp
-export PATH="/tmp/gh_${GHCLI_VERSION}_linux_amd64/bin:${PATH}"
+if ! command -v gh >/dev/null 2>&1; then
+  curl -fsSL "https://github.com/cli/cli/releases/download/v${GHCLI_VERSION}/gh_${GHCLI_VERSION}_linux_amd64.tar.gz" -o /tmp/gh.tar.gz
+  tar -xzf /tmp/gh.tar.gz -C /tmp
+  cp "/tmp/gh_${GHCLI_VERSION}_linux_amd64/bin/gh" "${LOCAL_BIN}/gh"
+fi
 GH_TOKEN="${GITHUB_PAT}" gh release create "${NEW_TAG}" \
   --repo "${REACTORCIDE_REPO}" \
   --title "${NEW_TAG}" \
