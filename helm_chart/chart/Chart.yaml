@@ -1,6 +1,6 @@
 apiVersion: v2
 name: corndogs
-description: A Helm chart for Kubernetes
+description: A Helm chart for corndogs, the cloud-native task-state service
 
 type: application
 version: "0.1.10"
