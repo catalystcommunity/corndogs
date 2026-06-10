@@ -1,5 +1,5 @@
 # Corndogs API Docs
-This is where the API docs for corndogs lives for now. It contains the rpc endpoints available. It's mostly semantics and brief descriptions at the moment, since the [Flow](/README.md#flow) section in the readme covers a lot of how you would use these. See the `protos/` directory for specific fields and generated clients.
+This is where the API docs for corndogs lives for now. It contains the operations available. It's mostly semantics and brief descriptions at the moment, since the [Flow](/README.md#flow) section in the readme covers a lot of how you would use these. The wire is CBOR over HTTP (`POST /v1alpha1/CorndogsService/<Method>`); see the `csil/` directory for the contract and `clients/` for the generated clients with their specific fields.
 
 ## General
 The regular flow stuff.
