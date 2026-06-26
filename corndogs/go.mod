@@ -1,16 +1,15 @@
 module github.com/CatalystCommunity/corndogs/corndogs
 
-go 1.22
-
-toolchain go1.23.4
+go 1.25.0
 
 require (
 	github.com/brianvoe/gofakeit/v6 v6.11.0
 	github.com/google/uuid v1.6.0
 	github.com/pressly/goose/v3 v3.11.2
 	github.com/rs/zerolog v1.29.1
-	github.com/spf13/cobra v1.7.0
-	github.com/stretchr/testify v1.8.1
+	github.com/spf13/cobra v1.10.2
+	github.com/stretchr/testify v1.11.1
+	go.etcd.io/bbolt v1.5.0
 	gorm.io/driver/postgres v1.5.2
 	gorm.io/gorm v1.25.1
 )
@@ -36,7 +35,7 @@ require (
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/crypto v0.30.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
@@ -47,5 +46,5 @@ require (
 require (
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/prometheus/client_golang v1.15.1
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 )

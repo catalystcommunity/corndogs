@@ -13,7 +13,7 @@ My coworker Charlie and I were talking about Celery and how it was an option for
 
 # Develop/Contribute
 
-Install Helm, Skaffold, Kubectl, Kind, and Go 1.17+, then created a Kind cluster and then run the following in the root dir:
+Install Helm, Skaffold, Kubectl, Kind, and Go 1.25+, then created a Kind cluster and then run the following in the root dir:
 
 `skaffold dev && kubectl delete namespace skaffoldcorndogs`
 
@@ -27,15 +27,17 @@ PRs that don't match that branch schema will be rejected, maybe with a reminder.
 
 # Developing Without Kubernetes
 
-One can also develop without the full Kubernetes flow by doing the following to get a normal local Go workflow: 
-1. Run the server, run the following from the project root **after** setting environment variables for your database config
+One can also develop without the full Kubernetes flow by doing the following to get a normal local Go workflow:
+1. Run the server from the project root. With the file backend it needs no external database:
 ```
-go run main.go run
+STORAGE_BACKEND=file CORNDOGS_FILESTORE_DIR=./corndogs-data go run main.go run
 ```
-2. Run the client, each run will make one request
+   For the postgres backend, set the `DATABASE_*` variables first (see [docs/storage-backends.md](./docs/storage-backends.md)).
+2. Make a request with the bundled CLI client. Each invocation makes one request; the flags default to `--address 127.0.0.1 --port 5080`:
 ```
-go run client.main.go
+go run main.go submit-task --queue myqueue --current-state submitted
 ```
+   Generated clients for other languages live under [`clients/`](./clients).
 
 # Intended Design
 ## Data Structures
@@ -87,9 +89,34 @@ A task with `current_state: A` and `auto_target_state: B`\
 gotten with `override_auto_target_state: C`\
 will return with `current_state: B` and `auto_target_state: C`
 
-## Supported datastores
+## Storage backends
 
-Current targets are Postgres and room for others unplanned. The design is such that Corndogs should not know where it's storing things except in the Store implementation, it just gets pointed to a URL and picks up where it needs to. This is Cloud Native.
+Corndogs stores task state behind a single `Store` interface and picks the
+implementation at startup via `STORAGE_BACKEND`. Two backends are supported;
+both have identical task semantics and differ only operationally.
+
+**postgres** (default) — the shared backend for HA and horizontal scale-out.
+Corndogs connects to a PostgreSQL you provide (or that the Helm chart deploys)
+and hands out tasks with `SELECT ... FOR UPDATE SKIP LOCKED` across any number of
+replicas.
+
+```sh
+STORAGE_BACKEND=postgres DATABASE_HOST=localhost DATABASE_USER=postgres \
+  DATABASE_PASSWORD=postgres DATABASE_NAME=corndogs go run main.go run
+```
+
+**file** (embedded) — a single bbolt file, no separate database to operate. Fast
+and simple, but **single-replica only** (the data file is owned by one process).
+Group commit makes acked writes durable (they survive an abrupt kill or power
+loss) while amortizing fsync across concurrent writers.
+
+```sh
+STORAGE_BACKEND=file CORNDOGS_FILESTORE_DIR=./corndogs-data go run main.go run
+```
+
+Full environment-variable reference, durability modes, and trade-offs:
+**[docs/storage-backends.md](./docs/storage-backends.md)**. Deploying either
+backend with Helm: **[docs/deployment.md](./docs/deployment.md)**.
 
 ## Metrics and such
 
