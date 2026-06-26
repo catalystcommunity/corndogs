@@ -1,6 +1,29 @@
 # chart-corndogs
 Helm chart for corndogs
 
+This chart is not published to a chart registry; install it from a checkout of
+this repo (`helm install corndogs ./helm_chart/chart`). See
+[docs/deployment.md](../docs/deployment.md) for getting-started examples.
+
+# Storage backend
+
+The chart supports two storage backends, selected with `storage.backend`:
+
+- `postgres` (default) — the shared, horizontally-scalable backend. The chart
+  can deploy postgres for you (see [Database](#database) below) or point at an
+  external one.
+- `file` — an embedded, single-process bbolt backend with no separate database.
+  It is **single-replica only**: the chart calls Helm `fail` and refuses to
+  install if `replicaCount > 1` or autoscaling is enabled while
+  `storage.backend=file`. When using it, set `postgresql.enabled=false` (and
+  `zalando_postgres.enabled=false`) so no database is deployed alongside it.
+
+All `storage.*` values are documented inline in
+[values.yaml](./chart/values.yaml). Full backend reference and trade-offs:
+[docs/storage-backends.md](../docs/storage-backends.md).
+
+The sections below cover deploying postgres for the `postgres` backend.
+
 # Database
 This helm chart includes support for two methods of deploying postgres
 

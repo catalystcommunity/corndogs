@@ -37,7 +37,7 @@ RUN apt-get update \
  && for b in initdb pg_ctl createdb pg_isready postgres psql; do ln -sf "${PGBIN}/${b}" "/usr/local/bin/${b}"; done
 
 # Go toolchain.
-ARG GO_VERSION=1.23.4
+ARG GO_VERSION=1.25.0
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -C /usr/local -xz
 
 # csilgen CLI + generators. Generators go in /home/runner/.csilgen so a job that

@@ -1,3 +1,4 @@
+{{- include "corndogs.validateStorage" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,7 +6,13 @@ metadata:
   labels:
     {{- include "corndogs.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
+  {{- if eq .Values.storage.backend "file" }}
+  # File backend is single-replica only; Recreate avoids two pods contending for
+  # the ReadWriteOnce data volume during rollouts.
+  replicas: 1
+  strategy:
+    type: Recreate
+  {{- else if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
@@ -44,6 +51,30 @@ spec:
               value: {{ .Values.appconfig.loglevel }}
             - name: PROMETHEUS_ENABLED
               value: {{ .Values.appconfig.prometheusEnabled | quote }}
+            - name: STORAGE_BACKEND
+              value: {{ .Values.storage.backend | quote }}
+            {{- if eq .Values.storage.backend "file" }}
+            - name: CORNDOGS_FILESTORE_DIR
+              value: {{ .Values.storage.file.dir | quote }}
+            {{- if .Values.storage.file.auditDir }}
+            - name: CORNDOGS_FILESTORE_AUDIT_DIR
+              value: {{ .Values.storage.file.auditDir | quote }}
+            {{- end }}
+            # Always emitted so an explicit 0 (disable rolling) is honored; a
+            # falsy-0 would otherwise be dropped and fall back to the app default.
+            - name: CORNDOGS_FILESTORE_AUDIT_CHUNK_MB
+              value: {{ .Values.storage.file.auditChunkMB | quote }}
+            - name: CORNDOGS_FILESTORE_SYNC
+              value: {{ .Values.storage.file.sync | quote }}
+            {{- if .Values.storage.file.groupMaxBatch }}
+            - name: CORNDOGS_FILESTORE_GROUP_MAX_BATCH
+              value: {{ .Values.storage.file.groupMaxBatch | quote }}
+            {{- end }}
+            {{- if .Values.storage.file.groupMaxDelay }}
+            - name: CORNDOGS_FILESTORE_GROUP_MAX_DELAY
+              value: {{ .Values.storage.file.groupMaxDelay | quote }}
+            {{- end }}
+            {{- else }}
             {{- if .Values.database.dbname }}
             - name: DATABASE_NAME
               value: {{ .Values.database.dbname }}
@@ -88,6 +119,7 @@ spec:
                   name: {{ include "corndogs.zalando.posgresql.credentials.secret.name" . }}
                   key: password
             {{- end }}
+            {{- end }}
           ports:
             - name: corndogshttp
               containerPort: 5080
@@ -107,6 +139,30 @@ spec:
               port: 5080
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if eq .Values.storage.backend "file" }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.storage.file.dir }}
+            {{- if .Values.storage.file.persistence.audit.enabled }}
+            - name: audit
+              mountPath: {{ .Values.storage.file.persistence.audit.mountPath }}
+            {{- end }}
+          {{- end }}
+      {{- if eq .Values.storage.backend "file" }}
+      volumes:
+        - name: data
+          {{- if .Values.storage.file.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "corndogs.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.storage.file.persistence.audit.enabled }}
+        - name: audit
+          persistentVolumeClaim:
+            claimName: {{ include "corndogs.fullname" . }}-audit
+        {{- end }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
