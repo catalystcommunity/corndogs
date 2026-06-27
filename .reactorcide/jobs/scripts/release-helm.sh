@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 #
 # Helm chart release. semver-tags analyzes commits under helm_chart/ (scoped with
-# --directories), creates + pushes a prefixed tag `helm_chart/vX.Y.Z`, then bumps
-# Chart.yaml `version`, packages, and publishes a GitHub release with the .tgz.
-# Independent of release-server (separate prefixed tag sequence).
+# --directories) to compute the next `helm_chart/vX.Y.Z` version. We bump
+# Chart.yaml `version`, TAG THE BUMP COMMIT (so the tag points at the resulting
+# HEAD of main rather than trailing it), package, and publish a GitHub release
+# with the .tgz.
 #
-# runnerbase ships only curl/git/bash, so semver-tags, helm, and gh are
-# curl-installed (the linkkeys/longhouse pattern). Runs in the dir the job command
-# cloned (an authed full clone of main).
+# Ordering matters: semver-tags is run in --dry_run to compute the version
+# WITHOUT tagging; we create the version-bump commit, then create the tag and
+# push the branch + tag atomically.
+#
+# Independent of release-server (separate prefixed tag sequence). runnerbase
+# ships only curl/git/bash, so semver-tags, helm, and gh are curl-installed. Runs
+# in the dir the job command cloned (an authed full clone of main).
 set -euo pipefail
 
 SEMVER_TAGS_VERSION="${SEMVER_TAGS_VERSION:-v0.4.0}"
@@ -27,8 +32,10 @@ curl -fsSL "https://github.com/catalystcommunity/semver-tags/releases/download/$
 tar -xzf /tmp/semver-tags.tar.gz -C "${LOCAL_BIN}"
 chmod +x "${LOCAL_BIN}/semver-tags"
 
-echo "=== compute version bump for helm_chart/ ==="
-semver-tags run --output_json --directories helm_chart > /tmp/semver.txt 2>&1
+echo "=== compute version bump for helm_chart/ (dry run, no tagging) ==="
+# --dry_run computes the next version + tag name but does NOT create or push the
+# tag, so we control exactly which commit gets tagged (below).
+semver-tags run --dry_run --output_json --directories helm_chart > /tmp/semver.txt 2>&1
 OUTPUT=$(tail -1 /tmp/semver.txt)
 NEW_TAG=$(echo "${OUTPUT}"   | grep -o '"New_release_git_tag":"[^"]*"'  | cut -d'"' -f4)
 PUBLISHED=$(echo "${OUTPUT}" | grep -o '"New_release_published":"[^"]*"' | cut -d'"' -f4)
@@ -42,15 +49,33 @@ VERSION="${NEW_TAG##*/}"
 VERSION="${VERSION#v}"
 echo "=== releasing ${NEW_TAG} (version ${VERSION}) ==="
 
-echo "=== bump chart version to ${VERSION} ==="
+echo "=== bump chart version to ${VERSION}, commit, tag the commit, push ==="
+# Create the bump commit FIRST, then tag it, so ${NEW_TAG} points at the commit
+# that becomes HEAD of main. The retry loop serializes against a concurrent
+# release-server push (it also commits Chart.yaml, a different line). The branch
+# and tag are pushed in one --atomic push so the tag never lands without its commit.
 sed -i "s/^version: .*/version: \"${VERSION}\"/" helm_chart/chart/Chart.yaml
 git add helm_chart/chart/Chart.yaml
-if ! git diff --cached --quiet; then
-  git commit -m "ci: bump chart version to ${VERSION}"
-  # release-server may also be committing Chart.yaml (a different line); rebase to
-  # serialize cleanly before pushing.
-  git pull --rebase origin main || true
-  git push origin main
+git commit -m "ci: bump chart version to ${VERSION}" || echo "nothing to commit (version already ${VERSION})"
+
+pushed=false
+for attempt in $(seq 1 5); do
+  if ! git pull --rebase origin main; then
+    git rebase --abort 2>/dev/null || true
+    sleep $((attempt * 3)); continue
+  fi
+  # Point the tag at the final (possibly rebased) HEAD just before pushing.
+  git tag -f "${NEW_TAG}"
+  if git push --atomic origin "HEAD:main" "refs/tags/${NEW_TAG}"; then
+    pushed=true
+    break
+  fi
+  git tag -d "${NEW_TAG}" 2>/dev/null || true
+  sleep $((attempt * 3))
+done
+if [ "${pushed}" != "true" ]; then
+  echo "ERROR: failed to push ${NEW_TAG} + main after retries" >&2
+  exit 1
 fi
 
 echo "=== install helm + package chart ==="
