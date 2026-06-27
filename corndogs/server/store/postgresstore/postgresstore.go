@@ -9,6 +9,7 @@ import (
 
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/conversions"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/logging"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store/postgresstore/models"
 	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
 	"github.com/google/uuid"
@@ -41,7 +42,7 @@ type PostgresStore struct{}
 func (s PostgresStore) Initialize() (func(), error) {
 	var err error
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s", DatabaseHost, DatabaseUser, DatabasePassword, DatabaseName, DatabasePort, DatabaseSSLMode)
-	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logging.NewGormLogger()})
 	if err != nil {
 		return nil, err
 	}
