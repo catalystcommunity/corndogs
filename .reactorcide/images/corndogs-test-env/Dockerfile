@@ -31,7 +31,7 @@ USER root
 # /usr/local/bin (a stable, on-PATH location) rather than hardcoding the version.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      postgresql postgresql-client ca-certificates curl git \
+      postgresql postgresql-client ca-certificates curl git python3 \
  && rm -rf /var/lib/apt/lists/* \
  && PGBIN="$(dirname "$(find /usr/lib/postgresql -name initdb -type f | sort -V | tail -1)")" \
  && for b in initdb pg_ctl createdb pg_isready postgres psql; do ln -sf "${PGBIN}/${b}" "/usr/local/bin/${b}"; done

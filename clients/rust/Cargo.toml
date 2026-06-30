@@ -1,15 +1,4 @@
 [package]
-name = "corndogs-client"
+name = "corndogs"
 version = "0.0.0"
 edition = "2021"
-publish = false
-description = "CBOR-over-HTTP Rust client for corndogs, generated from CSIL"
-
-[lib]
-path = "lib.rs"
-
-[dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_bytes = "0.11"
-ciborium = "0.2"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }

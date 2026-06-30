@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
+	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/google/uuid"
 	bolt "go.etcd.io/bbolt"
 )

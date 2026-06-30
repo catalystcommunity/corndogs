@@ -1,28 +1,35 @@
 #!/usr/bin/env bash
 #
-# Generate corndogs clients from csil/corndogs.csil into clients/<lang>/.
+# Generate corndogs CSIL-RPC clients from csil/corndogs.csil into clients/<lang>/,
+# and the server-side service interface + types into corndogs/server/csilapi.
+#
+# The wire is CSIL-RPC (csilgen docs/csil-rpc-transport.md): deterministic CBOR
+# envelopes (CsilRpcRequest/CsilRpcResponse) with tag-24-wrapped payloads, over the
+# envelope-in-body HTTP profile at POST /csil/v1/rpc. Generated clients are
+# transport-agnostic (they call a Transport seam); a per-language CSIL-RPC HTTP
+# carrier wires them to the wire (see clients/<lang>/ support files / README).
 #
 # Pinned to a known-good csilgen revision so codegen is reproducible (csilgen is
 # alpha). Bump CSILGEN_REV deliberately and re-run; the reactorcide
 # `csil-gen-check` job fails if committed output drifts from a fresh run.
 #
-# Requires `csilgen` on PATH (build: `cargo install --path crates/csilgen-cli`
-# in ~/repos/catalystcommunity/csilgen, then `cargo run -p xtask install-wasm`).
-#
-# IMPORTANT: regenerate with the SAME csilgen binary CI uses — the
-# corndogs-test-env image (which bakes csilgen at the pinned rev) — e.g.:
+# Requires `csilgen` on PATH. Regenerate with the SAME csilgen binary CI uses —
+# the corndogs-test-env image baked at the pinned rev — e.g.:
 #   docker run --rm -v "$PWD:/src" -w /src --entrypoint bash \
 #     containers.catalystsquad.com/public/catalystcommunity/corndogs-test-env:latest \
 #     -lc 'HOME=/home/runner ./csil/generate.sh'
-# A locally-built csilgen can emit byte-different output (e.g. Python import
-# ordering) and trip csil-gen-check. See csilgen request
-# 2026-06-09-nondeterministic-python-imports.md.
-#
-# All four languages now generate real, typed, transport-agnostic clients via the
-# *-client targets (csilgen requests resolved 2026-06-08). See clients/README.md.
 set -euo pipefail
 
-CSILGEN_REV="ccc3f02"   # csilgen git rev this output was generated against
+CSILGEN_REV="5415953"   # csilgen git rev this output was generated against
+
+# CSIL-RPC client languages, each emitted as a complete, self-contained, publishable
+# PACKAGE (csilgen emit_packages, set in the spec): generated surfaces + codec + a
+# genquickstart.md whose copy-paste carriers (all three transports, built on the
+# transports/<lang> reference lib) are how a consumer wires the byte carrier. We no
+# longer hand-write carriers per language — the genquickstart is their home. Go is
+# handled separately below (it also carries the server surface + a real carrier the
+# corndogs server's tests use).
+LANGUAGES=(rust typescript python java csharp c swift kotlin zig ocaml elixir ruby dart)
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${HERE}/.." && pwd)"
@@ -37,31 +44,27 @@ fi
 echo "=== validating ${SPEC} ==="
 csilgen validate --input "${SPEC}"
 
-# Generated code lands in clients/<lang>/gen/ (wholly owned by csilgen, wiped and
-# rewritten each run). Hand-written support files — the per-language CBOR
-# transport, package manifests — live in clients/<lang>/ and import from ./gen/,
-# so they survive regeneration and there are no stale leftovers. The
-# csil-gen-check job diffs clients/ after running this, so output must be
-# deterministic.
-gen() {
-  local target="$1" subdir="$2"
-  echo "=== generate ${target} -> clients/${subdir}/gen ==="
-  rm -rf "${OUT:?}/${subdir}/gen"
-  mkdir -p "${OUT}/${subdir}/gen"
-  csilgen generate --input "${SPEC}" --target "${target}" --output "${OUT}/${subdir}/gen"
-}
+# Each clients/<lang>/ IS the generated package (manifest + sources + genquickstart.md),
+# wholly owned by csilgen and rewritten each run — there are no hand-written files to
+# preserve (carriers retired; manifests are generated). The csil-gen-check job diffs
+# clients/ after running this, so output must be deterministic.
+for lang in "${LANGUAGES[@]}"; do
+  echo "=== package ${lang}-client -> clients/${lang} ==="
+  rm -rf "${OUT:?}/${lang}"
+  mkdir -p "${OUT}/${lang}"
+  csilgen generate --input "${SPEC}" --target "${lang}-client" --output "${OUT}/${lang}"
+done
 
-gen typescript-client typescript
-gen go-client          go
-gen rust-client        rust
-gen python-client      python
+# Go is the one package corndogs consumes itself: the `go` target emits ALL surfaces
+# (CorndogsService interface the server implements + CorndogsClient + types + codec) as a
+# real module (emit_packages → go.mod at the package_name path), so the corndogs server
+# depends on it via go.mod require+replace, exactly like an external `go get` consumer.
+# Unlike the other languages it keeps a hand-written carrier (transport.go) + E2E test
+# alongside the generated files, so we remove only generated artifacts here.
+GO_LIB="${OUT}/corndogs"
+echo "=== package go (all surfaces) -> clients/corndogs ==="
+mkdir -p "${GO_LIB}"
+rm -f "${GO_LIB}"/*.gen.go "${GO_LIB}/go.mod" "${GO_LIB}/genquickstart.md"
+csilgen generate --input "${SPEC}" --target go --output "${GO_LIB}"
 
-# Server-side Go for the corndogs server: the `go` (server) target emits the
-# typed CorndogsService interface + types (package api). Wholly generated dir.
-SERVER_API="${ROOT}/corndogs/server/csilapi"
-echo "=== generate go (server) -> corndogs/server/csilapi ==="
-rm -rf "${SERVER_API}"
-mkdir -p "${SERVER_API}"
-csilgen generate --input "${SPEC}" --target go --output "${SERVER_API}"
-
-echo "=== done; clients under ${OUT}/, server types under ${SERVER_API} ==="
+echo "=== done; every client packaged under ${OUT}/ (Go module at ${GO_LIB}) ==="

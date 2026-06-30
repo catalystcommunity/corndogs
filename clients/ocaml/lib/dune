@@ -1,0 +1,3 @@
+(library
+ (name corndogs)
+ (public_name corndogs))

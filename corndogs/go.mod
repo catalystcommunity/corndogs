@@ -46,7 +46,10 @@ require (
 )
 
 require (
+	github.com/CatalystCommunity/corndogs/clients/corndogs v0.0.0-00010101000000-000000000000
 	github.com/fxamacker/cbor/v2 v2.9.2
 	github.com/prometheus/client_golang v1.23.2
 	golang.org/x/sys v0.46.0 // indirect
 )
+
+replace github.com/CatalystCommunity/corndogs/clients/corndogs => ../clients/corndogs

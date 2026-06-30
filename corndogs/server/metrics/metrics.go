@@ -7,7 +7,7 @@ import (
 
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
-	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
+	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

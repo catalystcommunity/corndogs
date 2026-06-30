@@ -1,13 +1,13 @@
-[project]
-name = "corndogs-client"
-version = "0.0.0"
-description = "CBOR-over-HTTP Python client for corndogs, generated from CSIL"
-requires-python = ">=3.9"
-dependencies = ["cbor2>=5.0"]
-
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["."]
+[project]
+name = "corndogs"
+version = "0.0.0"
+requires-python = ">=3.9"
+description = "Generated CSIL client package"
+dependencies = []
+
+[tool.setuptools]
+packages = ["corndogs"]

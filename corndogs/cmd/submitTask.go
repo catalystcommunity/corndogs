@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
+	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )

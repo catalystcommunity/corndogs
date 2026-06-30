@@ -11,7 +11,7 @@ import (
 	"github.com/CatalystCommunity/corndogs/corndogs/server/conversions"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/logging"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store/postgresstore/models"
-	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
+	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/google/uuid"
 	"github.com/pressly/goose/v3"
 	"github.com/rs/zerolog/log"
