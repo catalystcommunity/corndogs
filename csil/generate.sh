@@ -13,11 +13,12 @@
 # alpha). Bump CSILGEN_REV deliberately and re-run; the reactorcide
 # `csil-gen-check` job fails if committed output drifts from a fresh run.
 #
-# Requires `csilgen` on PATH. Regenerate with the SAME csilgen binary CI uses —
-# the corndogs-test-env image baked at the pinned rev — e.g.:
-#   docker run --rm -v "$PWD:/src" -w /src --entrypoint bash \
-#     containers.catalystsquad.com/public/catalystcommunity/corndogs-test-env:latest \
-#     -lc 'HOME=/home/runner ./csil/generate.sh'
+# Requires `csilgen` on PATH, built from CSILGEN_REV below. CI's csil-gen-check builds
+# csilgen at exactly that rev on a stock rust image (not a baked binary), so the rev
+# here is the single source of truth — bump it and regenerate. Locally, build+install
+# csilgen at the same rev:
+#   git -C <csilgen> checkout <CSILGEN_REV> && cargo build -p csilgen --release \
+#     && cargo run -p xtask install-wasm   # then `csilgen` on PATH + ./csil/generate.sh
 set -euo pipefail
 
 CSILGEN_REV="19bd3c2"   # csilgen git rev this output was generated against (matches the image's ARG CSILGEN_REF)

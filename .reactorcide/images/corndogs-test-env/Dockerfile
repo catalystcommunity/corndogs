@@ -1,34 +1,27 @@
-# corndogs-test-env — a reactorcide runner image with Go + PostgreSQL + csilgen
-# baked in, so the test-server and csil-gen-check jobs need no per-run apt/sudo.
+# corndogs-test-env — a reactorcide runner image with Go + PostgreSQL + python3 baked
+# in, so the test-server and client-tests jobs need no per-run apt/sudo.
+#
+# NOTE: csilgen is intentionally NOT baked here. It changes rev frequently, and baking
+# it coupled the image to a csilgen rev (every bump needed an image rebuild before
+# csil-gen-check could pass). csil-gen-check now BUILDS csilgen from the rev pinned in
+# csil/generate.sh on a stock rust image instead — see .reactorcide/jobs/csil-gen-check.yaml.
+# This image only carries the stable toolchains (Go, Postgres, python3).
 #
 # Designed to run correctly as ANY uid (the worker runs jobs as runner/1001;
-# `reactorcide run-local` runs as the host uid). Everything baked in is
-# world-readable; the jobs write only to /tmp (postgres data dir, Go caches), so
-# they don't depend on a writable HOME. See .reactorcide/jobs/test-server.yaml.
+# `reactorcide run-local` runs as the host uid). Everything baked in is world-readable;
+# the jobs write only to /tmp (postgres data dir, Go caches), so they don't depend on a
+# writable HOME. See .reactorcide/jobs/test-server.yaml.
 #
 # Published to: containers.catalystsquad.com/public/catalystcommunity/corndogs-test-env
 
-# ---- stage 1: build csilgen (CLI binary + wasm generators) ----
-FROM rust:1-bookworm AS csilgen
-ARG CSILGEN_REF=19bd3c2
-RUN git clone https://github.com/catalystcommunity/csilgen /src/csilgen
-WORKDIR /src/csilgen
-RUN git checkout "${CSILGEN_REF}" \
- && rustup target add wasm32-unknown-unknown \
- && cargo build -p csilgen --release \
- && cargo run -p xtask install-wasm
-# -> /src/csilgen/target/release/csilgen
-# -> /root/.csilgen/generators/*.wasm
-
-# ---- final image ----
 FROM containers.catalystsquad.com/public/reactorcide/runnerbase:dev
 
 USER root
 
-# PostgreSQL (version depends on the base distro: bookworm=15, trixie=17, ...) +
-# build essentials. The server binaries (initdb/pg_ctl/...) live in a
-# version-specific /usr/lib/postgresql/<ver>/bin, so symlink them into
-# /usr/local/bin (a stable, on-PATH location) rather than hardcoding the version.
+# PostgreSQL (version depends on the base distro: bookworm=15, trixie=17, ...). The
+# server binaries (initdb/pg_ctl/...) live in a version-specific
+# /usr/lib/postgresql/<ver>/bin, so symlink them into /usr/local/bin (a stable, on-PATH
+# location) rather than hardcoding the version. python3 is for the Python client test.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       postgresql postgresql-client ca-certificates curl git python3 \
@@ -40,16 +33,10 @@ RUN apt-get update \
 ARG GO_VERSION=1.25.7
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -C /usr/local -xz
 
-# csilgen CLI + generators. Generators go in /home/runner/.csilgen so a job that
-# sets HOME=/home/runner finds them; made world-readable so any uid can read.
-COPY --from=csilgen /src/csilgen/target/release/csilgen /usr/local/bin/csilgen
-COPY --from=csilgen /root/.csilgen/generators /home/runner/.csilgen/generators
-RUN chmod -R a+rX /home/runner/.csilgen
-
 # Go on PATH; postgres binaries are symlinked into /usr/local/bin above.
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Smoke-check the toolchain is wired up at build time.
-RUN go version && csilgen --help >/dev/null && initdb --version
+RUN go version && python3 --version && initdb --version
 
 USER runner

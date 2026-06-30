@@ -1,5 +1,5 @@
 name: corndogs-build-test-env
-description: "Build + push the corndogs-test-env runner image (Go + Postgres + csilgen)"
+description: "Build + push the corndogs-test-env runner image (Go + Postgres + python3)"
 triggers:
   events:
     - push
