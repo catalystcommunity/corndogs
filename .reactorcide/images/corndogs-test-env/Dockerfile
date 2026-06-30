@@ -10,7 +10,7 @@
 
 # ---- stage 1: build csilgen (CLI binary + wasm generators) ----
 FROM rust:1-bookworm AS csilgen
-ARG CSILGEN_REF=ccc3f02
+ARG CSILGEN_REF=19bd3c2
 RUN git clone https://github.com/catalystcommunity/csilgen /src/csilgen
 WORKDIR /src/csilgen
 RUN git checkout "${CSILGEN_REF}" \
