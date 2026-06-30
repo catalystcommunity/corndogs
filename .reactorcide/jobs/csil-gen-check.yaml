@@ -11,18 +11,20 @@ paths:
     - "csil/**"
     - "clients/**"
 job:
-  # corndogs-test-env bakes in csilgen + its wasm generators under
-  # /home/runner/.csilgen (world-readable), so HOME=/home/runner lets csilgen
-  # discover them. Pinned csilgen rev lives in the image + csil/generate.sh.
-  image: containers.catalystsquad.com/public/catalystcommunity/corndogs-test-env:latest
+  # BUILD csilgen at the rev corndogs pins (csil/generate.sh's CSILGEN_REV) instead of
+  # baking it into a runner image — so bumping the rev needs no image rebuild, and the
+  # check can never drift from / lag behind the binary. A stock rust image has the
+  # cargo + C toolchain csilgen needs; runnerbase ships only curl/git/bash and can't
+  # compile it. Everything writes to /tmp, so any uid works (incl. `reactorcide run-local`).
+  image: rust:1-bookworm
   command: |
     set -e
-    # Writes regenerated clients back INTO the worktree (clients/) and git-diffs
-    # it, so it must run as the user that owns the tree: the run-local host-uid
-    # default, or the worker's runner uid (the workspace is chowned to it). Do
-    # NOT opt this job into run-local uid parity — that would make 1001 write a
-    # host-owned tree. (Run via run-local, it regenerates into your checkout.)
-    export HOME=/home/runner    # where the baked csilgen generators live
+    # NB: do NOT set CARGO_TARGET_DIR — xtask install-wasm reads a relative
+    # target/wasm32-unknown-unknown/release. The csilgen clone lives under /tmp (cloned
+    # by this uid), so its default ./target is writable.
+    export HOME=/tmp/home CARGO_HOME=/tmp/cargo
+    mkdir -p "$HOME" "$CARGO_HOME"
+
     if [ "${REACTORCIDE_WORKER_MODE:-remote}" = "local" ]; then
       cd /job/src
     else
@@ -31,6 +33,18 @@ job:
       cd /job/src
     fi
 
+    # Single source of truth for the rev: the pin in generate.sh.
+    CSILGEN_REV="$(sed -n 's/^CSILGEN_REV="\([^"]*\)".*/\1/p' csil/generate.sh)"
+    echo "=== building csilgen @ ${CSILGEN_REV} ==="
+    git clone https://github.com/catalystcommunity/csilgen /tmp/csilgen
+    git -C /tmp/csilgen checkout "${CSILGEN_REV}"
+    ( cd /tmp/csilgen \
+        && rustup target add wasm32-unknown-unknown \
+        && cargo build -p csilgen --release \
+        && cargo run -p xtask install-wasm )
+    export PATH="/tmp/csilgen/target/release:${PATH}"   # the csilgen CLI; generators land in $HOME/.csilgen
+
+    echo "=== validate + regenerate + diff ==="
     csilgen validate --input csil/corndogs.csil
     ./csil/generate.sh                 # all generated packages land under clients/ (incl. the Go module clients/corndogs)
     git diff --exit-code -- clients/ || {
@@ -39,6 +53,6 @@ job:
       exit 1
     }
     echo "Generated clients are up to date."
-  timeout: 600
+  timeout: 1800          # builds csilgen + its wasm generators from source
   priority: 10
   raw_command: true
