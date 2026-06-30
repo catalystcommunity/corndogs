@@ -1,0 +1,17 @@
+# corndogs/Dockerfile builds from the repo root (to include clients/corndogs). Keep the
+# build context lean: drop VCS metadata and every language's build artifacts. In CI the
+# tree is a fresh clone (no artifacts), but this keeps local `docker build .` fast too.
+.git
+corndogs/main
+**/node_modules
+**/target
+**/dist
+**/.dart_tool
+**/_build
+**/build
+**/bin
+**/obj
+**/.gradle
+**/__pycache__
+**/*.egg-info
+**/pubspec.lock
