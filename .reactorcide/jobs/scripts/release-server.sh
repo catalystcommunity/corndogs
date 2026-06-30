@@ -78,7 +78,9 @@ if ! command -v docker >/dev/null 2>&1; then
   rm /tmp/docker.tgz
 fi
 for _ in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
-docker build -t "${IMAGE}:${VERSION}" ./corndogs
+# Context is the repo ROOT (not ./corndogs): the server's go.mod replaces the generated
+# module ../clients/corndogs, which must be in the build context. See corndogs/Dockerfile.
+docker build -f corndogs/Dockerfile -t "${IMAGE}:${VERSION}" .
 docker save "${IMAGE}:${VERSION}" -o /tmp/image.tar
 crane push /tmp/image.tar "${IMAGE}:${VERSION}"
 crane push /tmp/image.tar "${IMAGE}:latest"
