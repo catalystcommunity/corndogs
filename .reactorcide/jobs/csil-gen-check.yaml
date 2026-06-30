@@ -32,13 +32,13 @@ job:
     fi
 
     csilgen validate --input csil/corndogs.csil
-    ./csil/generate.sh                 # clients/<lang>/gen/ + corndogs/server/csilapi/
-    git diff --exit-code -- clients/ corndogs/server/csilapi/ || {
+    ./csil/generate.sh                 # all generated packages land under clients/ (incl. the Go module clients/corndogs)
+    git diff --exit-code -- clients/ || {
       echo ""
       echo "Generated code is stale — run ./csil/generate.sh and commit the result."
       exit 1
     }
-    echo "Generated clients + server types are up to date."
+    echo "Generated clients are up to date."
   timeout: 600
   priority: 10
   raw_command: true
