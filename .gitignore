@@ -41,3 +41,39 @@ __pycache__/
 
 # Go build output (the server binary is built into images/tmp, never committed)
 corndogs/main
+
+# Python venvs (client dev / verification)
+.venv/
+venv/
+
+# Client build artifacts (per-language toolchains; never commit build output)
+# C / native objects
+*.o
+*.a
+# JVM (java, kotlin)
+*.class
+*.jar
+clients/*/build/
+.gradle/
+# .NET (csharp)
+clients/csharp/bin/
+clients/csharp/obj/
+# Elixir / Erlang
+_build/
+deps/
+*.beam
+erl_crash.dump
+# OCaml
+_opam/
+*.cmo
+*.cmi
+*.cmx
+# Zig
+.zig-cache/
+zig-cache/
+zig-out/
+# Dart
+.dart_tool/
+pubspec.lock
+# Swift
+.build/

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
+	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 )
 
 // sep separates the variable-length string components of a bbolt task key.

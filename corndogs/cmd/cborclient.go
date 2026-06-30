@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
+	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/fxamacker/cbor/v2"
 )
 

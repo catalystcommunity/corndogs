@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
+	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/stretchr/testify/require"
 )
 

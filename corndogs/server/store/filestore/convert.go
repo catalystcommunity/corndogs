@@ -1,6 +1,6 @@
 package filestore
 
-import api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
+import api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 
 // toAPITask converts an internal Task to the generated CSIL api.Task.
 func toAPITask(t *Task) *api.Task {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
+	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/stretchr/testify/require"
 
@@ -113,7 +113,7 @@ func TestBasicFlow(t *testing.T) {
 	require.NotEmpty(t, completeTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, completeTaskResponse.Task.Uuid, "uuid should not be empty")
 	require.Equal(t, "completed", completeTaskResponse.Task.CurrentState, "Task CurrentState does not have correct suffix added")
-	require.Equal(t, []byte(nil), completeTaskResponse.Task.Payload, "Task Payload is not nil after completion")
+	require.Empty(t, completeTaskResponse.Task.Payload, "Task Payload should be empty after completion")
 }
 
 func TestGetNextTaskOverrideState(t *testing.T) {

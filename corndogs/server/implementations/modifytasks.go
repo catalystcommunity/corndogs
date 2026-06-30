@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
-	api "github.com/CatalystCommunity/corndogs/corndogs/server/csilapi"
+	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/metrics"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
 )

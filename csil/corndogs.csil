@@ -1,6 +1,14 @@
+;; Emit every client as a real, self-contained, publishable package (emit_packages),
+;; each with a generated genquickstart.md carrying copy-paste carriers for all three
+;; CSIL transports. package_name is a path: Go uses the whole thing as its go.mod module
+;; (go-get-able), and every other ecosystem uses its last segment ("corndogs") as the
+;; package name (free on npm/PyPI/crates.io/RubyGems/NuGet/pub.dev/Hex/opam as of 2026-06).
 options {
     package: "corndogs",
-    version: "v1alpha1"
+    version: "v1alpha1",
+    emit_packages: ["rust", "go", "typescript", "python", "java", "csharp", "c", "swift", "kotlin", "zig", "ocaml", "elixir", "ruby", "dart"],
+    package_name: "github.com/CatalystCommunity/corndogs/clients/corndogs",
+    package_version: "0.0.0"
 }
 
 ;;; Corndogs task-state service, translated from corndogs.proto to CSIL

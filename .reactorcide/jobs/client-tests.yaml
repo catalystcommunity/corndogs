@@ -1,0 +1,40 @@
+name: corndogs-client-tests
+description: "Run the generated Go + Python clients end-to-end against a live corndogs server"
+triggers:
+  events:
+    - pull_request_opened
+    - pull_request_updated
+  branches:
+    - main
+paths:
+  include:
+    - "clients/**"
+    - "csil/**"        # a contract change regenerates the clients
+    - "corndogs/**"    # the server the clients are tested against
+job:
+  # corndogs-test-env bakes Go + python3 + csilgen + git. clients/run-tests.sh builds and
+  # starts its own file-backed server (no postgres), git-fetches transports/<lang> from
+  # GitHub, and round-trips each generated client through it. It writes only to /tmp, so
+  # it runs identically as the worker's runner uid and under `reactorcide run-local`.
+  image: containers.catalystsquad.com/public/catalystcommunity/corndogs-test-env:latest
+  command: |
+    set -e
+    # Keep all writes in /tmp so any uid works (see corndogs-test-env Dockerfile).
+    export HOME=/tmp/home GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomod GOPATH=/tmp/gopath
+    export CATALYST_CACHE=/tmp/catalyst-cache   # where run-tests.sh git-clones transports
+    mkdir -p "$HOME" "$GOCACHE" "$GOMODCACHE" "$GOPATH" "$CATALYST_CACHE"
+
+    if [ "${REACTORCIDE_WORKER_MODE:-remote}" = "local" ]; then
+      cd /job/src
+    else
+      git clone --branch "${REACTORCIDE_HEAD_REF:-$REACTORCIDE_PR_REF}" \
+        "${REACTORCIDE_HEAD_URL:-$REACTORCIDE_SOURCE_URL}" /job/src
+      cd /job/src
+    fi
+
+    # Only the two languages we gate in CI; the full 14 run on a dev machine via
+    # catalyst-tools. CORNDOGS_E2E is unset, so run-tests.sh builds+starts the server.
+    LANGS="go python" ./clients/run-tests.sh
+  timeout: 900
+  priority: 10
+  raw_command: true

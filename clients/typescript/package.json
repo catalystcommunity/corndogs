@@ -1,21 +1,23 @@
 {
-  "name": "@catalystcommunity/corndogs-client",
-  "version": "0.0.0",
-  "description": "CBOR-over-HTTP TypeScript client for corndogs, generated from CSIL",
-  "type": "module",
-  "main": "index.ts",
-  "types": "index.ts",
-  "scripts": {
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "cbor-x": "^1.5.0"
-  },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "typescript": "^5"
   },
-  "publishConfig": {
-    "access": "public"
+  "exports": {
+    ".": {
+      "default": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
-  "private": true
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.js",
+  "name": "corndogs",
+  "scripts": {
+    "build": "tsc"
+  },
+  "type": "commonjs",
+  "types": "dist/index.d.ts",
+  "version": "0.0.0"
 }
