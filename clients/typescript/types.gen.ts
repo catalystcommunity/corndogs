@@ -53,6 +53,25 @@ export interface GetNextTaskResponse {
   task?: Task;
 }
 
+/**
+ * GetNextTaskGroup claims the single best task across a SET of queues in one
+ * request. current_state (if provided) filters by state exactly as GetNextTask
+ * does; priority is respected ACROSS the named queues (highest priority first,
+ * then oldest), so the winner is the globally-best task among all of them. The
+ * override_* fields carry the same claim semantics as GetNextTask.
+ */
+export interface GetNextTaskGroupRequest {
+  queues: string[];
+  currentState: string;
+  overrideTimeout: number;
+  overrideCurrentState: string;
+  overrideAutoTargetState: string;
+}
+
+export interface GetNextTaskGroupResponse {
+  task?: Task;
+}
+
 export interface CompleteTaskRequest {
   uuid: string;
   queue: string;

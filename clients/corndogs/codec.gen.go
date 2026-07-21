@@ -33,6 +33,53 @@ type cborTag struct {
 	inner cborValue
 }
 
+func cborEqual(a, b cborValue) bool {
+	switch x := a.(type) {
+	case cborUint:
+		y, ok := b.(cborUint)
+		return ok && x == y
+	case cborInt:
+		y, ok := b.(cborInt)
+		return ok && x == y
+	case cborBool:
+		y, ok := b.(cborBool)
+		return ok && x == y
+	case cborFloat:
+		y, ok := b.(cborFloat)
+		return ok && x == y
+	case cborNull:
+		_, ok := b.(cborNull)
+		return ok
+	case cborText:
+		y, ok := b.(cborText)
+		return ok && x == y
+	case cborBytes:
+		y, ok := b.(cborBytes)
+		if !ok || len(x) != len(y) {
+			return false
+		}
+		for i := range x {
+			if x[i] != y[i] {
+				return false
+			}
+		}
+		return true
+	case cborArray:
+		y, ok := b.(cborArray)
+		if !ok || len(x) != len(y) {
+			return false
+		}
+		for i := range x {
+			if !cborEqual(x[i], y[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
 func (cborUint) isCbor()  {}
 func (cborInt) isCbor()   {}
 func (cborBool) isCbor()  {}
@@ -908,6 +955,130 @@ func DecodeGetNextTaskResponse(csilData []byte) (GetNextTaskResponse, error) {
 	return csilDecGetNextTaskResponse(csilRoot)
 }
 
+// csilEncGetNextTaskGroupRequest builds the canonical CBOR value tree for a GetNextTaskGroupRequest.
+func csilEncGetNextTaskGroupRequest(csilV GetNextTaskGroupRequest) cborValue {
+	csilEntries := make(cborMap, 0, 5)
+	csilEntries = append(csilEntries, cborEntry{cborText("queues"), cborEncArray(csilV.Queues, func(csilElem string) cborValue { return cborText(csilElem) })})
+	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
+	csilEntries = append(csilEntries, cborEntry{cborText("override_timeout"), cborInt(csilV.OverrideTimeout)})
+	csilEntries = append(csilEntries, cborEntry{cborText("override_current_state"), cborText(csilV.OverrideCurrentState)})
+	csilEntries = append(csilEntries, cborEntry{cborText("override_auto_target_state"), cborText(csilV.OverrideAutoTargetState)})
+	return csilEntries
+}
+
+// csilDecGetNextTaskGroupRequest reconstructs a GetNextTaskGroupRequest from a decoded CBOR value tree.
+func csilDecGetNextTaskGroupRequest(csilRoot cborValue) (GetNextTaskGroupRequest, error) {
+	var csilOut GetNextTaskGroupRequest
+	{
+		csilField, csilErr := cborRequire(csilRoot, "queues")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (func(csilV cborValue) ([]string, error) { return cborDecArray(csilV, cborAsText) })(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Queues = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "current_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.CurrentState = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "override_timeout")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OverrideTimeout = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "override_current_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OverrideCurrentState = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "override_auto_target_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OverrideAutoTargetState = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeGetNextTaskGroupRequest encodes a GetNextTaskGroupRequest to canonical CSIL CBOR bytes.
+func EncodeGetNextTaskGroupRequest(csilV GetNextTaskGroupRequest) []byte {
+	return cborEncode(csilEncGetNextTaskGroupRequest(csilV))
+}
+
+// DecodeGetNextTaskGroupRequest decodes canonical CSIL CBOR bytes into a GetNextTaskGroupRequest.
+func DecodeGetNextTaskGroupRequest(csilData []byte) (GetNextTaskGroupRequest, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero GetNextTaskGroupRequest
+		return csilZero, csilErr
+	}
+	return csilDecGetNextTaskGroupRequest(csilRoot)
+}
+
+// csilEncGetNextTaskGroupResponse builds the canonical CBOR value tree for a GetNextTaskGroupResponse.
+func csilEncGetNextTaskGroupResponse(csilV GetNextTaskGroupResponse) cborValue {
+	csilEntries := make(cborMap, 0, 1)
+	if csilV.Task != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask((*csilV.Task))})
+	}
+	return csilEntries
+}
+
+// csilDecGetNextTaskGroupResponse reconstructs a GetNextTaskGroupResponse from a decoded CBOR value tree.
+func csilDecGetNextTaskGroupResponse(csilRoot cborValue) (GetNextTaskGroupResponse, error) {
+	var csilOut GetNextTaskGroupResponse
+	if csilField, csilOk := cborMapGet(csilRoot, "task"); csilOk {
+		csilVal, csilErr := (csilDecTask)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Task = &csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeGetNextTaskGroupResponse encodes a GetNextTaskGroupResponse to canonical CSIL CBOR bytes.
+func EncodeGetNextTaskGroupResponse(csilV GetNextTaskGroupResponse) []byte {
+	return cborEncode(csilEncGetNextTaskGroupResponse(csilV))
+}
+
+// DecodeGetNextTaskGroupResponse decodes canonical CSIL CBOR bytes into a GetNextTaskGroupResponse.
+func DecodeGetNextTaskGroupResponse(csilData []byte) (GetNextTaskGroupResponse, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero GetNextTaskGroupResponse
+		return csilZero, csilErr
+	}
+	return csilDecGetNextTaskGroupResponse(csilRoot)
+}
+
 // csilEncCompleteTaskRequest builds the canonical CBOR value tree for a CompleteTaskRequest.
 func csilEncCompleteTaskRequest(csilV CompleteTaskRequest) cborValue {
 	csilEntries := make(cborMap, 0, 3)
@@ -1479,7 +1650,10 @@ func csilDecGetQueueTaskCountsResponse(csilRoot cborValue) (GetQueueTaskCountsRe
 		if csilErr != nil {
 			return csilOut, csilErr
 		}
-		csilVal, csilErr := (func(csilV cborValue) (StringInt64Map, error) { csilInner, csilErr := (func(csilV cborValue) (map[string]int64, error) { return cborDecMap(csilV, cborAsText, cborAsI64) })(csilV); return StringInt64Map(csilInner), csilErr })(csilField)
+		csilVal, csilErr := (func(csilV cborValue) (StringInt64Map, error) {
+			csilInner, csilErr := (func(csilV cborValue) (map[string]int64, error) { return cborDecMap(csilV, cborAsText, cborAsI64) })(csilV)
+			return StringInt64Map(csilInner), csilErr
+		})(csilField)
 		if csilErr != nil {
 			return csilOut, csilErr
 		}
@@ -1592,7 +1766,10 @@ func csilDecGetTaskStateCountsResponse(csilRoot cborValue) (GetTaskStateCountsRe
 		if csilErr != nil {
 			return csilOut, csilErr
 		}
-		csilVal, csilErr := (func(csilV cborValue) (StringInt64Map, error) { csilInner, csilErr := (func(csilV cborValue) (map[string]int64, error) { return cborDecMap(csilV, cborAsText, cborAsI64) })(csilV); return StringInt64Map(csilInner), csilErr })(csilField)
+		csilVal, csilErr := (func(csilV cborValue) (StringInt64Map, error) {
+			csilInner, csilErr := (func(csilV cborValue) (map[string]int64, error) { return cborDecMap(csilV, cborAsText, cborAsI64) })(csilV)
+			return StringInt64Map(csilInner), csilErr
+		})(csilField)
 		if csilErr != nil {
 			return csilOut, csilErr
 		}
@@ -1655,7 +1832,10 @@ func csilDecQueueAndStateCounts(csilRoot cborValue) (QueueAndStateCounts, error)
 		if csilErr != nil {
 			return csilOut, csilErr
 		}
-		csilVal, csilErr := (func(csilV cborValue) (StringInt64Map, error) { csilInner, csilErr := (func(csilV cborValue) (map[string]int64, error) { return cborDecMap(csilV, cborAsText, cborAsI64) })(csilV); return StringInt64Map(csilInner), csilErr })(csilField)
+		csilVal, csilErr := (func(csilV cborValue) (StringInt64Map, error) {
+			csilInner, csilErr := (func(csilV cborValue) (map[string]int64, error) { return cborDecMap(csilV, cborAsText, cborAsI64) })(csilV)
+			return StringInt64Map(csilInner), csilErr
+		})(csilField)
 		if csilErr != nil {
 			return csilOut, csilErr
 		}
@@ -1721,7 +1901,12 @@ func csilDecGetQueueAndStateCountsResponse(csilRoot cborValue) (GetQueueAndState
 		if csilErr != nil {
 			return csilOut, csilErr
 		}
-		csilVal, csilErr := (func(csilV cborValue) (QueueAndStateCountsMap, error) { csilInner, csilErr := (func(csilV cborValue) (map[string]QueueAndStateCounts, error) { return cborDecMap(csilV, cborAsText, csilDecQueueAndStateCounts) })(csilV); return QueueAndStateCountsMap(csilInner), csilErr })(csilField)
+		csilVal, csilErr := (func(csilV cborValue) (QueueAndStateCountsMap, error) {
+			csilInner, csilErr := (func(csilV cborValue) (map[string]QueueAndStateCounts, error) {
+				return cborDecMap(csilV, cborAsText, csilDecQueueAndStateCounts)
+			})(csilV)
+			return QueueAndStateCountsMap(csilInner), csilErr
+		})(csilField)
 		if csilErr != nil {
 			return csilOut, csilErr
 		}
@@ -1795,4 +1980,3 @@ func DecodeServiceError(csilData []byte) (ServiceError, error) {
 	}
 	return csilDecServiceError(csilRoot)
 }
-

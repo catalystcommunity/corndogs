@@ -2,7 +2,7 @@
 // Source: <csil spec>
 // Target: typescript-codec
 
-import type { CancelTaskRequest, CancelTaskResponse, CleanUpTimedOutRequest, CleanUpTimedOutResponse, CompleteTaskRequest, CompleteTaskResponse, GetNextTaskRequest, GetNextTaskResponse, GetQueueAndStateCountsRequest, GetQueueAndStateCountsResponse, GetQueueTaskCountsRequest, GetQueueTaskCountsResponse, GetQueuesRequest, GetQueuesResponse, GetTaskStateByIDRequest, GetTaskStateByIDResponse, GetTaskStateCountsRequest, GetTaskStateCountsResponse, QueueAndStateCounts, QueueAndStateCountsMap, ServiceError, StringInt64Map, SubmitTaskRequest, SubmitTaskResponse, Task, UpdateTaskRequest, UpdateTaskResponse } from "./types.gen";
+import type { CancelTaskRequest, CancelTaskResponse, CleanUpTimedOutRequest, CleanUpTimedOutResponse, CompleteTaskRequest, CompleteTaskResponse, GetNextTaskGroupRequest, GetNextTaskGroupResponse, GetNextTaskRequest, GetNextTaskResponse, GetQueueAndStateCountsRequest, GetQueueAndStateCountsResponse, GetQueueTaskCountsRequest, GetQueueTaskCountsResponse, GetQueuesRequest, GetQueuesResponse, GetTaskStateByIDRequest, GetTaskStateByIDResponse, GetTaskStateCountsRequest, GetTaskStateCountsResponse, QueueAndStateCounts, QueueAndStateCountsMap, ServiceError, StringInt64Map, SubmitTaskRequest, SubmitTaskResponse, Task, UpdateTaskRequest, UpdateTaskResponse } from "./types.gen.ts";
 
 /** A CBOR semantic tag wrapping an inner value (e.g. tag 0 timestamp, tag 4 decimal). */
 export type CborTag = { readonly tag: number; readonly value: CborValue };
@@ -256,6 +256,46 @@ export function asMap(value: CborValue): Map<CborValue, CborValue> {
   throw new Error("expected a map");
 }
 
+/** A decoded integer may surface as `bigint` (see `decInto`'s large-value path), so a
+ * numeric literal's expected `number` is compared against the `bigint`-normalized form
+ * rather than failing on a type mismatch that isn't a value mismatch. */
+export function asLiteral<T extends CborValue>(value: CborValue, expected: T): T {
+  const norm = typeof value === "bigint" && typeof expected === "number" ? Number(value) : value;
+  if (norm !== expected) throw new Error(`literal mismatch: expected ${JSON.stringify(expected)}`);
+  return expected;
+}
+
+/** Validate a decoded scalar against a literal-enum's declared vocabulary, erroring
+ * on an unknown value. The caller reads through `asNumber`/`asString`/`asBool`, which
+ * already normalize a decoded `bigint` to `number`, so a plain membership check suffices. */
+export function asEnumMember<T extends number | string | boolean | null>(
+  value: T,
+  members: readonly T[],
+): T {
+  if (!members.includes(value)) {
+    throw new Error(`unknown enum value: ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+/** Read a decoded CBOR scalar without narrowing to one JS type, normalizing a
+ * decoded integer `bigint` to `number` the same way `asNumber` does. Used for a
+ * MIXED-kind literal enum (`"a" / 1`), where no single `asNumber`/`asString`/
+ * `asBool` reader fits every member's runtime type — `asEnumMember`'s membership
+ * check does the real narrowing instead. */
+export function asEnumScalar(value: CborValue): string | number | boolean | null {
+  if (typeof value === "bigint") return Number(value);
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    value === null
+  ) {
+    return value;
+  }
+  throw new Error("expected an enum scalar (string, number, boolean, or null)");
+}
+
 function asTagged(value: CborValue, tag: number): CborValue {
   if (
     typeof value === "object" &&
@@ -464,6 +504,54 @@ export function toGetNextTaskResponseCbor(v: GetNextTaskResponse): Uint8Array {
 
 export function fromGetNextTaskResponseCbor(bytes: Uint8Array): GetNextTaskResponse {
   return fromGetNextTaskResponseCborValue(decode(bytes));
+}
+
+export function toGetNextTaskGroupRequestCborValue(v: GetNextTaskGroupRequest): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("queues", v.queues);
+  csilMap.set("current_state", v.currentState);
+  csilMap.set("override_timeout", v.overrideTimeout);
+  csilMap.set("override_current_state", v.overrideCurrentState);
+  csilMap.set("override_auto_target_state", v.overrideAutoTargetState);
+  return csilMap;
+}
+
+export function fromGetNextTaskGroupRequestCborValue(value: CborValue): GetNextTaskGroupRequest {
+  return {
+    queues: asArray(requireKey(value, "queues")).map((csilE) => asString(csilE)),
+    currentState: asString(requireKey(value, "current_state")),
+    overrideTimeout: asNumber(requireKey(value, "override_timeout")),
+    overrideCurrentState: asString(requireKey(value, "override_current_state")),
+    overrideAutoTargetState: asString(requireKey(value, "override_auto_target_state")),
+  };
+}
+
+export function toGetNextTaskGroupRequestCbor(v: GetNextTaskGroupRequest): Uint8Array {
+  return encodeValue(toGetNextTaskGroupRequestCborValue(v));
+}
+
+export function fromGetNextTaskGroupRequestCbor(bytes: Uint8Array): GetNextTaskGroupRequest {
+  return fromGetNextTaskGroupRequestCborValue(decode(bytes));
+}
+
+export function toGetNextTaskGroupResponseCborValue(v: GetNextTaskGroupResponse): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  if (v.task !== undefined) csilMap.set("task", toTaskCborValue(v.task));
+  return csilMap;
+}
+
+export function fromGetNextTaskGroupResponseCborValue(value: CborValue): GetNextTaskGroupResponse {
+  return {
+    task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskCborValue(csilV))(mapGet(value, "task")),
+  };
+}
+
+export function toGetNextTaskGroupResponseCbor(v: GetNextTaskGroupResponse): Uint8Array {
+  return encodeValue(toGetNextTaskGroupResponseCborValue(v));
+}
+
+export function fromGetNextTaskGroupResponseCbor(bytes: Uint8Array): GetNextTaskGroupResponse {
+  return fromGetNextTaskGroupResponseCborValue(decode(bytes));
 }
 
 export function toCompleteTaskRequestCborValue(v: CompleteTaskRequest): CborValue {

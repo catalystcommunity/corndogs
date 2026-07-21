@@ -153,7 +153,11 @@ fn cbor_read_arg(b: &[u8], pos: &mut usize, low: u8) -> Result<u64, CsilCborErro
         25 => 2,
         26 => 4,
         27 => 8,
-        _ => return Err(CsilCborError(format!("csil cbor: reserved additional info {low}"))),
+        _ => {
+            return Err(CsilCborError(format!(
+                "csil cbor: reserved additional info {low}"
+            )))
+        }
     };
     if *pos + 1 + width > b.len() {
         return Err(CsilCborError("csil cbor: truncated argument".to_string()));
@@ -168,7 +172,9 @@ fn cbor_read_arg(b: &[u8], pos: &mut usize, low: u8) -> Result<u64, CsilCborErro
 
 fn cbor_dec(b: &[u8], pos: &mut usize) -> Result<CsilCborValue, CsilCborError> {
     if *pos >= b.len() {
-        return Err(CsilCborError("csil cbor: unexpected end of input".to_string()));
+        return Err(CsilCborError(
+            "csil cbor: unexpected end of input".to_string(),
+        ));
     }
     let ib = b[*pos];
     let major = ib >> 5;
@@ -195,7 +201,9 @@ fn cbor_dec(b: &[u8], pos: &mut usize) -> Result<CsilCborValue, CsilCborError> {
                 let bits = cbor_read_arg(b, pos, low)?;
                 Ok(CsilCborValue::Float(f64::from_bits(bits)))
             }
-            _ => Err(CsilCborError(format!("csil cbor: unsupported simple value {low}"))),
+            _ => Err(CsilCborError(format!(
+                "csil cbor: unsupported simple value {low}"
+            ))),
         };
     }
     let arg = cbor_read_arg(b, pos, low)?;
@@ -203,14 +211,18 @@ fn cbor_dec(b: &[u8], pos: &mut usize) -> Result<CsilCborValue, CsilCborError> {
         0 => Ok(CsilCborValue::Uint(arg)),
         1 => {
             if arg > i64::MAX as u64 {
-                return Err(CsilCborError("csil cbor: negative integer out of range".to_string()));
+                return Err(CsilCborError(
+                    "csil cbor: negative integer out of range".to_string(),
+                ));
             }
             Ok(CsilCborValue::Int(-1 - arg as i64))
         }
         2 => {
             let n = arg as usize;
             if *pos + n > b.len() {
-                return Err(CsilCborError("csil cbor: truncated byte string".to_string()));
+                return Err(CsilCborError(
+                    "csil cbor: truncated byte string".to_string(),
+                ));
             }
             let slice = b[*pos..*pos + n].to_vec();
             *pos += n;
@@ -219,7 +231,9 @@ fn cbor_dec(b: &[u8], pos: &mut usize) -> Result<CsilCborValue, CsilCborError> {
         3 => {
             let n = arg as usize;
             if *pos + n > b.len() {
-                return Err(CsilCborError("csil cbor: truncated text string".to_string()));
+                return Err(CsilCborError(
+                    "csil cbor: truncated text string".to_string(),
+                ));
             }
             let s = std::str::from_utf8(&b[*pos..*pos + n])
                 .map_err(|e| CsilCborError(format!("csil cbor: invalid utf-8: {e}")))?
@@ -249,7 +263,9 @@ fn cbor_dec(b: &[u8], pos: &mut usize) -> Result<CsilCborValue, CsilCborError> {
             let inner = cbor_dec(b, pos)?;
             Ok(CsilCborValue::Tag(arg, Box::new(inner)))
         }
-        _ => Err(CsilCborError(format!("csil cbor: unexpected major type {major}"))),
+        _ => Err(CsilCborError(format!(
+            "csil cbor: unexpected major type {major}"
+        ))),
     }
 }
 
@@ -292,19 +308,26 @@ fn cbor_dec_map<K: std::cmp::Eq + std::hash::Hash, V>(
 fn cbor_map_get<'a>(v: &'a CsilCborValue, key: &str) -> Option<&'a CsilCborValue> {
     if let CsilCborValue::Map(entries) = v {
         for (k, val) in entries {
-            if let CsilCborValue::Text(name) = k {
-                if name == key {
-                    return Some(val);
-                }
+            if matches!(k, CsilCborValue::Text(name) if name == key) {
+                return Some(val);
             }
         }
     }
     None
 }
 
+fn cbor_expect_value(v: &CsilCborValue, expected: &CsilCborValue) -> Result<(), CsilCborError> {
+    if v == expected {
+        Ok(())
+    } else {
+        Err(CsilCborError(format!(
+            "csil cbor: expected literal {expected:?}, got {v:?}"
+        )))
+    }
+}
+
 fn cbor_require<'a>(v: &'a CsilCborValue, key: &str) -> Result<&'a CsilCborValue, CsilCborError> {
-    cbor_map_get(v, key)
-        .ok_or_else(|| CsilCborError(format!("csil cbor: missing field {key:?}")))
+    cbor_map_get(v, key).ok_or_else(|| CsilCborError(format!("csil cbor: missing field {key:?}")))
 }
 
 fn cbor_as_i64(v: &CsilCborValue) -> Result<i64, CsilCborError> {
@@ -320,10 +343,12 @@ fn cbor_as_u64(v: &CsilCborValue) -> Result<u64, CsilCborError> {
     match v {
         CsilCborValue::Uint(x) => Ok(*x),
         CsilCborValue::Int(x) if *x >= 0 => Ok(*x as u64),
-        CsilCborValue::Int(_) => {
-            Err(CsilCborError("csil cbor: negative integer where unsigned expected".to_string()))
-        }
-        _ => Err(CsilCborError("csil cbor: expected unsigned integer".to_string())),
+        CsilCborValue::Int(_) => Err(CsilCborError(
+            "csil cbor: negative integer where unsigned expected".to_string(),
+        )),
+        _ => Err(CsilCborError(
+            "csil cbor: expected unsigned integer".to_string(),
+        )),
     }
 }
 
@@ -382,7 +407,10 @@ fn csil_enc_task(csil_v: &Task) -> CsilCborValue {
     csil_entries.push((cbor_text("submit_time"), cbor_int(csil_v.submit_time)));
     csil_entries.push((cbor_text("update_time"), cbor_int(csil_v.update_time)));
     csil_entries.push((cbor_text("current_state"), cbor_text(&csil_v.current_state)));
-    csil_entries.push((cbor_text("auto_target_state"), cbor_text(&csil_v.auto_target_state)));
+    csil_entries.push((
+        cbor_text("auto_target_state"),
+        cbor_text(&csil_v.auto_target_state),
+    ));
     CsilCborValue::Map(csil_entries)
 }
 
@@ -465,12 +493,17 @@ fn csil_enc_submit_task_request(csil_v: &SubmitTaskRequest) -> CsilCborValue {
     csil_entries.push((cbor_text("timeout"), cbor_int(csil_v.timeout)));
     csil_entries.push((cbor_text("priority"), cbor_int(csil_v.priority)));
     csil_entries.push((cbor_text("current_state"), cbor_text(&csil_v.current_state)));
-    csil_entries.push((cbor_text("auto_target_state"), cbor_text(&csil_v.auto_target_state)));
+    csil_entries.push((
+        cbor_text("auto_target_state"),
+        cbor_text(&csil_v.auto_target_state),
+    ));
     CsilCborValue::Map(csil_entries)
 }
 
 /// Reconstruct a SubmitTaskRequest from a decoded CBOR value tree.
-fn csil_dec_submit_task_request(csil_root: &CsilCborValue) -> Result<SubmitTaskRequest, CsilCborError> {
+fn csil_dec_submit_task_request(
+    csil_root: &CsilCborValue,
+) -> Result<SubmitTaskRequest, CsilCborError> {
     let queue = {
         let csil_field = cbor_require(csil_root, "queue")?;
         let csil_decode = cbor_as_text;
@@ -532,7 +565,9 @@ fn csil_enc_submit_task_response(csil_v: &SubmitTaskResponse) -> CsilCborValue {
 }
 
 /// Reconstruct a SubmitTaskResponse from a decoded CBOR value tree.
-fn csil_dec_submit_task_response(csil_root: &CsilCborValue) -> Result<SubmitTaskResponse, CsilCborError> {
+fn csil_dec_submit_task_response(
+    csil_root: &CsilCborValue,
+) -> Result<SubmitTaskResponse, CsilCborError> {
     let task = match cbor_map_get(csil_root, "task") {
         Some(csil_field) => {
             let csil_decode = csil_dec_task;
@@ -540,9 +575,7 @@ fn csil_dec_submit_task_response(csil_root: &CsilCborValue) -> Result<SubmitTask
         }
         None => None,
     };
-    Ok(SubmitTaskResponse {
-        task,
-    })
+    Ok(SubmitTaskResponse { task })
 }
 
 /// Encode a SubmitTaskResponse to canonical CSIL CBOR bytes.
@@ -565,7 +598,9 @@ fn csil_enc_get_task_state_by_id_request(csil_v: &GetTaskStateByIDRequest) -> Cs
 }
 
 /// Reconstruct a GetTaskStateByIDRequest from a decoded CBOR value tree.
-fn csil_dec_get_task_state_by_id_request(csil_root: &CsilCborValue) -> Result<GetTaskStateByIDRequest, CsilCborError> {
+fn csil_dec_get_task_state_by_id_request(
+    csil_root: &CsilCborValue,
+) -> Result<GetTaskStateByIDRequest, CsilCborError> {
     let uuid = {
         let csil_field = cbor_require(csil_root, "uuid")?;
         let csil_decode = cbor_as_text;
@@ -576,10 +611,7 @@ fn csil_dec_get_task_state_by_id_request(csil_root: &CsilCborValue) -> Result<Ge
         let csil_decode = cbor_as_text;
         csil_decode(csil_field)?
     };
-    Ok(GetTaskStateByIDRequest {
-        uuid,
-        queue,
-    })
+    Ok(GetTaskStateByIDRequest { uuid, queue })
 }
 
 /// Encode a GetTaskStateByIDRequest to canonical CSIL CBOR bytes.
@@ -588,7 +620,9 @@ pub fn encode_get_task_state_by_id_request(csil_v: &GetTaskStateByIDRequest) -> 
 }
 
 /// Decode canonical CSIL CBOR bytes into a GetTaskStateByIDRequest.
-pub fn decode_get_task_state_by_id_request(csil_data: &[u8]) -> Result<GetTaskStateByIDRequest, CsilCborError> {
+pub fn decode_get_task_state_by_id_request(
+    csil_data: &[u8],
+) -> Result<GetTaskStateByIDRequest, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_get_task_state_by_id_request(&csil_root)
 }
@@ -603,7 +637,9 @@ fn csil_enc_get_task_state_by_id_response(csil_v: &GetTaskStateByIDResponse) -> 
 }
 
 /// Reconstruct a GetTaskStateByIDResponse from a decoded CBOR value tree.
-fn csil_dec_get_task_state_by_id_response(csil_root: &CsilCborValue) -> Result<GetTaskStateByIDResponse, CsilCborError> {
+fn csil_dec_get_task_state_by_id_response(
+    csil_root: &CsilCborValue,
+) -> Result<GetTaskStateByIDResponse, CsilCborError> {
     let task = match cbor_map_get(csil_root, "task") {
         Some(csil_field) => {
             let csil_decode = csil_dec_task;
@@ -611,9 +647,7 @@ fn csil_dec_get_task_state_by_id_response(csil_root: &CsilCborValue) -> Result<G
         }
         None => None,
     };
-    Ok(GetTaskStateByIDResponse {
-        task,
-    })
+    Ok(GetTaskStateByIDResponse { task })
 }
 
 /// Encode a GetTaskStateByIDResponse to canonical CSIL CBOR bytes.
@@ -622,7 +656,9 @@ pub fn encode_get_task_state_by_id_response(csil_v: &GetTaskStateByIDResponse) -
 }
 
 /// Decode canonical CSIL CBOR bytes into a GetTaskStateByIDResponse.
-pub fn decode_get_task_state_by_id_response(csil_data: &[u8]) -> Result<GetTaskStateByIDResponse, CsilCborError> {
+pub fn decode_get_task_state_by_id_response(
+    csil_data: &[u8],
+) -> Result<GetTaskStateByIDResponse, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_get_task_state_by_id_response(&csil_root)
 }
@@ -632,14 +668,25 @@ fn csil_enc_get_next_task_request(csil_v: &GetNextTaskRequest) -> CsilCborValue 
     let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(5);
     csil_entries.push((cbor_text("queue"), cbor_text(&csil_v.queue)));
     csil_entries.push((cbor_text("current_state"), cbor_text(&csil_v.current_state)));
-    csil_entries.push((cbor_text("override_timeout"), cbor_int(csil_v.override_timeout)));
-    csil_entries.push((cbor_text("override_current_state"), cbor_text(&csil_v.override_current_state)));
-    csil_entries.push((cbor_text("override_auto_target_state"), cbor_text(&csil_v.override_auto_target_state)));
+    csil_entries.push((
+        cbor_text("override_timeout"),
+        cbor_int(csil_v.override_timeout),
+    ));
+    csil_entries.push((
+        cbor_text("override_current_state"),
+        cbor_text(&csil_v.override_current_state),
+    ));
+    csil_entries.push((
+        cbor_text("override_auto_target_state"),
+        cbor_text(&csil_v.override_auto_target_state),
+    ));
     CsilCborValue::Map(csil_entries)
 }
 
 /// Reconstruct a GetNextTaskRequest from a decoded CBOR value tree.
-fn csil_dec_get_next_task_request(csil_root: &CsilCborValue) -> Result<GetNextTaskRequest, CsilCborError> {
+fn csil_dec_get_next_task_request(
+    csil_root: &CsilCborValue,
+) -> Result<GetNextTaskRequest, CsilCborError> {
     let queue = {
         let csil_field = cbor_require(csil_root, "queue")?;
         let csil_decode = cbor_as_text;
@@ -695,7 +742,9 @@ fn csil_enc_get_next_task_response(csil_v: &GetNextTaskResponse) -> CsilCborValu
 }
 
 /// Reconstruct a GetNextTaskResponse from a decoded CBOR value tree.
-fn csil_dec_get_next_task_response(csil_root: &CsilCborValue) -> Result<GetNextTaskResponse, CsilCborError> {
+fn csil_dec_get_next_task_response(
+    csil_root: &CsilCborValue,
+) -> Result<GetNextTaskResponse, CsilCborError> {
     let task = match cbor_map_get(csil_root, "task") {
         Some(csil_field) => {
             let csil_decode = csil_dec_task;
@@ -703,9 +752,7 @@ fn csil_dec_get_next_task_response(csil_root: &CsilCborValue) -> Result<GetNextT
         }
         None => None,
     };
-    Ok(GetNextTaskResponse {
-        task,
-    })
+    Ok(GetNextTaskResponse { task })
 }
 
 /// Encode a GetNextTaskResponse to canonical CSIL CBOR bytes.
@@ -714,9 +761,121 @@ pub fn encode_get_next_task_response(csil_v: &GetNextTaskResponse) -> Vec<u8> {
 }
 
 /// Decode canonical CSIL CBOR bytes into a GetNextTaskResponse.
-pub fn decode_get_next_task_response(csil_data: &[u8]) -> Result<GetNextTaskResponse, CsilCborError> {
+pub fn decode_get_next_task_response(
+    csil_data: &[u8],
+) -> Result<GetNextTaskResponse, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_get_next_task_response(&csil_root)
+}
+
+/// Build the canonical CBOR value tree for a GetNextTaskGroupRequest.
+fn csil_enc_get_next_task_group_request(csil_v: &GetNextTaskGroupRequest) -> CsilCborValue {
+    let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(5);
+    csil_entries.push((
+        cbor_text("queues"),
+        cbor_enc_array(&csil_v.queues, |csil_elem| cbor_text(csil_elem)),
+    ));
+    csil_entries.push((cbor_text("current_state"), cbor_text(&csil_v.current_state)));
+    csil_entries.push((
+        cbor_text("override_timeout"),
+        cbor_int(csil_v.override_timeout),
+    ));
+    csil_entries.push((
+        cbor_text("override_current_state"),
+        cbor_text(&csil_v.override_current_state),
+    ));
+    csil_entries.push((
+        cbor_text("override_auto_target_state"),
+        cbor_text(&csil_v.override_auto_target_state),
+    ));
+    CsilCborValue::Map(csil_entries)
+}
+
+/// Reconstruct a GetNextTaskGroupRequest from a decoded CBOR value tree.
+fn csil_dec_get_next_task_group_request(
+    csil_root: &CsilCborValue,
+) -> Result<GetNextTaskGroupRequest, CsilCborError> {
+    let queues = {
+        let csil_field = cbor_require(csil_root, "queues")?;
+        let csil_decode = |csil_v| cbor_dec_array(csil_v, cbor_as_text);
+        csil_decode(csil_field)?
+    };
+    let current_state = {
+        let csil_field = cbor_require(csil_root, "current_state")?;
+        let csil_decode = cbor_as_text;
+        csil_decode(csil_field)?
+    };
+    let override_timeout = {
+        let csil_field = cbor_require(csil_root, "override_timeout")?;
+        let csil_decode = cbor_as_i64;
+        csil_decode(csil_field)?
+    };
+    let override_current_state = {
+        let csil_field = cbor_require(csil_root, "override_current_state")?;
+        let csil_decode = cbor_as_text;
+        csil_decode(csil_field)?
+    };
+    let override_auto_target_state = {
+        let csil_field = cbor_require(csil_root, "override_auto_target_state")?;
+        let csil_decode = cbor_as_text;
+        csil_decode(csil_field)?
+    };
+    Ok(GetNextTaskGroupRequest {
+        queues,
+        current_state,
+        override_timeout,
+        override_current_state,
+        override_auto_target_state,
+    })
+}
+
+/// Encode a GetNextTaskGroupRequest to canonical CSIL CBOR bytes.
+pub fn encode_get_next_task_group_request(csil_v: &GetNextTaskGroupRequest) -> Vec<u8> {
+    cbor_encode(&csil_enc_get_next_task_group_request(csil_v))
+}
+
+/// Decode canonical CSIL CBOR bytes into a GetNextTaskGroupRequest.
+pub fn decode_get_next_task_group_request(
+    csil_data: &[u8],
+) -> Result<GetNextTaskGroupRequest, CsilCborError> {
+    let csil_root = cbor_decode(csil_data)?;
+    csil_dec_get_next_task_group_request(&csil_root)
+}
+
+/// Build the canonical CBOR value tree for a GetNextTaskGroupResponse.
+fn csil_enc_get_next_task_group_response(csil_v: &GetNextTaskGroupResponse) -> CsilCborValue {
+    let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(1);
+    if let Some(csil_inner) = &csil_v.task {
+        csil_entries.push((cbor_text("task"), csil_enc_task(csil_inner)));
+    }
+    CsilCborValue::Map(csil_entries)
+}
+
+/// Reconstruct a GetNextTaskGroupResponse from a decoded CBOR value tree.
+fn csil_dec_get_next_task_group_response(
+    csil_root: &CsilCborValue,
+) -> Result<GetNextTaskGroupResponse, CsilCborError> {
+    let task = match cbor_map_get(csil_root, "task") {
+        Some(csil_field) => {
+            let csil_decode = csil_dec_task;
+            Some(csil_decode(csil_field)?)
+        }
+        None => None,
+    };
+    Ok(GetNextTaskGroupResponse { task })
+}
+
+/// Encode a GetNextTaskGroupResponse to canonical CSIL CBOR bytes.
+pub fn encode_get_next_task_group_response(csil_v: &GetNextTaskGroupResponse) -> Vec<u8> {
+    cbor_encode(&csil_enc_get_next_task_group_response(csil_v))
+}
+
+/// Decode canonical CSIL CBOR bytes into a GetNextTaskGroupResponse.
+pub fn decode_get_next_task_group_response(
+    csil_data: &[u8],
+) -> Result<GetNextTaskGroupResponse, CsilCborError> {
+    let csil_root = cbor_decode(csil_data)?;
+    csil_dec_get_next_task_group_response(&csil_root)
 }
 
 /// Build the canonical CBOR value tree for a CompleteTaskRequest.
@@ -729,7 +888,9 @@ fn csil_enc_complete_task_request(csil_v: &CompleteTaskRequest) -> CsilCborValue
 }
 
 /// Reconstruct a CompleteTaskRequest from a decoded CBOR value tree.
-fn csil_dec_complete_task_request(csil_root: &CsilCborValue) -> Result<CompleteTaskRequest, CsilCborError> {
+fn csil_dec_complete_task_request(
+    csil_root: &CsilCborValue,
+) -> Result<CompleteTaskRequest, CsilCborError> {
     let uuid = {
         let csil_field = cbor_require(csil_root, "uuid")?;
         let csil_decode = cbor_as_text;
@@ -758,7 +919,9 @@ pub fn encode_complete_task_request(csil_v: &CompleteTaskRequest) -> Vec<u8> {
 }
 
 /// Decode canonical CSIL CBOR bytes into a CompleteTaskRequest.
-pub fn decode_complete_task_request(csil_data: &[u8]) -> Result<CompleteTaskRequest, CsilCborError> {
+pub fn decode_complete_task_request(
+    csil_data: &[u8],
+) -> Result<CompleteTaskRequest, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_complete_task_request(&csil_root)
 }
@@ -773,7 +936,9 @@ fn csil_enc_complete_task_response(csil_v: &CompleteTaskResponse) -> CsilCborVal
 }
 
 /// Reconstruct a CompleteTaskResponse from a decoded CBOR value tree.
-fn csil_dec_complete_task_response(csil_root: &CsilCborValue) -> Result<CompleteTaskResponse, CsilCborError> {
+fn csil_dec_complete_task_response(
+    csil_root: &CsilCborValue,
+) -> Result<CompleteTaskResponse, CsilCborError> {
     let task = match cbor_map_get(csil_root, "task") {
         Some(csil_field) => {
             let csil_decode = csil_dec_task;
@@ -781,9 +946,7 @@ fn csil_dec_complete_task_response(csil_root: &CsilCborValue) -> Result<Complete
         }
         None => None,
     };
-    Ok(CompleteTaskResponse {
-        task,
-    })
+    Ok(CompleteTaskResponse { task })
 }
 
 /// Encode a CompleteTaskResponse to canonical CSIL CBOR bytes.
@@ -792,7 +955,9 @@ pub fn encode_complete_task_response(csil_v: &CompleteTaskResponse) -> Vec<u8> {
 }
 
 /// Decode canonical CSIL CBOR bytes into a CompleteTaskResponse.
-pub fn decode_complete_task_response(csil_data: &[u8]) -> Result<CompleteTaskResponse, CsilCborError> {
+pub fn decode_complete_task_response(
+    csil_data: &[u8],
+) -> Result<CompleteTaskResponse, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_complete_task_response(&csil_root)
 }
@@ -807,12 +972,17 @@ fn csil_enc_update_task_request(csil_v: &UpdateTaskRequest) -> CsilCborValue {
     csil_entries.push((cbor_text("priority"), cbor_int(csil_v.priority)));
     csil_entries.push((cbor_text("new_state"), cbor_text(&csil_v.new_state)));
     csil_entries.push((cbor_text("current_state"), cbor_text(&csil_v.current_state)));
-    csil_entries.push((cbor_text("auto_target_state"), cbor_text(&csil_v.auto_target_state)));
+    csil_entries.push((
+        cbor_text("auto_target_state"),
+        cbor_text(&csil_v.auto_target_state),
+    ));
     CsilCborValue::Map(csil_entries)
 }
 
 /// Reconstruct a UpdateTaskRequest from a decoded CBOR value tree.
-fn csil_dec_update_task_request(csil_root: &CsilCborValue) -> Result<UpdateTaskRequest, CsilCborError> {
+fn csil_dec_update_task_request(
+    csil_root: &CsilCborValue,
+) -> Result<UpdateTaskRequest, CsilCborError> {
     let uuid = {
         let csil_field = cbor_require(csil_root, "uuid")?;
         let csil_decode = cbor_as_text;
@@ -886,7 +1056,9 @@ fn csil_enc_update_task_response(csil_v: &UpdateTaskResponse) -> CsilCborValue {
 }
 
 /// Reconstruct a UpdateTaskResponse from a decoded CBOR value tree.
-fn csil_dec_update_task_response(csil_root: &CsilCborValue) -> Result<UpdateTaskResponse, CsilCborError> {
+fn csil_dec_update_task_response(
+    csil_root: &CsilCborValue,
+) -> Result<UpdateTaskResponse, CsilCborError> {
     let task = match cbor_map_get(csil_root, "task") {
         Some(csil_field) => {
             let csil_decode = csil_dec_task;
@@ -894,9 +1066,7 @@ fn csil_dec_update_task_response(csil_root: &CsilCborValue) -> Result<UpdateTask
         }
         None => None,
     };
-    Ok(UpdateTaskResponse {
-        task,
-    })
+    Ok(UpdateTaskResponse { task })
 }
 
 /// Encode a UpdateTaskResponse to canonical CSIL CBOR bytes.
@@ -920,7 +1090,9 @@ fn csil_enc_cancel_task_request(csil_v: &CancelTaskRequest) -> CsilCborValue {
 }
 
 /// Reconstruct a CancelTaskRequest from a decoded CBOR value tree.
-fn csil_dec_cancel_task_request(csil_root: &CsilCborValue) -> Result<CancelTaskRequest, CsilCborError> {
+fn csil_dec_cancel_task_request(
+    csil_root: &CsilCborValue,
+) -> Result<CancelTaskRequest, CsilCborError> {
     let uuid = {
         let csil_field = cbor_require(csil_root, "uuid")?;
         let csil_decode = cbor_as_text;
@@ -964,7 +1136,9 @@ fn csil_enc_cancel_task_response(csil_v: &CancelTaskResponse) -> CsilCborValue {
 }
 
 /// Reconstruct a CancelTaskResponse from a decoded CBOR value tree.
-fn csil_dec_cancel_task_response(csil_root: &CsilCborValue) -> Result<CancelTaskResponse, CsilCborError> {
+fn csil_dec_cancel_task_response(
+    csil_root: &CsilCborValue,
+) -> Result<CancelTaskResponse, CsilCborError> {
     let task = match cbor_map_get(csil_root, "task") {
         Some(csil_field) => {
             let csil_decode = csil_dec_task;
@@ -972,9 +1146,7 @@ fn csil_dec_cancel_task_response(csil_root: &CsilCborValue) -> Result<CancelTask
         }
         None => None,
     };
-    Ok(CancelTaskResponse {
-        task,
-    })
+    Ok(CancelTaskResponse { task })
 }
 
 /// Encode a CancelTaskResponse to canonical CSIL CBOR bytes.
@@ -997,7 +1169,9 @@ fn csil_enc_clean_up_timed_out_request(csil_v: &CleanUpTimedOutRequest) -> CsilC
 }
 
 /// Reconstruct a CleanUpTimedOutRequest from a decoded CBOR value tree.
-fn csil_dec_clean_up_timed_out_request(csil_root: &CsilCborValue) -> Result<CleanUpTimedOutRequest, CsilCborError> {
+fn csil_dec_clean_up_timed_out_request(
+    csil_root: &CsilCborValue,
+) -> Result<CleanUpTimedOutRequest, CsilCborError> {
     let at_time = {
         let csil_field = cbor_require(csil_root, "at_time")?;
         let csil_decode = cbor_as_i64;
@@ -1008,10 +1182,7 @@ fn csil_dec_clean_up_timed_out_request(csil_root: &CsilCborValue) -> Result<Clea
         let csil_decode = cbor_as_text;
         csil_decode(csil_field)?
     };
-    Ok(CleanUpTimedOutRequest {
-        at_time,
-        queue,
-    })
+    Ok(CleanUpTimedOutRequest { at_time, queue })
 }
 
 /// Encode a CleanUpTimedOutRequest to canonical CSIL CBOR bytes.
@@ -1020,7 +1191,9 @@ pub fn encode_clean_up_timed_out_request(csil_v: &CleanUpTimedOutRequest) -> Vec
 }
 
 /// Decode canonical CSIL CBOR bytes into a CleanUpTimedOutRequest.
-pub fn decode_clean_up_timed_out_request(csil_data: &[u8]) -> Result<CleanUpTimedOutRequest, CsilCborError> {
+pub fn decode_clean_up_timed_out_request(
+    csil_data: &[u8],
+) -> Result<CleanUpTimedOutRequest, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_clean_up_timed_out_request(&csil_root)
 }
@@ -1033,15 +1206,15 @@ fn csil_enc_clean_up_timed_out_response(csil_v: &CleanUpTimedOutResponse) -> Csi
 }
 
 /// Reconstruct a CleanUpTimedOutResponse from a decoded CBOR value tree.
-fn csil_dec_clean_up_timed_out_response(csil_root: &CsilCborValue) -> Result<CleanUpTimedOutResponse, CsilCborError> {
+fn csil_dec_clean_up_timed_out_response(
+    csil_root: &CsilCborValue,
+) -> Result<CleanUpTimedOutResponse, CsilCborError> {
     let timed_out = {
         let csil_field = cbor_require(csil_root, "timed_out")?;
         let csil_decode = cbor_as_i64;
         csil_decode(csil_field)?
     };
-    Ok(CleanUpTimedOutResponse {
-        timed_out,
-    })
+    Ok(CleanUpTimedOutResponse { timed_out })
 }
 
 /// Encode a CleanUpTimedOutResponse to canonical CSIL CBOR bytes.
@@ -1050,21 +1223,23 @@ pub fn encode_clean_up_timed_out_response(csil_v: &CleanUpTimedOutResponse) -> V
 }
 
 /// Decode canonical CSIL CBOR bytes into a CleanUpTimedOutResponse.
-pub fn decode_clean_up_timed_out_response(csil_data: &[u8]) -> Result<CleanUpTimedOutResponse, CsilCborError> {
+pub fn decode_clean_up_timed_out_response(
+    csil_data: &[u8],
+) -> Result<CleanUpTimedOutResponse, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_clean_up_timed_out_response(&csil_root)
 }
 
 /// Build the canonical CBOR value tree for a GetQueuesRequest.
-fn csil_enc_get_queues_request(csil_v: &GetQueuesRequest) -> CsilCborValue {
-    let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(0);
-    CsilCborValue::Map(csil_entries)
+fn csil_enc_get_queues_request(_csil_v: &GetQueuesRequest) -> CsilCborValue {
+    CsilCborValue::Map(Vec::new())
 }
 
 /// Reconstruct a GetQueuesRequest from a decoded CBOR value tree.
-fn csil_dec_get_queues_request(csil_root: &CsilCborValue) -> Result<GetQueuesRequest, CsilCborError> {
-    Ok(GetQueuesRequest {
-    })
+fn csil_dec_get_queues_request(
+    _csil_root: &CsilCborValue,
+) -> Result<GetQueuesRequest, CsilCborError> {
+    Ok(GetQueuesRequest {})
 }
 
 /// Encode a GetQueuesRequest to canonical CSIL CBOR bytes.
@@ -1081,13 +1256,21 @@ pub fn decode_get_queues_request(csil_data: &[u8]) -> Result<GetQueuesRequest, C
 /// Build the canonical CBOR value tree for a GetQueuesResponse.
 fn csil_enc_get_queues_response(csil_v: &GetQueuesResponse) -> CsilCborValue {
     let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(2);
-    csil_entries.push((cbor_text("queues"), cbor_enc_array(&csil_v.queues, |csil_elem| cbor_text(csil_elem))));
-    csil_entries.push((cbor_text("total_task_count"), cbor_int(csil_v.total_task_count)));
+    csil_entries.push((
+        cbor_text("queues"),
+        cbor_enc_array(&csil_v.queues, |csil_elem| cbor_text(csil_elem)),
+    ));
+    csil_entries.push((
+        cbor_text("total_task_count"),
+        cbor_int(csil_v.total_task_count),
+    ));
     CsilCborValue::Map(csil_entries)
 }
 
 /// Reconstruct a GetQueuesResponse from a decoded CBOR value tree.
-fn csil_dec_get_queues_response(csil_root: &CsilCborValue) -> Result<GetQueuesResponse, CsilCborError> {
+fn csil_dec_get_queues_response(
+    csil_root: &CsilCborValue,
+) -> Result<GetQueuesResponse, CsilCborError> {
     let queues = {
         let csil_field = cbor_require(csil_root, "queues")?;
         let csil_decode = |csil_v| cbor_dec_array(csil_v, cbor_as_text);
@@ -1116,15 +1299,15 @@ pub fn decode_get_queues_response(csil_data: &[u8]) -> Result<GetQueuesResponse,
 }
 
 /// Build the canonical CBOR value tree for a GetQueueTaskCountsRequest.
-fn csil_enc_get_queue_task_counts_request(csil_v: &GetQueueTaskCountsRequest) -> CsilCborValue {
-    let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(0);
-    CsilCborValue::Map(csil_entries)
+fn csil_enc_get_queue_task_counts_request(_csil_v: &GetQueueTaskCountsRequest) -> CsilCborValue {
+    CsilCborValue::Map(Vec::new())
 }
 
 /// Reconstruct a GetQueueTaskCountsRequest from a decoded CBOR value tree.
-fn csil_dec_get_queue_task_counts_request(csil_root: &CsilCborValue) -> Result<GetQueueTaskCountsRequest, CsilCborError> {
-    Ok(GetQueueTaskCountsRequest {
-    })
+fn csil_dec_get_queue_task_counts_request(
+    _csil_root: &CsilCborValue,
+) -> Result<GetQueueTaskCountsRequest, CsilCborError> {
+    Ok(GetQueueTaskCountsRequest {})
 }
 
 /// Encode a GetQueueTaskCountsRequest to canonical CSIL CBOR bytes.
@@ -1133,7 +1316,9 @@ pub fn encode_get_queue_task_counts_request(csil_v: &GetQueueTaskCountsRequest) 
 }
 
 /// Decode canonical CSIL CBOR bytes into a GetQueueTaskCountsRequest.
-pub fn decode_get_queue_task_counts_request(csil_data: &[u8]) -> Result<GetQueueTaskCountsRequest, CsilCborError> {
+pub fn decode_get_queue_task_counts_request(
+    csil_data: &[u8],
+) -> Result<GetQueueTaskCountsRequest, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_get_queue_task_counts_request(&csil_root)
 }
@@ -1141,13 +1326,25 @@ pub fn decode_get_queue_task_counts_request(csil_data: &[u8]) -> Result<GetQueue
 /// Build the canonical CBOR value tree for a GetQueueTaskCountsResponse.
 fn csil_enc_get_queue_task_counts_response(csil_v: &GetQueueTaskCountsResponse) -> CsilCborValue {
     let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(2);
-    csil_entries.push((cbor_text("queue_counts"), cbor_enc_map(&csil_v.queue_counts, |csil_mk| cbor_text(csil_mk), |csil_mv| cbor_int(*csil_mv))));
-    csil_entries.push((cbor_text("total_task_count"), cbor_int(csil_v.total_task_count)));
+    csil_entries.push((
+        cbor_text("queue_counts"),
+        cbor_enc_map(
+            &csil_v.queue_counts,
+            |csil_mk| cbor_text(csil_mk),
+            |csil_mv| cbor_int(*csil_mv),
+        ),
+    ));
+    csil_entries.push((
+        cbor_text("total_task_count"),
+        cbor_int(csil_v.total_task_count),
+    ));
     CsilCborValue::Map(csil_entries)
 }
 
 /// Reconstruct a GetQueueTaskCountsResponse from a decoded CBOR value tree.
-fn csil_dec_get_queue_task_counts_response(csil_root: &CsilCborValue) -> Result<GetQueueTaskCountsResponse, CsilCborError> {
+fn csil_dec_get_queue_task_counts_response(
+    csil_root: &CsilCborValue,
+) -> Result<GetQueueTaskCountsResponse, CsilCborError> {
     let queue_counts = {
         let csil_field = cbor_require(csil_root, "queue_counts")?;
         let csil_decode = |csil_v| cbor_dec_map(csil_v, cbor_as_text, cbor_as_i64);
@@ -1170,7 +1367,9 @@ pub fn encode_get_queue_task_counts_response(csil_v: &GetQueueTaskCountsResponse
 }
 
 /// Decode canonical CSIL CBOR bytes into a GetQueueTaskCountsResponse.
-pub fn decode_get_queue_task_counts_response(csil_data: &[u8]) -> Result<GetQueueTaskCountsResponse, CsilCborError> {
+pub fn decode_get_queue_task_counts_response(
+    csil_data: &[u8],
+) -> Result<GetQueueTaskCountsResponse, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_get_queue_task_counts_response(&csil_root)
 }
@@ -1183,15 +1382,15 @@ fn csil_enc_get_task_state_counts_request(csil_v: &GetTaskStateCountsRequest) ->
 }
 
 /// Reconstruct a GetTaskStateCountsRequest from a decoded CBOR value tree.
-fn csil_dec_get_task_state_counts_request(csil_root: &CsilCborValue) -> Result<GetTaskStateCountsRequest, CsilCborError> {
+fn csil_dec_get_task_state_counts_request(
+    csil_root: &CsilCborValue,
+) -> Result<GetTaskStateCountsRequest, CsilCborError> {
     let queue = {
         let csil_field = cbor_require(csil_root, "queue")?;
         let csil_decode = cbor_as_text;
         csil_decode(csil_field)?
     };
-    Ok(GetTaskStateCountsRequest {
-        queue,
-    })
+    Ok(GetTaskStateCountsRequest { queue })
 }
 
 /// Encode a GetTaskStateCountsRequest to canonical CSIL CBOR bytes.
@@ -1200,7 +1399,9 @@ pub fn encode_get_task_state_counts_request(csil_v: &GetTaskStateCountsRequest) 
 }
 
 /// Decode canonical CSIL CBOR bytes into a GetTaskStateCountsRequest.
-pub fn decode_get_task_state_counts_request(csil_data: &[u8]) -> Result<GetTaskStateCountsRequest, CsilCborError> {
+pub fn decode_get_task_state_counts_request(
+    csil_data: &[u8],
+) -> Result<GetTaskStateCountsRequest, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_get_task_state_counts_request(&csil_root)
 }
@@ -1210,12 +1411,21 @@ fn csil_enc_get_task_state_counts_response(csil_v: &GetTaskStateCountsResponse) 
     let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(3);
     csil_entries.push((cbor_text("count"), cbor_int(csil_v.count)));
     csil_entries.push((cbor_text("queue"), cbor_text(&csil_v.queue)));
-    csil_entries.push((cbor_text("state_counts"), cbor_enc_map(&csil_v.state_counts, |csil_mk| cbor_text(csil_mk), |csil_mv| cbor_int(*csil_mv))));
+    csil_entries.push((
+        cbor_text("state_counts"),
+        cbor_enc_map(
+            &csil_v.state_counts,
+            |csil_mk| cbor_text(csil_mk),
+            |csil_mv| cbor_int(*csil_mv),
+        ),
+    ));
     CsilCborValue::Map(csil_entries)
 }
 
 /// Reconstruct a GetTaskStateCountsResponse from a decoded CBOR value tree.
-fn csil_dec_get_task_state_counts_response(csil_root: &CsilCborValue) -> Result<GetTaskStateCountsResponse, CsilCborError> {
+fn csil_dec_get_task_state_counts_response(
+    csil_root: &CsilCborValue,
+) -> Result<GetTaskStateCountsResponse, CsilCborError> {
     let queue = {
         let csil_field = cbor_require(csil_root, "queue")?;
         let csil_decode = cbor_as_text;
@@ -1244,7 +1454,9 @@ pub fn encode_get_task_state_counts_response(csil_v: &GetTaskStateCountsResponse
 }
 
 /// Decode canonical CSIL CBOR bytes into a GetTaskStateCountsResponse.
-pub fn decode_get_task_state_counts_response(csil_data: &[u8]) -> Result<GetTaskStateCountsResponse, CsilCborError> {
+pub fn decode_get_task_state_counts_response(
+    csil_data: &[u8],
+) -> Result<GetTaskStateCountsResponse, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_get_task_state_counts_response(&csil_root)
 }
@@ -1254,12 +1466,21 @@ fn csil_enc_queue_and_state_counts(csil_v: &QueueAndStateCounts) -> CsilCborValu
     let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(3);
     csil_entries.push((cbor_text("count"), cbor_int(csil_v.count)));
     csil_entries.push((cbor_text("queue"), cbor_text(&csil_v.queue)));
-    csil_entries.push((cbor_text("state_counts"), cbor_enc_map(&csil_v.state_counts, |csil_mk| cbor_text(csil_mk), |csil_mv| cbor_int(*csil_mv))));
+    csil_entries.push((
+        cbor_text("state_counts"),
+        cbor_enc_map(
+            &csil_v.state_counts,
+            |csil_mk| cbor_text(csil_mk),
+            |csil_mv| cbor_int(*csil_mv),
+        ),
+    ));
     CsilCborValue::Map(csil_entries)
 }
 
 /// Reconstruct a QueueAndStateCounts from a decoded CBOR value tree.
-fn csil_dec_queue_and_state_counts(csil_root: &CsilCborValue) -> Result<QueueAndStateCounts, CsilCborError> {
+fn csil_dec_queue_and_state_counts(
+    csil_root: &CsilCborValue,
+) -> Result<QueueAndStateCounts, CsilCborError> {
     let queue = {
         let csil_field = cbor_require(csil_root, "queue")?;
         let csil_decode = cbor_as_text;
@@ -1288,46 +1509,66 @@ pub fn encode_queue_and_state_counts(csil_v: &QueueAndStateCounts) -> Vec<u8> {
 }
 
 /// Decode canonical CSIL CBOR bytes into a QueueAndStateCounts.
-pub fn decode_queue_and_state_counts(csil_data: &[u8]) -> Result<QueueAndStateCounts, CsilCborError> {
+pub fn decode_queue_and_state_counts(
+    csil_data: &[u8],
+) -> Result<QueueAndStateCounts, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_queue_and_state_counts(&csil_root)
 }
 
 /// Build the canonical CBOR value tree for a GetQueueAndStateCountsRequest.
-fn csil_enc_get_queue_and_state_counts_request(csil_v: &GetQueueAndStateCountsRequest) -> CsilCborValue {
-    let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(0);
-    CsilCborValue::Map(csil_entries)
+fn csil_enc_get_queue_and_state_counts_request(
+    _csil_v: &GetQueueAndStateCountsRequest,
+) -> CsilCborValue {
+    CsilCborValue::Map(Vec::new())
 }
 
 /// Reconstruct a GetQueueAndStateCountsRequest from a decoded CBOR value tree.
-fn csil_dec_get_queue_and_state_counts_request(csil_root: &CsilCborValue) -> Result<GetQueueAndStateCountsRequest, CsilCborError> {
-    Ok(GetQueueAndStateCountsRequest {
-    })
+fn csil_dec_get_queue_and_state_counts_request(
+    _csil_root: &CsilCborValue,
+) -> Result<GetQueueAndStateCountsRequest, CsilCborError> {
+    Ok(GetQueueAndStateCountsRequest {})
 }
 
 /// Encode a GetQueueAndStateCountsRequest to canonical CSIL CBOR bytes.
-pub fn encode_get_queue_and_state_counts_request(csil_v: &GetQueueAndStateCountsRequest) -> Vec<u8> {
+pub fn encode_get_queue_and_state_counts_request(
+    csil_v: &GetQueueAndStateCountsRequest,
+) -> Vec<u8> {
     cbor_encode(&csil_enc_get_queue_and_state_counts_request(csil_v))
 }
 
 /// Decode canonical CSIL CBOR bytes into a GetQueueAndStateCountsRequest.
-pub fn decode_get_queue_and_state_counts_request(csil_data: &[u8]) -> Result<GetQueueAndStateCountsRequest, CsilCborError> {
+pub fn decode_get_queue_and_state_counts_request(
+    csil_data: &[u8],
+) -> Result<GetQueueAndStateCountsRequest, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_get_queue_and_state_counts_request(&csil_root)
 }
 
 /// Build the canonical CBOR value tree for a GetQueueAndStateCountsResponse.
-fn csil_enc_get_queue_and_state_counts_response(csil_v: &GetQueueAndStateCountsResponse) -> CsilCborValue {
+fn csil_enc_get_queue_and_state_counts_response(
+    csil_v: &GetQueueAndStateCountsResponse,
+) -> CsilCborValue {
     let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(1);
-    csil_entries.push((cbor_text("queue_and_state_counts"), cbor_enc_map(&csil_v.queue_and_state_counts, |csil_mk| cbor_text(csil_mk), |csil_mv| csil_enc_queue_and_state_counts(csil_mv))));
+    csil_entries.push((
+        cbor_text("queue_and_state_counts"),
+        cbor_enc_map(
+            &csil_v.queue_and_state_counts,
+            |csil_mk| cbor_text(csil_mk),
+            csil_enc_queue_and_state_counts,
+        ),
+    ));
     CsilCborValue::Map(csil_entries)
 }
 
 /// Reconstruct a GetQueueAndStateCountsResponse from a decoded CBOR value tree.
-fn csil_dec_get_queue_and_state_counts_response(csil_root: &CsilCborValue) -> Result<GetQueueAndStateCountsResponse, CsilCborError> {
+fn csil_dec_get_queue_and_state_counts_response(
+    csil_root: &CsilCborValue,
+) -> Result<GetQueueAndStateCountsResponse, CsilCborError> {
     let queue_and_state_counts = {
         let csil_field = cbor_require(csil_root, "queue_and_state_counts")?;
-        let csil_decode = |csil_v| cbor_dec_map(csil_v, cbor_as_text, csil_dec_queue_and_state_counts);
+        let csil_decode =
+            |csil_v| cbor_dec_map(csil_v, cbor_as_text, csil_dec_queue_and_state_counts);
         csil_decode(csil_field)?
     };
     Ok(GetQueueAndStateCountsResponse {
@@ -1336,12 +1577,16 @@ fn csil_dec_get_queue_and_state_counts_response(csil_root: &CsilCborValue) -> Re
 }
 
 /// Encode a GetQueueAndStateCountsResponse to canonical CSIL CBOR bytes.
-pub fn encode_get_queue_and_state_counts_response(csil_v: &GetQueueAndStateCountsResponse) -> Vec<u8> {
+pub fn encode_get_queue_and_state_counts_response(
+    csil_v: &GetQueueAndStateCountsResponse,
+) -> Vec<u8> {
     cbor_encode(&csil_enc_get_queue_and_state_counts_response(csil_v))
 }
 
 /// Decode canonical CSIL CBOR bytes into a GetQueueAndStateCountsResponse.
-pub fn decode_get_queue_and_state_counts_response(csil_data: &[u8]) -> Result<GetQueueAndStateCountsResponse, CsilCborError> {
+pub fn decode_get_queue_and_state_counts_response(
+    csil_data: &[u8],
+) -> Result<GetQueueAndStateCountsResponse, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_get_queue_and_state_counts_response(&csil_root)
 }
@@ -1366,10 +1611,7 @@ fn csil_dec_service_error(csil_root: &CsilCborValue) -> Result<ServiceError, Csi
         let csil_decode = cbor_as_text;
         csil_decode(csil_field)?
     };
-    Ok(ServiceError {
-        code,
-        message,
-    })
+    Ok(ServiceError { code, message })
 }
 
 /// Encode a ServiceError to canonical CSIL CBOR bytes.
@@ -1382,4 +1624,3 @@ pub fn decode_service_error(csil_data: &[u8]) -> Result<ServiceError, CsilCborEr
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_service_error(&csil_root)
 }
-

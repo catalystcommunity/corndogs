@@ -589,6 +589,10 @@ static inline int csilc_enc_GetNextTaskRequest(csilc_buf *b, const GetNextTaskRe
 static inline int csilc_dec_GetNextTaskRequest(const csilc_value *m, CsilCodecArena *a, GetNextTaskRequest *out);
 static inline int csilc_enc_GetNextTaskResponse(csilc_buf *b, const GetNextTaskResponse *v);
 static inline int csilc_dec_GetNextTaskResponse(const csilc_value *m, CsilCodecArena *a, GetNextTaskResponse *out);
+static inline int csilc_enc_GetNextTaskGroupRequest(csilc_buf *b, const GetNextTaskGroupRequest *v);
+static inline int csilc_dec_GetNextTaskGroupRequest(const csilc_value *m, CsilCodecArena *a, GetNextTaskGroupRequest *out);
+static inline int csilc_enc_GetNextTaskGroupResponse(csilc_buf *b, const GetNextTaskGroupResponse *v);
+static inline int csilc_dec_GetNextTaskGroupResponse(const csilc_value *m, CsilCodecArena *a, GetNextTaskGroupResponse *out);
 static inline int csilc_enc_CompleteTaskRequest(csilc_buf *b, const CompleteTaskRequest *v);
 static inline int csilc_dec_CompleteTaskRequest(const csilc_value *m, CsilCodecArena *a, CompleteTaskRequest *out);
 static inline int csilc_enc_CompleteTaskResponse(csilc_buf *b, const CompleteTaskResponse *v);
@@ -874,6 +878,81 @@ static inline int csilc_enc_GetNextTaskResponse(csilc_buf *b, const GetNextTaskR
 
 /* csilc_dec_GetNextTaskResponse reads GetNextTaskResponse from a decoded CBOR map (arena-borrowed). */
 static inline int csilc_dec_GetNextTaskResponse(const csilc_value *m, CsilCodecArena *a, GetNextTaskResponse *out) {
+    (void)a;
+    const csilc_value *csilc_f;
+    if (!m || m->kind != CSILC_MAP) return -1;
+    csilc_f = csilc_map_get(m, "task");
+    out->task = NULL;
+    if (csilc_f) {
+        Task *csilc_p = (Task *)csilc_arena_alloc(a, sizeof(Task));
+        if (!csilc_p) return -1;
+        if (csilc_dec_Task(csilc_f, a, &((*csilc_p)))) return -1;
+        out->task = csilc_p;
+    }
+    return 0;
+}
+
+/* csilc_enc_GetNextTaskGroupRequest writes GetNextTaskGroupRequest as a canonical CBOR map. */
+static inline int csilc_enc_GetNextTaskGroupRequest(csilc_buf *b, const GetNextTaskGroupRequest *v) {
+    size_t csilc_n = 5;
+    if (csilc_w_map_head(b, csilc_n)) return -1;
+    if (csilc_w_text(b, "queues", 6)) return -1;
+    if (csilc_w_array_head(b, v->queues_count)) return -1;
+    for (size_t csilc_i = 0; csilc_i < v->queues_count; csilc_i++) {
+        if (csilc_w_text(b, (v->queues[csilc_i]), (v->queues[csilc_i]) ? strlen(v->queues[csilc_i]) : 0)) return -1;
+    }
+    if (csilc_w_text(b, "current_state", 13)) return -1;
+    if (csilc_w_text(b, (v->current_state), (v->current_state) ? strlen(v->current_state) : 0)) return -1;
+    if (csilc_w_text(b, "override_timeout", 16)) return -1;
+    if (csilc_w_int(b, (int64_t)(v->override_timeout))) return -1;
+    if (csilc_w_text(b, "override_current_state", 22)) return -1;
+    if (csilc_w_text(b, (v->override_current_state), (v->override_current_state) ? strlen(v->override_current_state) : 0)) return -1;
+    if (csilc_w_text(b, "override_auto_target_state", 26)) return -1;
+    if (csilc_w_text(b, (v->override_auto_target_state), (v->override_auto_target_state) ? strlen(v->override_auto_target_state) : 0)) return -1;
+    return 0;
+}
+
+/* csilc_dec_GetNextTaskGroupRequest reads GetNextTaskGroupRequest from a decoded CBOR map (arena-borrowed). */
+static inline int csilc_dec_GetNextTaskGroupRequest(const csilc_value *m, CsilCodecArena *a, GetNextTaskGroupRequest *out) {
+    (void)a;
+    const csilc_value *csilc_f;
+    if (!m || m->kind != CSILC_MAP) return -1;
+    csilc_f = csilc_map_get(m, "queues");
+    if (!csilc_f || csilc_f->kind != CSILC_ARRAY) return -1;
+    out->queues_count = csilc_f->as.array.count;
+    out->queues = NULL;
+    if (out->queues_count) {
+        out->queues = (char * *)csilc_arena_alloc(a, out->queues_count * sizeof(char *));
+        if (!out->queues) return -1;
+        for (size_t csilc_i = 0; csilc_i < out->queues_count; csilc_i++) {
+            if (!csilc_get_text(&csilc_f->as.array.items[csilc_i], &(out->queues[csilc_i]))) return -1;
+        }
+    }
+    csilc_f = csilc_map_get(m, "current_state");
+    if (!csilc_get_text(csilc_f, &(out->current_state))) return -1;
+    csilc_f = csilc_map_get(m, "override_timeout");
+    if (!csilc_as_i64(csilc_f, &(out->override_timeout))) return -1;
+    csilc_f = csilc_map_get(m, "override_current_state");
+    if (!csilc_get_text(csilc_f, &(out->override_current_state))) return -1;
+    csilc_f = csilc_map_get(m, "override_auto_target_state");
+    if (!csilc_get_text(csilc_f, &(out->override_auto_target_state))) return -1;
+    return 0;
+}
+
+/* csilc_enc_GetNextTaskGroupResponse writes GetNextTaskGroupResponse as a canonical CBOR map. */
+static inline int csilc_enc_GetNextTaskGroupResponse(csilc_buf *b, const GetNextTaskGroupResponse *v) {
+    size_t csilc_n = 0;
+    if (v->task) csilc_n++;
+    if (csilc_w_map_head(b, csilc_n)) return -1;
+    if (v->task) {
+        if (csilc_w_text(b, "task", 4)) return -1;
+        if (csilc_enc_Task(b, &((*v->task)))) return -1;
+    }
+    return 0;
+}
+
+/* csilc_dec_GetNextTaskGroupResponse reads GetNextTaskGroupResponse from a decoded CBOR map (arena-borrowed). */
+static inline int csilc_dec_GetNextTaskGroupResponse(const csilc_value *m, CsilCodecArena *a, GetNextTaskGroupResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
     if (!m || m->kind != CSILC_MAP) return -1;
@@ -1544,6 +1623,52 @@ static inline int csil_decode_GetNextTaskResponse(const uint8_t *in, size_t len,
     const csilc_value *root;
     if (csilc_decode(in, len, &a, &root)) return -1;
     if (csilc_dec_GetNextTaskResponse(root, a, out)) { csil_codec_arena_free(a); return -1; }
+    *owner = a;
+    return 0;
+}
+
+/* Encode a GetNextTaskGroupRequest to CBOR. On success *out is a malloc'd buffer of
+ * *out_len bytes the caller frees with free(); returns non-zero on failure. */
+static inline int csil_encode_GetNextTaskGroupRequest(const GetNextTaskGroupRequest *v, uint8_t **out, size_t *out_len) {
+    csilc_buf b;
+    csilc_buf_init(&b);
+    if (csilc_enc_GetNextTaskGroupRequest(&b, v)) { csilc_buf_dispose(&b); return -1; }
+    *out = b.data;
+    *out_len = b.len;
+    return 0;
+}
+
+/* Decode CBOR into a GetNextTaskGroupRequest. On success *owner holds the backing
+ * storage (every string/bytes/array inside *out borrows from it); free it
+ * once with csil_codec_arena_free when done. Returns non-zero on failure. */
+static inline int csil_decode_GetNextTaskGroupRequest(const uint8_t *in, size_t len, GetNextTaskGroupRequest *out, CsilCodecArena **owner) {
+    CsilCodecArena *a;
+    const csilc_value *root;
+    if (csilc_decode(in, len, &a, &root)) return -1;
+    if (csilc_dec_GetNextTaskGroupRequest(root, a, out)) { csil_codec_arena_free(a); return -1; }
+    *owner = a;
+    return 0;
+}
+
+/* Encode a GetNextTaskGroupResponse to CBOR. On success *out is a malloc'd buffer of
+ * *out_len bytes the caller frees with free(); returns non-zero on failure. */
+static inline int csil_encode_GetNextTaskGroupResponse(const GetNextTaskGroupResponse *v, uint8_t **out, size_t *out_len) {
+    csilc_buf b;
+    csilc_buf_init(&b);
+    if (csilc_enc_GetNextTaskGroupResponse(&b, v)) { csilc_buf_dispose(&b); return -1; }
+    *out = b.data;
+    *out_len = b.len;
+    return 0;
+}
+
+/* Decode CBOR into a GetNextTaskGroupResponse. On success *owner holds the backing
+ * storage (every string/bytes/array inside *out borrows from it); free it
+ * once with csil_codec_arena_free when done. Returns non-zero on failure. */
+static inline int csil_decode_GetNextTaskGroupResponse(const uint8_t *in, size_t len, GetNextTaskGroupResponse *out, CsilCodecArena **owner) {
+    CsilCodecArena *a;
+    const csilc_value *root;
+    if (csilc_decode(in, len, &a, &root)) return -1;
+    if (csilc_dec_GetNextTaskGroupResponse(root, a, out)) { csil_codec_arena_free(a); return -1; }
     *owner = a;
     return 0;
 }

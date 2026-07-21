@@ -255,6 +255,26 @@ public static partial class Cbor
     public static CborValue Require(CborValue v, string key) =>
         MapGet(v, key) ?? throw new CborException($"missing field '{key}'");
 
+    public static T ExpectLiteral<T>(CborValue actual, CborValue expected, T value)
+    {
+        if (!ValueEquals(actual, expected))
+            throw new CborException("literal mismatch");
+        return value;
+    }
+
+    static bool ValueEquals(CborValue actual, CborValue expected) => (actual, expected) switch
+    {
+        (CborValue.Uint a, CborValue.Uint b) => a.Value == b.Value,
+        (CborValue.Int a, CborValue.Int b) => a.Value == b.Value,
+        (CborValue.Bool a, CborValue.Bool b) => a.Value == b.Value,
+        (CborValue.Float a, CborValue.Float b) => a.Value == b.Value,
+        (CborValue.Null, CborValue.Null) => true,
+        (CborValue.Text a, CborValue.Text b) => a.Value == b.Value,
+        (CborValue.Bytes a, CborValue.Bytes b) => a.Value.SequenceEqual(b.Value),
+        (CborValue.Array a, CborValue.Array b) => a.Items.Count == b.Items.Count && a.Items.Zip(b.Items).All(p => ValueEquals(p.First, p.Second)),
+        _ => false,
+    };
+
     public static long AsI64(CborValue v) => v switch
     {
         CborValue.Uint x when x.Value <= long.MaxValue => (long)x.Value,
@@ -313,6 +333,8 @@ public static class Codec
         GetTaskStateByIDResponse csilTyped => GetTaskStateByIDResponseToCborValue(csilTyped),
         GetNextTaskRequest csilTyped => GetNextTaskRequestToCborValue(csilTyped),
         GetNextTaskResponse csilTyped => GetNextTaskResponseToCborValue(csilTyped),
+        GetNextTaskGroupRequest csilTyped => GetNextTaskGroupRequestToCborValue(csilTyped),
+        GetNextTaskGroupResponse csilTyped => GetNextTaskGroupResponseToCborValue(csilTyped),
         CompleteTaskRequest csilTyped => CompleteTaskRequestToCborValue(csilTyped),
         CompleteTaskResponse csilTyped => CompleteTaskResponseToCborValue(csilTyped),
         UpdateTaskRequest csilTyped => UpdateTaskRequestToCborValue(csilTyped),
@@ -343,6 +365,8 @@ public static class Codec
         if (csilType == typeof(GetTaskStateByIDResponse)) return GetTaskStateByIDResponseFromCborValue(value);
         if (csilType == typeof(GetNextTaskRequest)) return GetNextTaskRequestFromCborValue(value);
         if (csilType == typeof(GetNextTaskResponse)) return GetNextTaskResponseFromCborValue(value);
+        if (csilType == typeof(GetNextTaskGroupRequest)) return GetNextTaskGroupRequestFromCborValue(value);
+        if (csilType == typeof(GetNextTaskGroupResponse)) return GetNextTaskGroupResponseFromCborValue(value);
         if (csilType == typeof(CompleteTaskRequest)) return CompleteTaskRequestFromCborValue(value);
         if (csilType == typeof(CompleteTaskResponse)) return CompleteTaskResponseFromCborValue(value);
         if (csilType == typeof(UpdateTaskRequest)) return UpdateTaskRequestFromCborValue(value);
@@ -548,6 +572,57 @@ public static class Codec
     {
         Task? csilField0 = Cbor.MapGet(value, "task") is { } csilRaw0 ? TaskFromCborValue(csilRaw0) : null;
         return new GetNextTaskResponse
+        {
+            Task = csilField0,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a GetNextTaskGroupRequest.</summary>
+    public static CborValue GetNextTaskGroupRequestToCborValue(GetNextTaskGroupRequest value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("queues"), new CborValue.Array(value.Queues.Select(csilElem => (CborValue)new CborValue.Text(csilElem)).ToList())));
+        csilEntries.Add((new CborValue.Text("current_state"), new CborValue.Text(value.CurrentState)));
+        csilEntries.Add((new CborValue.Text("override_timeout"), new CborValue.Int(value.OverrideTimeout)));
+        csilEntries.Add((new CborValue.Text("override_current_state"), new CborValue.Text(value.OverrideCurrentState)));
+        csilEntries.Add((new CborValue.Text("override_auto_target_state"), new CborValue.Text(value.OverrideAutoTargetState)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a GetNextTaskGroupRequest from a decoded CBOR value tree.</summary>
+    public static GetNextTaskGroupRequest GetNextTaskGroupRequestFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsArray(Cbor.Require(value, "queues")).Select(csilElem => Cbor.AsText(csilElem)).ToList();
+        var csilField1 = Cbor.AsText(Cbor.Require(value, "current_state"));
+        var csilField2 = Cbor.AsI64(Cbor.Require(value, "override_timeout"));
+        var csilField3 = Cbor.AsText(Cbor.Require(value, "override_current_state"));
+        var csilField4 = Cbor.AsText(Cbor.Require(value, "override_auto_target_state"));
+        return new GetNextTaskGroupRequest
+        {
+            Queues = csilField0,
+            CurrentState = csilField1,
+            OverrideTimeout = csilField2,
+            OverrideCurrentState = csilField3,
+            OverrideAutoTargetState = csilField4,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a GetNextTaskGroupResponse.</summary>
+    public static CborValue GetNextTaskGroupResponseToCborValue(GetNextTaskGroupResponse value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        if (value.Task is { } csilV0)
+        {
+            csilEntries.Add((new CborValue.Text("task"), TaskToCborValue(csilV0)));
+        }
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a GetNextTaskGroupResponse from a decoded CBOR value tree.</summary>
+    public static GetNextTaskGroupResponse GetNextTaskGroupResponseFromCborValue(CborValue value)
+    {
+        Task? csilField0 = Cbor.MapGet(value, "task") is { } csilRaw0 ? TaskFromCborValue(csilRaw0) : null;
+        return new GetNextTaskGroupResponse
         {
             Task = csilField0,
         };

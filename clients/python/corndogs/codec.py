@@ -156,6 +156,153 @@ def cbor_decode(data: bytes) -> Any:
     return value
 
 
+class CsilDecodeError(ValueError):
+    """A decoded CBOR value's major type does not match its CSIL-declared type.
+
+    Subclasses ValueError so existing `except ValueError` call sites still
+    catch it; the distinct type lets a caller narrow on schema violations.
+    """
+
+
+# The value-tree type-check gate every scalar field decode passes through: the
+# tree already parsed the CBOR major type (bytes/str/int/float/bool/None/list/
+# dict/CborTag), so these only need to confirm the declared CSIL type matches
+# before the value is trusted by the generated dataclass — matching the Rust
+# generator's `cbor_as_*` strictness (e.g. `cbor_as_bytes` rejects Text).
+def _csil_expect_int(v: Any) -> int:
+    # bool is an int subclass in Python, so it is rejected explicitly here —
+    # CSIL's bool and int/nint are distinct wire types (CBOR major 7 vs 0/1).
+    if isinstance(v, bool) or not isinstance(v, int):
+        raise CsilDecodeError(f"csil cbor: expected int, got {type(v).__name__}")
+    return v
+
+
+def _csil_expect_uint(v: Any) -> int:
+    if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+        raise CsilDecodeError(f"csil cbor: expected uint, got {type(v).__name__}")
+    return v
+
+
+def _csil_expect_float(v: Any) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        raise CsilDecodeError(f"csil cbor: expected float, got {type(v).__name__}")
+    return float(v)
+
+
+def _csil_expect_bool(v: Any) -> bool:
+    if not isinstance(v, bool):
+        raise CsilDecodeError(f"csil cbor: expected bool, got {type(v).__name__}")
+    return v
+
+
+def _csil_expect_text(v: Any) -> str:
+    if not isinstance(v, str):
+        raise CsilDecodeError(f"csil cbor: expected text, got {type(v).__name__}")
+    return v
+
+
+def _csil_expect_bytes(v: Any) -> bytes:
+    if not isinstance(v, (bytes, bytearray)):
+        raise CsilDecodeError(f"csil cbor: expected bytes, got {type(v).__name__}")
+    return bytes(v)
+
+
+def _csil_expect_array(v: Any) -> list:
+    if not isinstance(v, list):
+        raise CsilDecodeError(f"csil cbor: expected array, got {type(v).__name__}")
+    return v
+
+
+def _csil_expect_map(v: Any) -> dict:
+    if not isinstance(v, dict):
+        raise CsilDecodeError(f"csil cbor: expected map, got {type(v).__name__}")
+    return v
+
+
+def _csil_expect_tuple_array(v: Any, arity: int) -> list:
+    arr = _csil_expect_array(v)
+    if len(arr) != arity:
+        raise CsilDecodeError(
+            f"csil cbor: expected {arity}-element tuple, got {len(arr)} elements"
+        )
+    return arr
+
+
+def _csil_expect_tag(v: Any, tag: int) -> Any:
+    if not isinstance(v, CborTag) or v.tag != tag:
+        raise CsilDecodeError(f"csil cbor: expected CBOR tag {tag}")
+    return v.value
+
+
+# A literal-typed union variant (e.g. `"pending"` in `text / "pending" / ...`) has
+# no CBOR shape of its own to check — its wire value is indistinguishable from its
+# base type's. The variant index already selects which literal was declared, so
+# this only needs to confirm the decoded value actually equals that literal,
+# rejecting a payload that claims an index but carries the wrong value.
+def _csil_expect_literal(v: Any, expected: Any) -> Any:
+    if v != expected:
+        raise CsilDecodeError(f"csil cbor: literal mismatch, expected {expected!r}, got {v!r}")
+    return expected
+
+
+# Marks the "general" (non-literal) arm within one isinstance-type group of an
+# inline choice — see `_csil_encode_choice`. Any distinct object works, since it
+# is only ever compared by identity.
+_CSIL_CHOICE_GENERAL = object()
+
+
+# Encodes an inline (anonymous) choice field — a record field, array element, map
+# value, or tuple element typed directly as `a / b / c` rather than through a
+# named rule — as a tagged sum `[variant_index, value]`. Mirrors a named union's
+# own `_encode_<u>_value`, but built from data supplied at the call site instead
+# of a per-name top-level function (an inline choice has no declared name to hang
+# one off of). `groups` is an ordered list of `(isinstance_type, arms)` pairs,
+# arms grouped by their shared Python runtime type exactly like a named union's
+# own grouping (Go forbids/`isinstance` would double-match on a shared type
+# otherwise); `arms` is an ordered list of `(literal_or_GENERAL, index,
+# encode_fn)` — a literal arm's own declared value is checked first and wins on
+# collision with the general arm, matching the named union's literal-first
+# precedence.
+def _csil_encode_choice(v: Any, groups: Any) -> list:
+    for py_type, arms in groups:
+        if isinstance(v, py_type):
+            general = None
+            for literal, idx, enc in arms:
+                if literal is _CSIL_CHOICE_GENERAL:
+                    general = (idx, enc)
+                    continue
+                if v == literal:
+                    return [idx, enc(v)]
+            if general is not None:
+                idx, enc = general
+                return [idx, enc(v)]
+    raise ValueError("csil cbor: value does not match any choice variant")
+
+
+# Decodes an inline choice's tagged sum `[variant_index, value]`, the decode
+# inverse of `_csil_encode_choice` and the inline mirror of a named union's own
+# `_decode_<u>_value`. `decoders` maps each declared arm's index to its decode
+# function.
+def _csil_decode_choice(tree: Any, decoders: Any) -> Any:
+    if not isinstance(tree, (list, tuple)) or len(tree) != 2:
+        raise CsilDecodeError("csil cbor: choice expects a 2-element array")
+    idx, val = tree[0], tree[1]
+    dec = decoders.get(idx)
+    if dec is None:
+        raise CsilDecodeError(f"csil cbor: unknown choice variant {idx!r}")
+    return dec(val)
+
+
+# Decodes an inline all-literal choice (an enum): validates the CBOR major type
+# via `expect` (one of the `_csil_expect_*` gates above) then confirms membership
+# in the declared literal set, matching a named enum's own `_decode_<e>_value`.
+def _csil_decode_enum(v: Any, members: Any, expect: Any) -> Any:
+    v = expect(v)
+    if v not in members:
+        raise CsilDecodeError(f"csil cbor: unknown value {v!r}")
+    return v
+
+
 def _csil_ts_to_text(dt: Any) -> str:
     # The contract pins tag-0 timestamps to RFC3339 UTC with a `Z` offset.
     text = dt.astimezone(timezone.utc).isoformat()
@@ -163,7 +310,11 @@ def _csil_ts_to_text(dt: Any) -> str:
 
 
 def _csil_ts_from_tree(node: Any) -> Any:
-    text = node.value if isinstance(node, CborTag) else node
+    text = _csil_expect_tag(node, 0)
+    if not isinstance(text, str):
+        raise CsilDecodeError(
+            f"csil cbor: timestamp content must be text, got {type(text).__name__}"
+        )
     return datetime.fromisoformat(text.replace("Z", "+00:00"))
 
 
@@ -179,8 +330,12 @@ def _csil_decimal_to_pair(d: Any) -> list:
 
 
 def _csil_decimal_from_tree(node: Any) -> Any:
-    exp, mant = node.value
-    return Decimal(mant).scaleb(exp)
+    pair = _csil_expect_tag(node, 4)
+    if not isinstance(pair, list) or len(pair) != 2:
+        raise CsilDecodeError("csil cbor: tag 4 content must be [exponent, mantissa]")
+    exponent = _csil_expect_int(pair[0])
+    mantissa = _csil_expect_int(pair[1])
+    return Decimal(mantissa).scaleb(exponent)
 
 def _encode_task_value(v: "Task") -> Dict[Any, Any]:
     csil_m: Dict[Any, Any] = {}
@@ -196,16 +351,17 @@ def _encode_task_value(v: "Task") -> Dict[Any, Any]:
     return csil_m
 
 def _decode_task_value(tree: Any) -> "Task":
+    tree = _csil_expect_map(tree)
     return Task(
-        uuid=tree["uuid"],
-        queue=tree["queue"],
-        current_state=tree["current_state"],
-        auto_target_state=tree["auto_target_state"],
-        submit_time=tree["submit_time"],
-        update_time=tree["update_time"],
-        timeout=tree["timeout"],
-        payload=tree["payload"],
-        priority=tree["priority"],
+        uuid=_csil_expect_text(tree["uuid"]),
+        queue=_csil_expect_text(tree["queue"]),
+        current_state=_csil_expect_text(tree["current_state"]),
+        auto_target_state=_csil_expect_text(tree["auto_target_state"]),
+        submit_time=_csil_expect_int(tree["submit_time"]),
+        update_time=_csil_expect_int(tree["update_time"]),
+        timeout=_csil_expect_int(tree["timeout"]),
+        payload=_csil_expect_bytes(tree["payload"]),
+        priority=_csil_expect_int(tree["priority"]),
     )
 
 
@@ -231,13 +387,14 @@ def _encode_submit_task_request_value(v: "SubmitTaskRequest") -> Dict[Any, Any]:
     return csil_m
 
 def _decode_submit_task_request_value(tree: Any) -> "SubmitTaskRequest":
+    tree = _csil_expect_map(tree)
     return SubmitTaskRequest(
-        queue=tree["queue"],
-        current_state=tree["current_state"],
-        auto_target_state=tree["auto_target_state"],
-        timeout=tree["timeout"],
-        payload=tree["payload"],
-        priority=tree["priority"],
+        queue=_csil_expect_text(tree["queue"]),
+        current_state=_csil_expect_text(tree["current_state"]),
+        auto_target_state=_csil_expect_text(tree["auto_target_state"]),
+        timeout=_csil_expect_int(tree["timeout"]),
+        payload=_csil_expect_bytes(tree["payload"]),
+        priority=_csil_expect_int(tree["priority"]),
     )
 
 
@@ -260,6 +417,7 @@ def _encode_submit_task_response_value(v: "SubmitTaskResponse") -> Dict[Any, Any
     return csil_m
 
 def _decode_submit_task_response_value(tree: Any) -> "SubmitTaskResponse":
+    tree = _csil_expect_map(tree)
     return SubmitTaskResponse(
         task=(None if tree.get("task") is None else _decode_task_value(tree["task"])),
     )
@@ -283,9 +441,10 @@ def _encode_get_task_state_by_id_request_value(v: "GetTaskStateByIdRequest") -> 
     return csil_m
 
 def _decode_get_task_state_by_id_request_value(tree: Any) -> "GetTaskStateByIdRequest":
+    tree = _csil_expect_map(tree)
     return GetTaskStateByIdRequest(
-        uuid=tree["uuid"],
-        queue=tree["queue"],
+        uuid=_csil_expect_text(tree["uuid"]),
+        queue=_csil_expect_text(tree["queue"]),
     )
 
 
@@ -308,6 +467,7 @@ def _encode_get_task_state_by_id_response_value(v: "GetTaskStateByIdResponse") -
     return csil_m
 
 def _decode_get_task_state_by_id_response_value(tree: Any) -> "GetTaskStateByIdResponse":
+    tree = _csil_expect_map(tree)
     return GetTaskStateByIdResponse(
         task=(None if tree.get("task") is None else _decode_task_value(tree["task"])),
     )
@@ -334,12 +494,13 @@ def _encode_get_next_task_request_value(v: "GetNextTaskRequest") -> Dict[Any, An
     return csil_m
 
 def _decode_get_next_task_request_value(tree: Any) -> "GetNextTaskRequest":
+    tree = _csil_expect_map(tree)
     return GetNextTaskRequest(
-        queue=tree["queue"],
-        current_state=tree["current_state"],
-        override_timeout=tree["override_timeout"],
-        override_current_state=tree["override_current_state"],
-        override_auto_target_state=tree["override_auto_target_state"],
+        queue=_csil_expect_text(tree["queue"]),
+        current_state=_csil_expect_text(tree["current_state"]),
+        override_timeout=_csil_expect_int(tree["override_timeout"]),
+        override_current_state=_csil_expect_text(tree["override_current_state"]),
+        override_auto_target_state=_csil_expect_text(tree["override_auto_target_state"]),
     )
 
 
@@ -362,6 +523,7 @@ def _encode_get_next_task_response_value(v: "GetNextTaskResponse") -> Dict[Any, 
     return csil_m
 
 def _decode_get_next_task_response_value(tree: Any) -> "GetNextTaskResponse":
+    tree = _csil_expect_map(tree)
     return GetNextTaskResponse(
         task=(None if tree.get("task") is None else _decode_task_value(tree["task"])),
     )
@@ -378,6 +540,62 @@ def _get_next_task_response_from_cbor(data: bytes) -> "GetNextTaskResponse":
 GetNextTaskResponse.to_cbor = _get_next_task_response_to_cbor
 GetNextTaskResponse.from_cbor = staticmethod(_get_next_task_response_from_cbor)
 
+def _encode_get_next_task_group_request_value(v: "GetNextTaskGroupRequest") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["queues"] = v.queues
+    csil_m["current_state"] = v.current_state
+    csil_m["override_timeout"] = v.override_timeout
+    csil_m["override_current_state"] = v.override_current_state
+    csil_m["override_auto_target_state"] = v.override_auto_target_state
+    return csil_m
+
+def _decode_get_next_task_group_request_value(tree: Any) -> "GetNextTaskGroupRequest":
+    tree = _csil_expect_map(tree)
+    return GetNextTaskGroupRequest(
+        queues=[_csil_expect_text(csil_e) for csil_e in _csil_expect_array(tree["queues"])],
+        current_state=_csil_expect_text(tree["current_state"]),
+        override_timeout=_csil_expect_int(tree["override_timeout"]),
+        override_current_state=_csil_expect_text(tree["override_current_state"]),
+        override_auto_target_state=_csil_expect_text(tree["override_auto_target_state"]),
+    )
+
+
+def _get_next_task_group_request_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_get_next_task_group_request_value(self))
+
+
+def _get_next_task_group_request_from_cbor(data: bytes) -> "GetNextTaskGroupRequest":
+    return _decode_get_next_task_group_request_value(cbor_decode(data))
+
+
+GetNextTaskGroupRequest.to_cbor = _get_next_task_group_request_to_cbor
+GetNextTaskGroupRequest.from_cbor = staticmethod(_get_next_task_group_request_from_cbor)
+
+def _encode_get_next_task_group_response_value(v: "GetNextTaskGroupResponse") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_x = v.task
+    if csil_x is not None:
+        csil_m["task"] = _encode_task_value(csil_x)
+    return csil_m
+
+def _decode_get_next_task_group_response_value(tree: Any) -> "GetNextTaskGroupResponse":
+    tree = _csil_expect_map(tree)
+    return GetNextTaskGroupResponse(
+        task=(None if tree.get("task") is None else _decode_task_value(tree["task"])),
+    )
+
+
+def _get_next_task_group_response_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_get_next_task_group_response_value(self))
+
+
+def _get_next_task_group_response_from_cbor(data: bytes) -> "GetNextTaskGroupResponse":
+    return _decode_get_next_task_group_response_value(cbor_decode(data))
+
+
+GetNextTaskGroupResponse.to_cbor = _get_next_task_group_response_to_cbor
+GetNextTaskGroupResponse.from_cbor = staticmethod(_get_next_task_group_response_from_cbor)
+
 def _encode_complete_task_request_value(v: "CompleteTaskRequest") -> Dict[Any, Any]:
     csil_m: Dict[Any, Any] = {}
     csil_m["uuid"] = v.uuid
@@ -386,10 +604,11 @@ def _encode_complete_task_request_value(v: "CompleteTaskRequest") -> Dict[Any, A
     return csil_m
 
 def _decode_complete_task_request_value(tree: Any) -> "CompleteTaskRequest":
+    tree = _csil_expect_map(tree)
     return CompleteTaskRequest(
-        uuid=tree["uuid"],
-        queue=tree["queue"],
-        current_state=tree["current_state"],
+        uuid=_csil_expect_text(tree["uuid"]),
+        queue=_csil_expect_text(tree["queue"]),
+        current_state=_csil_expect_text(tree["current_state"]),
     )
 
 
@@ -412,6 +631,7 @@ def _encode_complete_task_response_value(v: "CompleteTaskResponse") -> Dict[Any,
     return csil_m
 
 def _decode_complete_task_response_value(tree: Any) -> "CompleteTaskResponse":
+    tree = _csil_expect_map(tree)
     return CompleteTaskResponse(
         task=(None if tree.get("task") is None else _decode_task_value(tree["task"])),
     )
@@ -441,15 +661,16 @@ def _encode_update_task_request_value(v: "UpdateTaskRequest") -> Dict[Any, Any]:
     return csil_m
 
 def _decode_update_task_request_value(tree: Any) -> "UpdateTaskRequest":
+    tree = _csil_expect_map(tree)
     return UpdateTaskRequest(
-        uuid=tree["uuid"],
-        queue=tree["queue"],
-        current_state=tree["current_state"],
-        auto_target_state=tree["auto_target_state"],
-        timeout=tree["timeout"],
-        new_state=tree["new_state"],
-        payload=tree["payload"],
-        priority=tree["priority"],
+        uuid=_csil_expect_text(tree["uuid"]),
+        queue=_csil_expect_text(tree["queue"]),
+        current_state=_csil_expect_text(tree["current_state"]),
+        auto_target_state=_csil_expect_text(tree["auto_target_state"]),
+        timeout=_csil_expect_int(tree["timeout"]),
+        new_state=_csil_expect_text(tree["new_state"]),
+        payload=_csil_expect_bytes(tree["payload"]),
+        priority=_csil_expect_int(tree["priority"]),
     )
 
 
@@ -472,6 +693,7 @@ def _encode_update_task_response_value(v: "UpdateTaskResponse") -> Dict[Any, Any
     return csil_m
 
 def _decode_update_task_response_value(tree: Any) -> "UpdateTaskResponse":
+    tree = _csil_expect_map(tree)
     return UpdateTaskResponse(
         task=(None if tree.get("task") is None else _decode_task_value(tree["task"])),
     )
@@ -496,10 +718,11 @@ def _encode_cancel_task_request_value(v: "CancelTaskRequest") -> Dict[Any, Any]:
     return csil_m
 
 def _decode_cancel_task_request_value(tree: Any) -> "CancelTaskRequest":
+    tree = _csil_expect_map(tree)
     return CancelTaskRequest(
-        uuid=tree["uuid"],
-        queue=tree["queue"],
-        current_state=tree["current_state"],
+        uuid=_csil_expect_text(tree["uuid"]),
+        queue=_csil_expect_text(tree["queue"]),
+        current_state=_csil_expect_text(tree["current_state"]),
     )
 
 
@@ -522,6 +745,7 @@ def _encode_cancel_task_response_value(v: "CancelTaskResponse") -> Dict[Any, Any
     return csil_m
 
 def _decode_cancel_task_response_value(tree: Any) -> "CancelTaskResponse":
+    tree = _csil_expect_map(tree)
     return CancelTaskResponse(
         task=(None if tree.get("task") is None else _decode_task_value(tree["task"])),
     )
@@ -545,9 +769,10 @@ def _encode_clean_up_timed_out_request_value(v: "CleanUpTimedOutRequest") -> Dic
     return csil_m
 
 def _decode_clean_up_timed_out_request_value(tree: Any) -> "CleanUpTimedOutRequest":
+    tree = _csil_expect_map(tree)
     return CleanUpTimedOutRequest(
-        at_time=tree["at_time"],
-        queue=tree["queue"],
+        at_time=_csil_expect_int(tree["at_time"]),
+        queue=_csil_expect_text(tree["queue"]),
     )
 
 
@@ -568,8 +793,9 @@ def _encode_clean_up_timed_out_response_value(v: "CleanUpTimedOutResponse") -> D
     return csil_m
 
 def _decode_clean_up_timed_out_response_value(tree: Any) -> "CleanUpTimedOutResponse":
+    tree = _csil_expect_map(tree)
     return CleanUpTimedOutResponse(
-        timed_out=tree["timed_out"],
+        timed_out=_csil_expect_int(tree["timed_out"]),
     )
 
 
@@ -589,6 +815,7 @@ def _encode_get_queues_request_value(v: "GetQueuesRequest") -> Dict[Any, Any]:
     return csil_m
 
 def _decode_get_queues_request_value(tree: Any) -> "GetQueuesRequest":
+    tree = _csil_expect_map(tree)
     return GetQueuesRequest()
 
 
@@ -610,9 +837,10 @@ def _encode_get_queues_response_value(v: "GetQueuesResponse") -> Dict[Any, Any]:
     return csil_m
 
 def _decode_get_queues_response_value(tree: Any) -> "GetQueuesResponse":
+    tree = _csil_expect_map(tree)
     return GetQueuesResponse(
-        queues=tree["queues"],
-        total_task_count=tree["total_task_count"],
+        queues=[_csil_expect_text(csil_e) for csil_e in _csil_expect_array(tree["queues"])],
+        total_task_count=_csil_expect_int(tree["total_task_count"]),
     )
 
 
@@ -632,6 +860,7 @@ def _encode_get_queue_task_counts_request_value(v: "GetQueueTaskCountsRequest") 
     return csil_m
 
 def _decode_get_queue_task_counts_request_value(tree: Any) -> "GetQueueTaskCountsRequest":
+    tree = _csil_expect_map(tree)
     return GetQueueTaskCountsRequest()
 
 
@@ -653,9 +882,10 @@ def _encode_get_queue_task_counts_response_value(v: "GetQueueTaskCountsResponse"
     return csil_m
 
 def _decode_get_queue_task_counts_response_value(tree: Any) -> "GetQueueTaskCountsResponse":
+    tree = _csil_expect_map(tree)
     return GetQueueTaskCountsResponse(
-        queue_counts=tree["queue_counts"],
-        total_task_count=tree["total_task_count"],
+        queue_counts={_csil_expect_text(csil_k): _csil_expect_int(csil_v) for csil_k, csil_v in _csil_expect_map(tree["queue_counts"]).items()},
+        total_task_count=_csil_expect_int(tree["total_task_count"]),
     )
 
 
@@ -676,8 +906,9 @@ def _encode_get_task_state_counts_request_value(v: "GetTaskStateCountsRequest") 
     return csil_m
 
 def _decode_get_task_state_counts_request_value(tree: Any) -> "GetTaskStateCountsRequest":
+    tree = _csil_expect_map(tree)
     return GetTaskStateCountsRequest(
-        queue=tree["queue"],
+        queue=_csil_expect_text(tree["queue"]),
     )
 
 
@@ -700,10 +931,11 @@ def _encode_get_task_state_counts_response_value(v: "GetTaskStateCountsResponse"
     return csil_m
 
 def _decode_get_task_state_counts_response_value(tree: Any) -> "GetTaskStateCountsResponse":
+    tree = _csil_expect_map(tree)
     return GetTaskStateCountsResponse(
-        queue=tree["queue"],
-        count=tree["count"],
-        state_counts=tree["state_counts"],
+        queue=_csil_expect_text(tree["queue"]),
+        count=_csil_expect_int(tree["count"]),
+        state_counts={_csil_expect_text(csil_k): _csil_expect_int(csil_v) for csil_k, csil_v in _csil_expect_map(tree["state_counts"]).items()},
     )
 
 
@@ -726,10 +958,11 @@ def _encode_queue_and_state_counts_value(v: "QueueAndStateCounts") -> Dict[Any, 
     return csil_m
 
 def _decode_queue_and_state_counts_value(tree: Any) -> "QueueAndStateCounts":
+    tree = _csil_expect_map(tree)
     return QueueAndStateCounts(
-        queue=tree["queue"],
-        count=tree["count"],
-        state_counts=tree["state_counts"],
+        queue=_csil_expect_text(tree["queue"]),
+        count=_csil_expect_int(tree["count"]),
+        state_counts={_csil_expect_text(csil_k): _csil_expect_int(csil_v) for csil_k, csil_v in _csil_expect_map(tree["state_counts"]).items()},
     )
 
 
@@ -749,6 +982,7 @@ def _encode_get_queue_and_state_counts_request_value(v: "GetQueueAndStateCountsR
     return csil_m
 
 def _decode_get_queue_and_state_counts_request_value(tree: Any) -> "GetQueueAndStateCountsRequest":
+    tree = _csil_expect_map(tree)
     return GetQueueAndStateCountsRequest()
 
 
@@ -769,8 +1003,9 @@ def _encode_get_queue_and_state_counts_response_value(v: "GetQueueAndStateCounts
     return csil_m
 
 def _decode_get_queue_and_state_counts_response_value(tree: Any) -> "GetQueueAndStateCountsResponse":
+    tree = _csil_expect_map(tree)
     return GetQueueAndStateCountsResponse(
-        queue_and_state_counts={csil_k: _decode_queue_and_state_counts_value(csil_v) for csil_k, csil_v in tree["queue_and_state_counts"].items()},
+        queue_and_state_counts={_csil_expect_text(csil_k): _decode_queue_and_state_counts_value(csil_v) for csil_k, csil_v in _csil_expect_map(tree["queue_and_state_counts"]).items()},
     )
 
 
@@ -792,9 +1027,10 @@ def _encode_service_error_value(v: "ServiceError") -> Dict[Any, Any]:
     return csil_m
 
 def _decode_service_error_value(tree: Any) -> "ServiceError":
+    tree = _csil_expect_map(tree)
     return ServiceError(
-        code=tree["code"],
-        message=tree["message"],
+        code=_csil_expect_uint(tree["code"]),
+        message=_csil_expect_text(tree["message"]),
     )
 
 

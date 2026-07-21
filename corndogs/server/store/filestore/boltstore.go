@@ -234,6 +234,75 @@ func (s *BoltStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequest
 	return &api.GetNextTaskResponse{Task: out}, nil
 }
 
+// GetNextTaskGroup claims the single best task across a set of queues. Each
+// (queue, current_state) prefix is already stored in (priority desc,
+// update_time asc, uuid) order, so the head task under each prefix is that
+// queue's best candidate; comparing those heads by the same order yields the
+// globally-best task across the group. It respects priority across queues just
+// like the postgres backend, and the whole claim happens in one write
+// transaction so two workers never claim the same task.
+func (s *BoltStore) GetNextTaskGroup(ctx context.Context, req *api.GetNextTaskGroupRequest) (*api.GetNextTaskGroupResponse, error) {
+	var out *api.Task
+	// applyGetNext only reads the Override* fields; reuse the single-queue path's
+	// claim semantics unchanged.
+	claim := &api.GetNextTaskRequest{
+		CurrentState:            req.CurrentState,
+		OverrideTimeout:         req.OverrideTimeout,
+		OverrideCurrentState:    req.OverrideCurrentState,
+		OverrideAutoTargetState: req.OverrideAutoTargetState,
+	}
+	err := s.write(func(tx *bolt.Tx) error {
+		c := tx.Bucket(bucketTasks).Cursor()
+		var best *Task
+		for _, queue := range req.Queues {
+			prefix := taskPrefix(queue, req.CurrentState)
+			k, v := c.Seek(prefix)
+			if k == nil || !bytes.HasPrefix(k, prefix) {
+				continue // no task available in this queue+state
+			}
+			var t Task
+			if err := json.Unmarshal(v, &t); err != nil {
+				return err
+			}
+			if best == nil || betterCandidate(&t, best) {
+				cand := t
+				best = &cand
+			}
+		}
+		if best == nil {
+			return nil // no task available in any queue
+		}
+		if err := deleteTask(tx, best); err != nil {
+			return err
+		}
+		applyGetNext(best, claim, nowNano())
+		if err := putTask(tx, best); err != nil {
+			return err
+		}
+		out = toAPITask(best)
+		s.audit.Record(AuditEvent{Op: "claim", UUID: best.UUID, Queue: best.Queue, FromState: req.CurrentState, ToState: best.CurrentState})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &api.GetNextTaskGroupResponse{Task: out}, nil
+}
+
+// betterCandidate reports whether task a should be claimed before task b under
+// the dequeue order (priority desc, update_time asc, uuid asc) — the same order
+// encodeTaskKey imposes within a single (queue, state) prefix, applied here to
+// compare heads across different queues.
+func betterCandidate(a, b *Task) bool {
+	if a.Priority != b.Priority {
+		return a.Priority > b.Priority
+	}
+	if a.UpdateTime != b.UpdateTime {
+		return a.UpdateTime < b.UpdateTime
+	}
+	return a.UUID < b.UUID
+}
+
 func (s *BoltStore) UpdateTask(ctx context.Context, req *api.UpdateTaskRequest) (*api.UpdateTaskResponse, error) {
 	var out *api.Task
 	err := s.write(func(tx *bolt.Tx) error {

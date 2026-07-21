@@ -30,26 +30,28 @@ public sealed class CsilClientException : System.Exception
 public sealed class CorndogsClient(ICsilTransport transport)
 {
     public SubmitTaskResponse SubmitTask(SubmitTaskRequest submitTaskRequest) =>
-        Codec.Decode<SubmitTaskResponse>(transport.Call("corndogs", "SubmitTask", Codec.Encode(submitTaskRequest)));
+        Codec.Decode<SubmitTaskResponse>(transport.Call("CorndogsService", "SubmitTask", Codec.Encode(submitTaskRequest)));
     public GetTaskStateByIDResponse GetTaskStateByID(GetTaskStateByIDRequest getTaskStateByIDRequest) =>
-        Codec.Decode<GetTaskStateByIDResponse>(transport.Call("corndogs", "GetTaskStateByID", Codec.Encode(getTaskStateByIDRequest)));
+        Codec.Decode<GetTaskStateByIDResponse>(transport.Call("CorndogsService", "GetTaskStateByID", Codec.Encode(getTaskStateByIDRequest)));
     public GetNextTaskResponse GetNextTask(GetNextTaskRequest getNextTaskRequest) =>
-        Codec.Decode<GetNextTaskResponse>(transport.Call("corndogs", "GetNextTask", Codec.Encode(getNextTaskRequest)));
+        Codec.Decode<GetNextTaskResponse>(transport.Call("CorndogsService", "GetNextTask", Codec.Encode(getNextTaskRequest)));
+    public GetNextTaskGroupResponse GetNextTaskGroup(GetNextTaskGroupRequest getNextTaskGroupRequest) =>
+        Codec.Decode<GetNextTaskGroupResponse>(transport.Call("CorndogsService", "GetNextTaskGroup", Codec.Encode(getNextTaskGroupRequest)));
     public UpdateTaskResponse UpdateTask(UpdateTaskRequest updateTaskRequest) =>
-        Codec.Decode<UpdateTaskResponse>(transport.Call("corndogs", "UpdateTask", Codec.Encode(updateTaskRequest)));
+        Codec.Decode<UpdateTaskResponse>(transport.Call("CorndogsService", "UpdateTask", Codec.Encode(updateTaskRequest)));
     public CompleteTaskResponse CompleteTask(CompleteTaskRequest completeTaskRequest) =>
-        Codec.Decode<CompleteTaskResponse>(transport.Call("corndogs", "CompleteTask", Codec.Encode(completeTaskRequest)));
+        Codec.Decode<CompleteTaskResponse>(transport.Call("CorndogsService", "CompleteTask", Codec.Encode(completeTaskRequest)));
     public CancelTaskResponse CancelTask(CancelTaskRequest cancelTaskRequest) =>
-        Codec.Decode<CancelTaskResponse>(transport.Call("corndogs", "CancelTask", Codec.Encode(cancelTaskRequest)));
+        Codec.Decode<CancelTaskResponse>(transport.Call("CorndogsService", "CancelTask", Codec.Encode(cancelTaskRequest)));
     public CleanUpTimedOutResponse CleanUpTimedOut(CleanUpTimedOutRequest cleanUpTimedOutRequest) =>
-        Codec.Decode<CleanUpTimedOutResponse>(transport.Call("corndogs", "CleanUpTimedOut", Codec.Encode(cleanUpTimedOutRequest)));
+        Codec.Decode<CleanUpTimedOutResponse>(transport.Call("CorndogsService", "CleanUpTimedOut", Codec.Encode(cleanUpTimedOutRequest)));
     public GetQueuesResponse GetQueues(GetQueuesRequest getQueuesRequest) =>
-        Codec.Decode<GetQueuesResponse>(transport.Call("corndogs", "GetQueues", Codec.Encode(getQueuesRequest)));
+        Codec.Decode<GetQueuesResponse>(transport.Call("CorndogsService", "GetQueues", Codec.Encode(getQueuesRequest)));
     public GetQueueTaskCountsResponse GetQueueTaskCounts(GetQueueTaskCountsRequest getQueueTaskCountsRequest) =>
-        Codec.Decode<GetQueueTaskCountsResponse>(transport.Call("corndogs", "GetQueueTaskCounts", Codec.Encode(getQueueTaskCountsRequest)));
+        Codec.Decode<GetQueueTaskCountsResponse>(transport.Call("CorndogsService", "GetQueueTaskCounts", Codec.Encode(getQueueTaskCountsRequest)));
     public GetTaskStateCountsResponse GetTaskStateCounts(GetTaskStateCountsRequest getTaskStateCountsRequest) =>
-        Codec.Decode<GetTaskStateCountsResponse>(transport.Call("corndogs", "GetTaskStateCounts", Codec.Encode(getTaskStateCountsRequest)));
+        Codec.Decode<GetTaskStateCountsResponse>(transport.Call("CorndogsService", "GetTaskStateCounts", Codec.Encode(getTaskStateCountsRequest)));
     public GetQueueAndStateCountsResponse GetQueueAndStateCounts(GetQueueAndStateCountsRequest getQueueAndStateCountsRequest) =>
-        Codec.Decode<GetQueueAndStateCountsResponse>(transport.Call("corndogs", "GetQueueAndStateCounts", Codec.Encode(getQueueAndStateCountsRequest)));
+        Codec.Decode<GetQueueAndStateCountsResponse>(transport.Call("CorndogsService", "GetQueueAndStateCounts", Codec.Encode(getQueueAndStateCountsRequest)));
 }
 

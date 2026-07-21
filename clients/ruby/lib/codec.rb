@@ -355,6 +355,62 @@ class GetNextTaskResponse
   end
 end
 
+# CBOR codec for GetNextTaskGroupRequest: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class GetNextTaskGroupRequest
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["queues"] = (queues).map { |csil_e| csil_e }
+    csil_map["current_state"] = current_state
+    csil_map["override_timeout"] = override_timeout
+    csil_map["override_current_state"] = override_current_state
+    csil_map["override_auto_target_state"] = override_auto_target_state
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      queues: (node["queues"]).map { |csil_e| csil_e },
+      current_state: node["current_state"],
+      override_timeout: node["override_timeout"],
+      override_current_state: node["override_current_state"],
+      override_auto_target_state: node["override_auto_target_state"]
+    )
+  end
+end
+
+# CBOR codec for GetNextTaskGroupResponse: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class GetNextTaskGroupResponse
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["task"] = (task).csil_to_tree unless task.nil?
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      task: (node.key?("task") ? Task.csil_from_tree(node["task"]) : nil)
+    )
+  end
+end
+
 # CBOR codec for CompleteTaskRequest: a map keyed by the verbatim CSIL field names in
 # canonical RFC 8949 order.
 class CompleteTaskRequest

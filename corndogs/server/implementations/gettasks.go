@@ -3,8 +3,8 @@ package implementations
 import (
 	"context"
 
-	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
 )
 
@@ -26,6 +26,20 @@ func (s *V1Alpha1Server) GetNextTask(ctx context.Context, req api.GetNextTaskReq
 	resp, err := store.AppStore.GetNextTask(ctx, &req)
 	if resp == nil {
 		return api.GetNextTaskResponse{}, err
+	}
+	return *resp, err
+}
+
+func (s *V1Alpha1Server) GetNextTaskGroup(ctx context.Context, req api.GetNextTaskGroupRequest) (api.GetNextTaskGroupResponse, error) {
+	if len(req.Queues) == 0 {
+		req.Queues = []string{config.DefaultQueue}
+	}
+	if req.CurrentState == "" {
+		req.CurrentState = config.DefaultStartingState
+	}
+	resp, err := store.AppStore.GetNextTaskGroup(ctx, &req)
+	if resp == nil {
+		return api.GetNextTaskGroupResponse{}, err
 	}
 	return *resp, err
 }

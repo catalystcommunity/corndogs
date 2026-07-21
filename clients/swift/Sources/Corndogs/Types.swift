@@ -165,6 +165,50 @@ public struct GetNextTaskResponse: Equatable, Sendable {
     ]
 }
 
+/// GetNextTaskGroupRequest is a generated CSIL record type.
+public struct GetNextTaskGroupRequest: Equatable, Sendable {
+    public let queues: [String]
+    /// wire key: current_state
+    public let currentState: String
+    /// wire key: override_timeout
+    public let overrideTimeout: Int64
+    /// wire key: override_current_state
+    public let overrideCurrentState: String
+    /// wire key: override_auto_target_state
+    public let overrideAutoTargetState: String
+
+    public init(queues: [String], currentState: String, overrideTimeout: Int64, overrideCurrentState: String, overrideAutoTargetState: String) {
+        self.queues = queues
+        self.currentState = currentState
+        self.overrideTimeout = overrideTimeout
+        self.overrideCurrentState = overrideCurrentState
+        self.overrideAutoTargetState = overrideAutoTargetState
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "queues": "queues",
+        "currentState": "current_state",
+        "overrideTimeout": "override_timeout",
+        "overrideCurrentState": "override_current_state",
+        "overrideAutoTargetState": "override_auto_target_state"
+    ]
+}
+
+/// GetNextTaskGroupResponse is a generated CSIL record type.
+public struct GetNextTaskGroupResponse: Equatable, Sendable {
+    public let task: Task?
+
+    public init(task: Task? = nil) {
+        self.task = task
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "task": "task"
+    ]
+}
+
 /// CompleteTaskRequest is a generated CSIL record type.
 public struct CompleteTaskRequest: Equatable, Sendable {
     public let uuid: String

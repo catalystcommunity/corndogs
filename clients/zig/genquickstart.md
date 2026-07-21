@@ -94,7 +94,7 @@ pub fn main() !void {
     var resp: types.SubmitTaskResponse = undefined;
     const req = types.SubmitTaskRequest{ .queue = "example", .current_state = "example", .auto_target_state = "example", .timeout = 0, .payload = undefined, .priority = 0 };
     try svc.submit_task(arena.allocator(), &req, &resp);
-    std.debug.print("corndogs/SubmitTask ok\n", .{});
+    std.debug.print("CorndogsService/SubmitTask ok\n", .{});
 }
 ```
 

@@ -21,6 +21,8 @@ typedef struct GetTaskStateByIDRequest GetTaskStateByIDRequest;
 typedef struct GetTaskStateByIDResponse GetTaskStateByIDResponse;
 typedef struct GetNextTaskRequest GetNextTaskRequest;
 typedef struct GetNextTaskResponse GetNextTaskResponse;
+typedef struct GetNextTaskGroupRequest GetNextTaskGroupRequest;
+typedef struct GetNextTaskGroupResponse GetNextTaskGroupResponse;
 typedef struct CompleteTaskRequest CompleteTaskRequest;
 typedef struct CompleteTaskResponse CompleteTaskResponse;
 typedef struct UpdateTaskRequest UpdateTaskRequest;
@@ -100,6 +102,21 @@ typedef struct GetNextTaskRequest {
 typedef struct GetNextTaskResponse {
     Task *task;
 } GetNextTaskResponse;
+
+/* GetNextTaskGroupRequest is a structured data type. */
+typedef struct GetNextTaskGroupRequest {
+    char **queues;
+    size_t queues_count;
+    char *current_state;
+    int64_t override_timeout;
+    char *override_current_state;
+    char *override_auto_target_state;
+} GetNextTaskGroupRequest;
+
+/* GetNextTaskGroupResponse is a structured data type. */
+typedef struct GetNextTaskGroupResponse {
+    Task *task;
+} GetNextTaskGroupResponse;
 
 /* CompleteTaskRequest is a structured data type. */
 typedef struct CompleteTaskRequest {

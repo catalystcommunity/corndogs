@@ -22,6 +22,7 @@ typedef struct CorndogsHandlers {
     int (*submit_task)(void *ctx, const SubmitTaskRequest *req, SubmitTaskResponse *resp);
     int (*get_task_state_by_i_d)(void *ctx, const GetTaskStateByIDRequest *req, GetTaskStateByIDResponse *resp);
     int (*get_next_task)(void *ctx, const GetNextTaskRequest *req, GetNextTaskResponse *resp);
+    int (*get_next_task_group)(void *ctx, const GetNextTaskGroupRequest *req, GetNextTaskGroupResponse *resp);
     int (*update_task)(void *ctx, const UpdateTaskRequest *req, UpdateTaskResponse *resp);
     int (*complete_task)(void *ctx, const CompleteTaskRequest *req, CompleteTaskResponse *resp);
     int (*cancel_task)(void *ctx, const CancelTaskRequest *req, CancelTaskResponse *resp);

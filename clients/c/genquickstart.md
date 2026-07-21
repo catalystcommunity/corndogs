@@ -175,10 +175,10 @@ int main(void) {
     SubmitTaskResponse resp;
     SubmitTaskRequest req = { .queue = "example", .current_state = "example", .auto_target_state = "example", .timeout = 0, .payload = {0}, .priority = 0 };
     if (csil_corndogs_submit_task(&transport, &req, &resp, &owner) != 0) {
-        fprintf(stderr, "csil-rpc corndogs/SubmitTask failed\n");
+        fprintf(stderr, "csil-rpc CorndogsService/SubmitTask failed\n");
         return 1;
     }
-    printf("corndogs/SubmitTask ok\n");
+    printf("CorndogsService/SubmitTask ok\n");
     csil_codec_arena_free(owner); // frees everything `resp` borrows
     return 0;
 }

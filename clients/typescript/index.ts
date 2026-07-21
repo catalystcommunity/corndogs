@@ -2,7 +2,7 @@
 // Source: <csil spec>
 // Target: index
 
-export * from "./types.gen";
-export * from "./codec.gen";
-export * from "./client.gen";
-export * from "./client.async.gen";
+export * from "./types.gen.ts";
+export * from "./codec.gen.ts";
+export * from "./client.gen.ts";
+export * from "./client.async.gen.ts";

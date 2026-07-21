@@ -346,6 +346,27 @@ public final class CsilCbor {
         return x;
     }
 
+    public static <T> T expectLiteral(CborValue actual, CborValue expected, T value) {
+        if (!cborEqual(actual, expected)) {
+            throw new CsilCborException("csil cbor: literal mismatch");
+        }
+        return value;
+    }
+
+    private static boolean cborEqual(CborValue actual, CborValue expected) {
+        if (actual instanceof CborBytes a && expected instanceof CborBytes b) {
+            return Arrays.equals(a.value(), b.value());
+        }
+        if (actual instanceof CborArray a && expected instanceof CborArray b) {
+            if (a.items().size() != b.items().size()) return false;
+            for (int i = 0; i < a.items().size(); i++) {
+                if (!cborEqual(a.items().get(i), b.items().get(i))) return false;
+            }
+            return true;
+        }
+        return actual.equals(expected);
+    }
+
     public static <E> CborValue encArray(List<E> xs, Function<E, CborValue> f) {
         List<CborValue> items = new ArrayList<>(xs.size());
         for (E x : xs) {
@@ -564,6 +585,58 @@ public final class CsilCbor {
 
     public static GetNextTaskResponse decodeGetNextTaskResponse(byte[] data) {
         return decGetNextTaskResponse(decode(data));
+    }
+
+    static CborValue encGetNextTaskGroupRequest(GetNextTaskGroupRequest v) {
+        List<CborEntry> csilEntries = new ArrayList<>(5);
+        csilEntries.add(new CborEntry(new CborText("queues"), encArray(v.queues(), csilElem0 -> new CborText(csilElem0))));
+        csilEntries.add(new CborEntry(new CborText("current_state"), new CborText(v.currentState())));
+        csilEntries.add(new CborEntry(new CborText("override_timeout"), new CborInt(v.overrideTimeout())));
+        csilEntries.add(new CborEntry(new CborText("override_current_state"), new CborText(v.overrideCurrentState())));
+        csilEntries.add(new CborEntry(new CborText("override_auto_target_state"), new CborText(v.overrideAutoTargetState())));
+        return new CborMap(csilEntries);
+    }
+
+    static GetNextTaskGroupRequest decGetNextTaskGroupRequest(CborValue csilRoot) {
+        List<String> queues = decArray(require(csilRoot, "queues"), csilE0 -> asText(csilE0));
+        String currentState = asText(require(csilRoot, "current_state"));
+        long overrideTimeout = asI64(require(csilRoot, "override_timeout"));
+        String overrideCurrentState = asText(require(csilRoot, "override_current_state"));
+        String overrideAutoTargetState = asText(require(csilRoot, "override_auto_target_state"));
+        return new GetNextTaskGroupRequest(queues, currentState, overrideTimeout, overrideCurrentState, overrideAutoTargetState);
+    }
+
+    public static byte[] encodeGetNextTaskGroupRequest(GetNextTaskGroupRequest v) {
+        return encode(encGetNextTaskGroupRequest(v));
+    }
+
+    public static GetNextTaskGroupRequest decodeGetNextTaskGroupRequest(byte[] data) {
+        return decGetNextTaskGroupRequest(decode(data));
+    }
+
+    static CborValue encGetNextTaskGroupResponse(GetNextTaskGroupResponse v) {
+        List<CborEntry> csilEntries = new ArrayList<>(1);
+        if (v.task() != null) {
+            csilEntries.add(new CborEntry(new CborText("task"), encTask(v.task())));
+        }
+        return new CborMap(csilEntries);
+    }
+
+    static GetNextTaskGroupResponse decGetNextTaskGroupResponse(CborValue csilRoot) {
+        Task task;
+        {
+            CborValue csilField = mapGet(csilRoot, "task");
+            task = csilField != null ? decTask(csilField) : null;
+        }
+        return new GetNextTaskGroupResponse(task);
+    }
+
+    public static byte[] encodeGetNextTaskGroupResponse(GetNextTaskGroupResponse v) {
+        return encode(encGetNextTaskGroupResponse(v));
+    }
+
+    public static GetNextTaskGroupResponse decodeGetNextTaskGroupResponse(byte[] data) {
+        return decGetNextTaskGroupResponse(decode(data));
     }
 
     static CborValue encCompleteTaskRequest(CompleteTaskRequest v) {

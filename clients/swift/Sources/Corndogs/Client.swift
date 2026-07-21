@@ -29,57 +29,62 @@ public struct CorndogsClient {
     }
 
     public func submitTask(_ request: SubmitTaskRequest) throws -> SubmitTaskResponse {
-        let csilResp = try transport.call(service: "corndogs", op: "SubmitTask", request: request.toCbor())
+        let csilResp = try transport.call(service: "CorndogsService", op: "SubmitTask", request: request.toCbor())
         return try SubmitTaskResponse.fromCbor(csilResp)
     }
 
     public func getTaskStateById(_ request: GetTaskStateByIdRequest) throws -> GetTaskStateByIdResponse {
-        let csilResp = try transport.call(service: "corndogs", op: "GetTaskStateByID", request: request.toCbor())
+        let csilResp = try transport.call(service: "CorndogsService", op: "GetTaskStateByID", request: request.toCbor())
         return try GetTaskStateByIdResponse.fromCbor(csilResp)
     }
 
     public func getNextTask(_ request: GetNextTaskRequest) throws -> GetNextTaskResponse {
-        let csilResp = try transport.call(service: "corndogs", op: "GetNextTask", request: request.toCbor())
+        let csilResp = try transport.call(service: "CorndogsService", op: "GetNextTask", request: request.toCbor())
         return try GetNextTaskResponse.fromCbor(csilResp)
     }
 
+    public func getNextTaskGroup(_ request: GetNextTaskGroupRequest) throws -> GetNextTaskGroupResponse {
+        let csilResp = try transport.call(service: "CorndogsService", op: "GetNextTaskGroup", request: request.toCbor())
+        return try GetNextTaskGroupResponse.fromCbor(csilResp)
+    }
+
     public func updateTask(_ request: UpdateTaskRequest) throws -> UpdateTaskResponse {
-        let csilResp = try transport.call(service: "corndogs", op: "UpdateTask", request: request.toCbor())
+        let csilResp = try transport.call(service: "CorndogsService", op: "UpdateTask", request: request.toCbor())
         return try UpdateTaskResponse.fromCbor(csilResp)
     }
 
     public func completeTask(_ request: CompleteTaskRequest) throws -> CompleteTaskResponse {
-        let csilResp = try transport.call(service: "corndogs", op: "CompleteTask", request: request.toCbor())
+        let csilResp = try transport.call(service: "CorndogsService", op: "CompleteTask", request: request.toCbor())
         return try CompleteTaskResponse.fromCbor(csilResp)
     }
 
     public func cancelTask(_ request: CancelTaskRequest) throws -> CancelTaskResponse {
-        let csilResp = try transport.call(service: "corndogs", op: "CancelTask", request: request.toCbor())
+        let csilResp = try transport.call(service: "CorndogsService", op: "CancelTask", request: request.toCbor())
         return try CancelTaskResponse.fromCbor(csilResp)
     }
 
     public func cleanUpTimedOut(_ request: CleanUpTimedOutRequest) throws -> CleanUpTimedOutResponse {
-        let csilResp = try transport.call(service: "corndogs", op: "CleanUpTimedOut", request: request.toCbor())
+        let csilResp = try transport.call(service: "CorndogsService", op: "CleanUpTimedOut", request: request.toCbor())
         return try CleanUpTimedOutResponse.fromCbor(csilResp)
     }
 
     public func getQueues(_ request: GetQueuesRequest) throws -> GetQueuesResponse {
-        let csilResp = try transport.call(service: "corndogs", op: "GetQueues", request: request.toCbor())
+        let csilResp = try transport.call(service: "CorndogsService", op: "GetQueues", request: request.toCbor())
         return try GetQueuesResponse.fromCbor(csilResp)
     }
 
     public func getQueueTaskCounts(_ request: GetQueueTaskCountsRequest) throws -> GetQueueTaskCountsResponse {
-        let csilResp = try transport.call(service: "corndogs", op: "GetQueueTaskCounts", request: request.toCbor())
+        let csilResp = try transport.call(service: "CorndogsService", op: "GetQueueTaskCounts", request: request.toCbor())
         return try GetQueueTaskCountsResponse.fromCbor(csilResp)
     }
 
     public func getTaskStateCounts(_ request: GetTaskStateCountsRequest) throws -> GetTaskStateCountsResponse {
-        let csilResp = try transport.call(service: "corndogs", op: "GetTaskStateCounts", request: request.toCbor())
+        let csilResp = try transport.call(service: "CorndogsService", op: "GetTaskStateCounts", request: request.toCbor())
         return try GetTaskStateCountsResponse.fromCbor(csilResp)
     }
 
     public func getQueueAndStateCounts(_ request: GetQueueAndStateCountsRequest) throws -> GetQueueAndStateCountsResponse {
-        let csilResp = try transport.call(service: "corndogs", op: "GetQueueAndStateCounts", request: request.toCbor())
+        let csilResp = try transport.call(service: "CorndogsService", op: "GetQueueAndStateCounts", request: request.toCbor())
         return try GetQueueAndStateCountsResponse.fromCbor(csilResp)
     }
 

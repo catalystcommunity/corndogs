@@ -179,6 +179,28 @@ public enum CsilCbor {
         return x
     }
 
+    public static func expectLiteral<T>(_ actual: CsilCborValue, _ expected: CsilCborValue, _ value: T) throws -> T {
+        guard valueEquals(actual, expected) else { throw CsilCborError.typeMismatch }
+        return value
+    }
+
+    static func valueEquals(_ a: CsilCborValue, _ b: CsilCborValue) -> Bool {
+        switch (a, b) {
+        case (.uint(let x), .uint(let y)): return x == y
+        case (.int(let x), .int(let y)): return x == y
+        case (.bool(let x), .bool(let y)): return x == y
+        case (.float(let x), .float(let y)): return x == y
+        case (.null, .null): return true
+        case (.text(let x), .text(let y)): return x == y
+        case (.bytes(let x), .bytes(let y)): return x == y
+        case (.array(let x), .array(let y)):
+            guard x.count == y.count else { return false }
+            return zip(x, y).allSatisfy { valueEquals($0, $1) }
+        default:
+            return false
+        }
+    }
+
     public static func asI64(_ v: CsilCborValue) throws -> Int64 {
         switch v {
         case .uint(let n):
@@ -418,6 +440,56 @@ public extension GetNextTaskResponse {
 
     /// Decode a CSIL CBOR byte payload into this record.
     static func fromCbor(_ bytes: [UInt8]) throws -> GetNextTaskResponse { try GetNextTaskResponse(cborValue: CsilCbor.decode(bytes)) }
+}
+
+public extension GetNextTaskGroupRequest {
+    /// The CBOR value tree for this record (deep, canonical key order).
+    func toCborValue() -> CsilCborValue {
+        var csilEntries: [(CsilCborValue, CsilCborValue)] = []
+        csilEntries.append(("queues", CsilCborValue.array(self.queues.map { .text($0) })))
+        csilEntries.append(("current_state", .text(self.currentState)))
+        csilEntries.append(("override_timeout", .int(self.overrideTimeout)))
+        csilEntries.append(("override_current_state", .text(self.overrideCurrentState)))
+        csilEntries.append(("override_auto_target_state", .text(self.overrideAutoTargetState)))
+        return .map(csilEntries)
+    }
+
+    /// Reconstruct this record from a decoded CBOR value tree.
+    init(cborValue: CsilCborValue) throws {
+        let queues = try CsilCbor.asArray((try CsilCbor.require(cborValue, "queues"))).map { try CsilCbor.asText($0) }
+        let currentState = try CsilCbor.asText((try CsilCbor.require(cborValue, "current_state")))
+        let overrideTimeout = try CsilCbor.asI64((try CsilCbor.require(cborValue, "override_timeout")))
+        let overrideCurrentState = try CsilCbor.asText((try CsilCbor.require(cborValue, "override_current_state")))
+        let overrideAutoTargetState = try CsilCbor.asText((try CsilCbor.require(cborValue, "override_auto_target_state")))
+        self.init(queues: queues, currentState: currentState, overrideTimeout: overrideTimeout, overrideCurrentState: overrideCurrentState, overrideAutoTargetState: overrideAutoTargetState)
+    }
+
+    /// Encode this record to canonical CSIL CBOR bytes.
+    func toCbor() -> [UInt8] { CsilCbor.encode(toCborValue()) }
+
+    /// Decode a CSIL CBOR byte payload into this record.
+    static func fromCbor(_ bytes: [UInt8]) throws -> GetNextTaskGroupRequest { try GetNextTaskGroupRequest(cborValue: CsilCbor.decode(bytes)) }
+}
+
+public extension GetNextTaskGroupResponse {
+    /// The CBOR value tree for this record (deep, canonical key order).
+    func toCborValue() -> CsilCborValue {
+        var csilEntries: [(CsilCborValue, CsilCborValue)] = []
+        if let csilV = self.task { csilEntries.append(("task", csilV.toCborValue())) }
+        return .map(csilEntries)
+    }
+
+    /// Reconstruct this record from a decoded CBOR value tree.
+    init(cborValue: CsilCborValue) throws {
+        let task: Task? = if let csilV = CsilCbor.mapGet(cborValue, "task") { try Task(cborValue: csilV) } else { nil }
+        self.init(task: task)
+    }
+
+    /// Encode this record to canonical CSIL CBOR bytes.
+    func toCbor() -> [UInt8] { CsilCbor.encode(toCborValue()) }
+
+    /// Decode a CSIL CBOR byte payload into this record.
+    static func fromCbor(_ bytes: [UInt8]) throws -> GetNextTaskGroupResponse { try GetNextTaskGroupResponse(cborValue: CsilCbor.decode(bytes)) }
 }
 
 public extension CompleteTaskRequest {

@@ -22,59 +22,124 @@ final class CorndogsAsyncClient {
   const CorndogsAsyncClient(this.transport);
 
   Future<SubmitTaskResponse> submitTask(SubmitTaskRequest request) async {
-    final csilResp = await transport.call('corndogs', 'SubmitTask', request.toCbor());
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'SubmitTask',
+      request.toCbor(),
+    );
     return SubmitTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
-  Future<GetTaskStateByIdResponse> getTaskStateById(GetTaskStateByIdRequest request) async {
-    final csilResp = await transport.call('corndogs', 'GetTaskStateByID', request.toCbor());
+  Future<GetTaskStateByIdResponse> getTaskStateById(
+    GetTaskStateByIdRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'GetTaskStateByID',
+      request.toCbor(),
+    );
     return GetTaskStateByIdResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
   Future<GetNextTaskResponse> getNextTask(GetNextTaskRequest request) async {
-    final csilResp = await transport.call('corndogs', 'GetNextTask', request.toCbor());
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'GetNextTask',
+      request.toCbor(),
+    );
     return GetNextTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
+  Future<GetNextTaskGroupResponse> getNextTaskGroup(
+    GetNextTaskGroupRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'GetNextTaskGroup',
+      request.toCbor(),
+    );
+    return GetNextTaskGroupResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
   Future<UpdateTaskResponse> updateTask(UpdateTaskRequest request) async {
-    final csilResp = await transport.call('corndogs', 'UpdateTask', request.toCbor());
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'UpdateTask',
+      request.toCbor(),
+    );
     return UpdateTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
   Future<CompleteTaskResponse> completeTask(CompleteTaskRequest request) async {
-    final csilResp = await transport.call('corndogs', 'CompleteTask', request.toCbor());
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'CompleteTask',
+      request.toCbor(),
+    );
     return CompleteTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
   Future<CancelTaskResponse> cancelTask(CancelTaskRequest request) async {
-    final csilResp = await transport.call('corndogs', 'CancelTask', request.toCbor());
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'CancelTask',
+      request.toCbor(),
+    );
     return CancelTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
-  Future<CleanUpTimedOutResponse> cleanUpTimedOut(CleanUpTimedOutRequest request) async {
-    final csilResp = await transport.call('corndogs', 'CleanUpTimedOut', request.toCbor());
+  Future<CleanUpTimedOutResponse> cleanUpTimedOut(
+    CleanUpTimedOutRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'CleanUpTimedOut',
+      request.toCbor(),
+    );
     return CleanUpTimedOutResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
   Future<GetQueuesResponse> getQueues(GetQueuesRequest request) async {
-    final csilResp = await transport.call('corndogs', 'GetQueues', request.toCbor());
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'GetQueues',
+      request.toCbor(),
+    );
     return GetQueuesResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
-  Future<GetQueueTaskCountsResponse> getQueueTaskCounts(GetQueueTaskCountsRequest request) async {
-    final csilResp = await transport.call('corndogs', 'GetQueueTaskCounts', request.toCbor());
+  Future<GetQueueTaskCountsResponse> getQueueTaskCounts(
+    GetQueueTaskCountsRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'GetQueueTaskCounts',
+      request.toCbor(),
+    );
     return GetQueueTaskCountsResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
-  Future<GetTaskStateCountsResponse> getTaskStateCounts(GetTaskStateCountsRequest request) async {
-    final csilResp = await transport.call('corndogs', 'GetTaskStateCounts', request.toCbor());
+  Future<GetTaskStateCountsResponse> getTaskStateCounts(
+    GetTaskStateCountsRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'GetTaskStateCounts',
+      request.toCbor(),
+    );
     return GetTaskStateCountsResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
-  Future<GetQueueAndStateCountsResponse> getQueueAndStateCounts(GetQueueAndStateCountsRequest request) async {
-    final csilResp = await transport.call('corndogs', 'GetQueueAndStateCounts', request.toCbor());
-    return GetQueueAndStateCountsResponse.fromCborValue(CsilCbor.decode(csilResp));
+  Future<GetQueueAndStateCountsResponse> getQueueAndStateCounts(
+    GetQueueAndStateCountsRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'GetQueueAndStateCounts',
+      request.toCbor(),
+    );
+    return GetQueueAndStateCountsResponse.fromCborValue(
+      CsilCbor.decode(csilResp),
+    );
   }
-
 }
-

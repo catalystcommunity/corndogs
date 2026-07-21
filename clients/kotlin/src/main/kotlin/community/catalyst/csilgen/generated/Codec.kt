@@ -234,6 +234,11 @@ object CsilCbor {
     fun require(v: CborValue, key: String): CborValue =
         mapGet(v, key) ?: throw CborError("missing field '$key'")
 
+    fun <T> expectLiteral(actual: CborValue, expected: CborValue, value: T): T {
+        if (actual != expected) throw CborError("literal mismatch")
+        return value
+    }
+
     fun asLong(v: CborValue): Long = when (v) {
         is CborValue.CUint -> {
             if (v.value > Long.MAX_VALUE.toULong()) throw CborError("integer out of Long range")
@@ -462,6 +467,52 @@ fun getNextTaskResponseFromCborValue(cbor: CborValue): GetNextTaskResponse {
 
 /** Decode CSIL CBOR bytes into a GetNextTaskResponse. */
 fun getNextTaskResponseFromCbor(bytes: ByteArray): GetNextTaskResponse = getNextTaskResponseFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a GetNextTaskGroupRequest (deep, canonical key order). */
+fun GetNextTaskGroupRequest.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("queues") to CborValue.CArray((this.queues).map { csilE -> CborValue.CText(csilE) }))
+    csilEntries.add(CborValue.CText("current_state") to CborValue.CText(this.currentState))
+    csilEntries.add(CborValue.CText("override_timeout") to CborValue.CInt(this.overrideTimeout))
+    csilEntries.add(CborValue.CText("override_current_state") to CborValue.CText(this.overrideCurrentState))
+    csilEntries.add(CborValue.CText("override_auto_target_state") to CborValue.CText(this.overrideAutoTargetState))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a GetNextTaskGroupRequest to canonical CSIL CBOR bytes. */
+fun GetNextTaskGroupRequest.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a GetNextTaskGroupRequest from a decoded CBOR value tree. */
+fun getNextTaskGroupRequestFromCborValue(cbor: CborValue): GetNextTaskGroupRequest {
+    val queues = CsilCbor.asArray(CsilCbor.require(cbor, "queues")).map { csilE -> CsilCbor.asText(csilE) }
+    val currentState = CsilCbor.asText(CsilCbor.require(cbor, "current_state"))
+    val overrideTimeout = CsilCbor.asLong(CsilCbor.require(cbor, "override_timeout"))
+    val overrideCurrentState = CsilCbor.asText(CsilCbor.require(cbor, "override_current_state"))
+    val overrideAutoTargetState = CsilCbor.asText(CsilCbor.require(cbor, "override_auto_target_state"))
+    return GetNextTaskGroupRequest(queues = queues, currentState = currentState, overrideTimeout = overrideTimeout, overrideCurrentState = overrideCurrentState, overrideAutoTargetState = overrideAutoTargetState)
+}
+
+/** Decode CSIL CBOR bytes into a GetNextTaskGroupRequest. */
+fun getNextTaskGroupRequestFromCbor(bytes: ByteArray): GetNextTaskGroupRequest = getNextTaskGroupRequestFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a GetNextTaskGroupResponse (deep, canonical key order). */
+fun GetNextTaskGroupResponse.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    this.task?.let { csilV -> csilEntries.add(CborValue.CText("task") to csilV.toCborValue()) }
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a GetNextTaskGroupResponse to canonical CSIL CBOR bytes. */
+fun GetNextTaskGroupResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a GetNextTaskGroupResponse from a decoded CBOR value tree. */
+fun getNextTaskGroupResponseFromCborValue(cbor: CborValue): GetNextTaskGroupResponse {
+    val task = CsilCbor.mapGet(cbor, "task")?.let { csilV -> taskFromCborValue(csilV) }
+    return GetNextTaskGroupResponse(task = task)
+}
+
+/** Decode CSIL CBOR bytes into a GetNextTaskGroupResponse. */
+fun getNextTaskGroupResponseFromCbor(bytes: ByteArray): GetNextTaskGroupResponse = getNextTaskGroupResponseFromCborValue(CsilCbor.decode(bytes))
 
 /** The CBOR value tree for a CompleteTaskRequest (deep, canonical key order). */
 fun CompleteTaskRequest.toCborValue(): CborValue {
@@ -849,6 +900,8 @@ private fun csilToCborValue(value: Any?): CborValue = when (value) {
     is GetTaskStateByIDResponse -> value.toCborValue()
     is GetNextTaskRequest -> value.toCborValue()
     is GetNextTaskResponse -> value.toCborValue()
+    is GetNextTaskGroupRequest -> value.toCborValue()
+    is GetNextTaskGroupResponse -> value.toCborValue()
     is CompleteTaskRequest -> value.toCborValue()
     is CompleteTaskResponse -> value.toCborValue()
     is UpdateTaskRequest -> value.toCborValue()
@@ -882,6 +935,8 @@ fun csilFromCborValue(type: kotlin.reflect.KClass<*>, cbor: CborValue): Any = wh
     GetTaskStateByIDResponse::class -> getTaskStateByIDResponseFromCborValue(cbor)
     GetNextTaskRequest::class -> getNextTaskRequestFromCborValue(cbor)
     GetNextTaskResponse::class -> getNextTaskResponseFromCborValue(cbor)
+    GetNextTaskGroupRequest::class -> getNextTaskGroupRequestFromCborValue(cbor)
+    GetNextTaskGroupResponse::class -> getNextTaskGroupResponseFromCborValue(cbor)
     CompleteTaskRequest::class -> completeTaskRequestFromCborValue(cbor)
     CompleteTaskResponse::class -> completeTaskResponseFromCborValue(cbor)
     UpdateTaskRequest::class -> updateTaskRequestFromCborValue(cbor)

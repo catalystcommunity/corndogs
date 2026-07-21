@@ -13,6 +13,7 @@ public protocol CorndogsService {
     func submitTask(_ request: SubmitTaskRequest) throws -> SubmitTaskResponse
     func getTaskStateById(_ request: GetTaskStateByIdRequest) throws -> GetTaskStateByIdResponse
     func getNextTask(_ request: GetNextTaskRequest) throws -> GetNextTaskResponse
+    func getNextTaskGroup(_ request: GetNextTaskGroupRequest) throws -> GetNextTaskGroupResponse
     func updateTask(_ request: UpdateTaskRequest) throws -> UpdateTaskResponse
     func completeTask(_ request: CompleteTaskRequest) throws -> CompleteTaskResponse
     func cancelTask(_ request: CancelTaskRequest) throws -> CancelTaskResponse

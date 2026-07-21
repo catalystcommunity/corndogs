@@ -8,25 +8,25 @@ type StringInt64Map map[string]int64
 
 // Task represents a structured data type
 type Task struct {
-	Uuid string `json:"uuid" yaml:"uuid"`
-	Queue string `json:"queue" yaml:"queue"`
-	CurrentState string `json:"current_state" yaml:"current_state"`
+	Uuid            string `json:"uuid" yaml:"uuid"`
+	Queue           string `json:"queue" yaml:"queue"`
+	CurrentState    string `json:"current_state" yaml:"current_state"`
 	AutoTargetState string `json:"auto_target_state" yaml:"auto_target_state"`
-	SubmitTime int64 `json:"submit_time" yaml:"submit_time"`
-	UpdateTime int64 `json:"update_time" yaml:"update_time"`
-	Timeout int64 `json:"timeout" yaml:"timeout"`
-	Payload []byte `json:"payload" yaml:"payload"`
-	Priority int64 `json:"priority" yaml:"priority"`
+	SubmitTime      int64  `json:"submit_time" yaml:"submit_time"`
+	UpdateTime      int64  `json:"update_time" yaml:"update_time"`
+	Timeout         int64  `json:"timeout" yaml:"timeout"`
+	Payload         []byte `json:"payload" yaml:"payload"`
+	Priority        int64  `json:"priority" yaml:"priority"`
 }
 
 // SubmitTaskRequest represents a structured data type
 type SubmitTaskRequest struct {
-	Queue string `json:"queue" yaml:"queue"`
-	CurrentState string `json:"current_state" yaml:"current_state"`
+	Queue           string `json:"queue" yaml:"queue"`
+	CurrentState    string `json:"current_state" yaml:"current_state"`
 	AutoTargetState string `json:"auto_target_state" yaml:"auto_target_state"`
-	Timeout int64 `json:"timeout" yaml:"timeout"`
-	Payload []byte `json:"payload" yaml:"payload"`
-	Priority int64 `json:"priority" yaml:"priority"`
+	Timeout         int64  `json:"timeout" yaml:"timeout"`
+	Payload         []byte `json:"payload" yaml:"payload"`
+	Priority        int64  `json:"priority" yaml:"priority"`
 }
 
 // SubmitTaskResponse represents a structured data type
@@ -36,7 +36,7 @@ type SubmitTaskResponse struct {
 
 // GetTaskStateByIDRequest represents a structured data type
 type GetTaskStateByIDRequest struct {
-	Uuid string `json:"uuid" yaml:"uuid"`
+	Uuid  string `json:"uuid" yaml:"uuid"`
 	Queue string `json:"queue" yaml:"queue"`
 }
 
@@ -47,10 +47,10 @@ type GetTaskStateByIDResponse struct {
 
 // GetNextTaskRequest represents a structured data type
 type GetNextTaskRequest struct {
-	Queue string `json:"queue" yaml:"queue"`
-	CurrentState string `json:"current_state" yaml:"current_state"`
-	OverrideTimeout int64 `json:"override_timeout" yaml:"override_timeout"`
-	OverrideCurrentState string `json:"override_current_state" yaml:"override_current_state"`
+	Queue                   string `json:"queue" yaml:"queue"`
+	CurrentState            string `json:"current_state" yaml:"current_state"`
+	OverrideTimeout         int64  `json:"override_timeout" yaml:"override_timeout"`
+	OverrideCurrentState    string `json:"override_current_state" yaml:"override_current_state"`
 	OverrideAutoTargetState string `json:"override_auto_target_state" yaml:"override_auto_target_state"`
 }
 
@@ -59,10 +59,24 @@ type GetNextTaskResponse struct {
 	Task *Task `json:"task,omitempty" yaml:"task,omitempty"`
 }
 
+// GetNextTaskGroupRequest represents a structured data type
+type GetNextTaskGroupRequest struct {
+	Queues                  []string `json:"queues" yaml:"queues"`
+	CurrentState            string   `json:"current_state" yaml:"current_state"`
+	OverrideTimeout         int64    `json:"override_timeout" yaml:"override_timeout"`
+	OverrideCurrentState    string   `json:"override_current_state" yaml:"override_current_state"`
+	OverrideAutoTargetState string   `json:"override_auto_target_state" yaml:"override_auto_target_state"`
+}
+
+// GetNextTaskGroupResponse represents a structured data type
+type GetNextTaskGroupResponse struct {
+	Task *Task `json:"task,omitempty" yaml:"task,omitempty"`
+}
+
 // CompleteTaskRequest represents a structured data type
 type CompleteTaskRequest struct {
-	Uuid string `json:"uuid" yaml:"uuid"`
-	Queue string `json:"queue" yaml:"queue"`
+	Uuid         string `json:"uuid" yaml:"uuid"`
+	Queue        string `json:"queue" yaml:"queue"`
 	CurrentState string `json:"current_state" yaml:"current_state"`
 }
 
@@ -73,14 +87,14 @@ type CompleteTaskResponse struct {
 
 // UpdateTaskRequest represents a structured data type
 type UpdateTaskRequest struct {
-	Uuid string `json:"uuid" yaml:"uuid"`
-	Queue string `json:"queue" yaml:"queue"`
-	CurrentState string `json:"current_state" yaml:"current_state"`
+	Uuid            string `json:"uuid" yaml:"uuid"`
+	Queue           string `json:"queue" yaml:"queue"`
+	CurrentState    string `json:"current_state" yaml:"current_state"`
 	AutoTargetState string `json:"auto_target_state" yaml:"auto_target_state"`
-	Timeout int64 `json:"timeout" yaml:"timeout"`
-	NewState string `json:"new_state" yaml:"new_state"`
-	Payload []byte `json:"payload" yaml:"payload"`
-	Priority int64 `json:"priority" yaml:"priority"`
+	Timeout         int64  `json:"timeout" yaml:"timeout"`
+	NewState        string `json:"new_state" yaml:"new_state"`
+	Payload         []byte `json:"payload" yaml:"payload"`
+	Priority        int64  `json:"priority" yaml:"priority"`
 }
 
 // UpdateTaskResponse represents a structured data type
@@ -90,8 +104,8 @@ type UpdateTaskResponse struct {
 
 // CancelTaskRequest represents a structured data type
 type CancelTaskRequest struct {
-	Uuid string `json:"uuid" yaml:"uuid"`
-	Queue string `json:"queue" yaml:"queue"`
+	Uuid         string `json:"uuid" yaml:"uuid"`
+	Queue        string `json:"queue" yaml:"queue"`
 	CurrentState string `json:"current_state" yaml:"current_state"`
 }
 
@@ -102,8 +116,8 @@ type CancelTaskResponse struct {
 
 // CleanUpTimedOutRequest represents a structured data type
 type CleanUpTimedOutRequest struct {
-	AtTime int64 `json:"at_time" yaml:"at_time"`
-	Queue string `json:"queue" yaml:"queue"`
+	AtTime int64  `json:"at_time" yaml:"at_time"`
+	Queue  string `json:"queue" yaml:"queue"`
 }
 
 // CleanUpTimedOutResponse represents a structured data type
@@ -117,8 +131,8 @@ type GetQueuesRequest struct {
 
 // GetQueuesResponse represents a structured data type
 type GetQueuesResponse struct {
-	Queues []string `json:"queues" yaml:"queues"`
-	TotalTaskCount int64 `json:"total_task_count" yaml:"total_task_count"`
+	Queues         []string `json:"queues" yaml:"queues"`
+	TotalTaskCount int64    `json:"total_task_count" yaml:"total_task_count"`
 }
 
 // GetQueueTaskCountsRequest represents a structured data type
@@ -127,8 +141,8 @@ type GetQueueTaskCountsRequest struct {
 
 // GetQueueTaskCountsResponse represents a structured data type
 type GetQueueTaskCountsResponse struct {
-	QueueCounts StringInt64Map `json:"queue_counts" yaml:"queue_counts"`
-	TotalTaskCount int64 `json:"total_task_count" yaml:"total_task_count"`
+	QueueCounts    StringInt64Map `json:"queue_counts" yaml:"queue_counts"`
+	TotalTaskCount int64          `json:"total_task_count" yaml:"total_task_count"`
 }
 
 // GetTaskStateCountsRequest represents a structured data type
@@ -138,15 +152,15 @@ type GetTaskStateCountsRequest struct {
 
 // GetTaskStateCountsResponse represents a structured data type
 type GetTaskStateCountsResponse struct {
-	Queue string `json:"queue" yaml:"queue"`
-	Count int64 `json:"count" yaml:"count"`
+	Queue       string         `json:"queue" yaml:"queue"`
+	Count       int64          `json:"count" yaml:"count"`
 	StateCounts StringInt64Map `json:"state_counts" yaml:"state_counts"`
 }
 
 // QueueAndStateCounts represents a structured data type
 type QueueAndStateCounts struct {
-	Queue string `json:"queue" yaml:"queue"`
-	Count int64 `json:"count" yaml:"count"`
+	Queue       string         `json:"queue" yaml:"queue"`
+	Count       int64          `json:"count" yaml:"count"`
 	StateCounts StringInt64Map `json:"state_counts" yaml:"state_counts"`
 }
 
@@ -164,7 +178,6 @@ type GetQueueAndStateCountsResponse struct {
 
 // ServiceError represents a structured data type
 type ServiceError struct {
-	Code uint64 `json:"code" yaml:"code"`
+	Code    uint64 `json:"code" yaml:"code"`
 	Message string `json:"message" yaml:"message"`
 }
-

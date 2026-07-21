@@ -19,26 +19,28 @@ public interface ICsilAsyncTransport
 public sealed class CorndogsAsyncClient(ICsilAsyncTransport transport)
 {
     public async System.Threading.Tasks.Task<SubmitTaskResponse> SubmitTaskAsync(SubmitTaskRequest submitTaskRequest) =>
-        Codec.Decode<SubmitTaskResponse>(await transport.Call("corndogs", "SubmitTask", Codec.Encode(submitTaskRequest)));
+        Codec.Decode<SubmitTaskResponse>(await transport.Call("CorndogsService", "SubmitTask", Codec.Encode(submitTaskRequest)));
     public async System.Threading.Tasks.Task<GetTaskStateByIDResponse> GetTaskStateByIDAsync(GetTaskStateByIDRequest getTaskStateByIDRequest) =>
-        Codec.Decode<GetTaskStateByIDResponse>(await transport.Call("corndogs", "GetTaskStateByID", Codec.Encode(getTaskStateByIDRequest)));
+        Codec.Decode<GetTaskStateByIDResponse>(await transport.Call("CorndogsService", "GetTaskStateByID", Codec.Encode(getTaskStateByIDRequest)));
     public async System.Threading.Tasks.Task<GetNextTaskResponse> GetNextTaskAsync(GetNextTaskRequest getNextTaskRequest) =>
-        Codec.Decode<GetNextTaskResponse>(await transport.Call("corndogs", "GetNextTask", Codec.Encode(getNextTaskRequest)));
+        Codec.Decode<GetNextTaskResponse>(await transport.Call("CorndogsService", "GetNextTask", Codec.Encode(getNextTaskRequest)));
+    public async System.Threading.Tasks.Task<GetNextTaskGroupResponse> GetNextTaskGroupAsync(GetNextTaskGroupRequest getNextTaskGroupRequest) =>
+        Codec.Decode<GetNextTaskGroupResponse>(await transport.Call("CorndogsService", "GetNextTaskGroup", Codec.Encode(getNextTaskGroupRequest)));
     public async System.Threading.Tasks.Task<UpdateTaskResponse> UpdateTaskAsync(UpdateTaskRequest updateTaskRequest) =>
-        Codec.Decode<UpdateTaskResponse>(await transport.Call("corndogs", "UpdateTask", Codec.Encode(updateTaskRequest)));
+        Codec.Decode<UpdateTaskResponse>(await transport.Call("CorndogsService", "UpdateTask", Codec.Encode(updateTaskRequest)));
     public async System.Threading.Tasks.Task<CompleteTaskResponse> CompleteTaskAsync(CompleteTaskRequest completeTaskRequest) =>
-        Codec.Decode<CompleteTaskResponse>(await transport.Call("corndogs", "CompleteTask", Codec.Encode(completeTaskRequest)));
+        Codec.Decode<CompleteTaskResponse>(await transport.Call("CorndogsService", "CompleteTask", Codec.Encode(completeTaskRequest)));
     public async System.Threading.Tasks.Task<CancelTaskResponse> CancelTaskAsync(CancelTaskRequest cancelTaskRequest) =>
-        Codec.Decode<CancelTaskResponse>(await transport.Call("corndogs", "CancelTask", Codec.Encode(cancelTaskRequest)));
+        Codec.Decode<CancelTaskResponse>(await transport.Call("CorndogsService", "CancelTask", Codec.Encode(cancelTaskRequest)));
     public async System.Threading.Tasks.Task<CleanUpTimedOutResponse> CleanUpTimedOutAsync(CleanUpTimedOutRequest cleanUpTimedOutRequest) =>
-        Codec.Decode<CleanUpTimedOutResponse>(await transport.Call("corndogs", "CleanUpTimedOut", Codec.Encode(cleanUpTimedOutRequest)));
+        Codec.Decode<CleanUpTimedOutResponse>(await transport.Call("CorndogsService", "CleanUpTimedOut", Codec.Encode(cleanUpTimedOutRequest)));
     public async System.Threading.Tasks.Task<GetQueuesResponse> GetQueuesAsync(GetQueuesRequest getQueuesRequest) =>
-        Codec.Decode<GetQueuesResponse>(await transport.Call("corndogs", "GetQueues", Codec.Encode(getQueuesRequest)));
+        Codec.Decode<GetQueuesResponse>(await transport.Call("CorndogsService", "GetQueues", Codec.Encode(getQueuesRequest)));
     public async System.Threading.Tasks.Task<GetQueueTaskCountsResponse> GetQueueTaskCountsAsync(GetQueueTaskCountsRequest getQueueTaskCountsRequest) =>
-        Codec.Decode<GetQueueTaskCountsResponse>(await transport.Call("corndogs", "GetQueueTaskCounts", Codec.Encode(getQueueTaskCountsRequest)));
+        Codec.Decode<GetQueueTaskCountsResponse>(await transport.Call("CorndogsService", "GetQueueTaskCounts", Codec.Encode(getQueueTaskCountsRequest)));
     public async System.Threading.Tasks.Task<GetTaskStateCountsResponse> GetTaskStateCountsAsync(GetTaskStateCountsRequest getTaskStateCountsRequest) =>
-        Codec.Decode<GetTaskStateCountsResponse>(await transport.Call("corndogs", "GetTaskStateCounts", Codec.Encode(getTaskStateCountsRequest)));
+        Codec.Decode<GetTaskStateCountsResponse>(await transport.Call("CorndogsService", "GetTaskStateCounts", Codec.Encode(getTaskStateCountsRequest)));
     public async System.Threading.Tasks.Task<GetQueueAndStateCountsResponse> GetQueueAndStateCountsAsync(GetQueueAndStateCountsRequest getQueueAndStateCountsRequest) =>
-        Codec.Decode<GetQueueAndStateCountsResponse>(await transport.Call("corndogs", "GetQueueAndStateCounts", Codec.Encode(getQueueAndStateCountsRequest)));
+        Codec.Decode<GetQueueAndStateCountsResponse>(await transport.Call("CorndogsService", "GetQueueAndStateCounts", Codec.Encode(getQueueAndStateCountsRequest)));
 }
 

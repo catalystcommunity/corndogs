@@ -17,37 +17,40 @@ interface AsyncTransport {
  * the carrier only moves bytes. */
 class CorndogsAsyncClient(private val transport: AsyncTransport) {
     suspend fun submitTask(request: SubmitTaskRequest): SubmitTaskResponse {
-        return decode<SubmitTaskResponse>(transport.call("corndogs", "SubmitTask", encode(request)))
+        return decode<SubmitTaskResponse>(transport.call("CorndogsService", "SubmitTask", encode(request)))
     }
     suspend fun getTaskStateByID(request: GetTaskStateByIDRequest): GetTaskStateByIDResponse {
-        return decode<GetTaskStateByIDResponse>(transport.call("corndogs", "GetTaskStateByID", encode(request)))
+        return decode<GetTaskStateByIDResponse>(transport.call("CorndogsService", "GetTaskStateByID", encode(request)))
     }
     suspend fun getNextTask(request: GetNextTaskRequest): GetNextTaskResponse {
-        return decode<GetNextTaskResponse>(transport.call("corndogs", "GetNextTask", encode(request)))
+        return decode<GetNextTaskResponse>(transport.call("CorndogsService", "GetNextTask", encode(request)))
+    }
+    suspend fun getNextTaskGroup(request: GetNextTaskGroupRequest): GetNextTaskGroupResponse {
+        return decode<GetNextTaskGroupResponse>(transport.call("CorndogsService", "GetNextTaskGroup", encode(request)))
     }
     suspend fun updateTask(request: UpdateTaskRequest): UpdateTaskResponse {
-        return decode<UpdateTaskResponse>(transport.call("corndogs", "UpdateTask", encode(request)))
+        return decode<UpdateTaskResponse>(transport.call("CorndogsService", "UpdateTask", encode(request)))
     }
     suspend fun completeTask(request: CompleteTaskRequest): CompleteTaskResponse {
-        return decode<CompleteTaskResponse>(transport.call("corndogs", "CompleteTask", encode(request)))
+        return decode<CompleteTaskResponse>(transport.call("CorndogsService", "CompleteTask", encode(request)))
     }
     suspend fun cancelTask(request: CancelTaskRequest): CancelTaskResponse {
-        return decode<CancelTaskResponse>(transport.call("corndogs", "CancelTask", encode(request)))
+        return decode<CancelTaskResponse>(transport.call("CorndogsService", "CancelTask", encode(request)))
     }
     suspend fun cleanUpTimedOut(request: CleanUpTimedOutRequest): CleanUpTimedOutResponse {
-        return decode<CleanUpTimedOutResponse>(transport.call("corndogs", "CleanUpTimedOut", encode(request)))
+        return decode<CleanUpTimedOutResponse>(transport.call("CorndogsService", "CleanUpTimedOut", encode(request)))
     }
     suspend fun getQueues(request: GetQueuesRequest): GetQueuesResponse {
-        return decode<GetQueuesResponse>(transport.call("corndogs", "GetQueues", encode(request)))
+        return decode<GetQueuesResponse>(transport.call("CorndogsService", "GetQueues", encode(request)))
     }
     suspend fun getQueueTaskCounts(request: GetQueueTaskCountsRequest): GetQueueTaskCountsResponse {
-        return decode<GetQueueTaskCountsResponse>(transport.call("corndogs", "GetQueueTaskCounts", encode(request)))
+        return decode<GetQueueTaskCountsResponse>(transport.call("CorndogsService", "GetQueueTaskCounts", encode(request)))
     }
     suspend fun getTaskStateCounts(request: GetTaskStateCountsRequest): GetTaskStateCountsResponse {
-        return decode<GetTaskStateCountsResponse>(transport.call("corndogs", "GetTaskStateCounts", encode(request)))
+        return decode<GetTaskStateCountsResponse>(transport.call("CorndogsService", "GetTaskStateCounts", encode(request)))
     }
     suspend fun getQueueAndStateCounts(request: GetQueueAndStateCountsRequest): GetQueueAndStateCountsResponse {
-        return decode<GetQueueAndStateCountsResponse>(transport.call("corndogs", "GetQueueAndStateCounts", encode(request)))
+        return decode<GetQueueAndStateCountsResponse>(transport.call("CorndogsService", "GetQueueAndStateCounts", encode(request)))
     }
 }
 

@@ -2,8 +2,8 @@
 // Source: <csil spec>
 // Target: typescript-client
 
-import type { CancelTaskRequest, CancelTaskResponse, CleanUpTimedOutRequest, CleanUpTimedOutResponse, CompleteTaskRequest, CompleteTaskResponse, GetNextTaskRequest, GetNextTaskResponse, GetQueueAndStateCountsRequest, GetQueueAndStateCountsResponse, GetQueueTaskCountsRequest, GetQueueTaskCountsResponse, GetQueuesRequest, GetQueuesResponse, GetTaskStateByIDRequest, GetTaskStateByIDResponse, GetTaskStateCountsRequest, GetTaskStateCountsResponse, SubmitTaskRequest, SubmitTaskResponse, UpdateTaskRequest, UpdateTaskResponse } from "./types.gen";
-import { fromCancelTaskResponseCbor, fromCleanUpTimedOutResponseCbor, fromCompleteTaskResponseCbor, fromGetNextTaskResponseCbor, fromGetQueueAndStateCountsResponseCbor, fromGetQueueTaskCountsResponseCbor, fromGetQueuesResponseCbor, fromGetTaskStateByIDResponseCbor, fromGetTaskStateCountsResponseCbor, fromSubmitTaskResponseCbor, fromUpdateTaskResponseCbor, toCancelTaskRequestCbor, toCleanUpTimedOutRequestCbor, toCompleteTaskRequestCbor, toGetNextTaskRequestCbor, toGetQueueAndStateCountsRequestCbor, toGetQueueTaskCountsRequestCbor, toGetQueuesRequestCbor, toGetTaskStateByIDRequestCbor, toGetTaskStateCountsRequestCbor, toSubmitTaskRequestCbor, toUpdateTaskRequestCbor } from "./codec.gen";
+import type { CancelTaskRequest, CancelTaskResponse, CleanUpTimedOutRequest, CleanUpTimedOutResponse, CompleteTaskRequest, CompleteTaskResponse, GetNextTaskGroupRequest, GetNextTaskGroupResponse, GetNextTaskRequest, GetNextTaskResponse, GetQueueAndStateCountsRequest, GetQueueAndStateCountsResponse, GetQueueTaskCountsRequest, GetQueueTaskCountsResponse, GetQueuesRequest, GetQueuesResponse, GetTaskStateByIDRequest, GetTaskStateByIDResponse, GetTaskStateCountsRequest, GetTaskStateCountsResponse, SubmitTaskRequest, SubmitTaskResponse, UpdateTaskRequest, UpdateTaskResponse } from "./types.gen.ts";
+import { fromCancelTaskResponseCbor, fromCleanUpTimedOutResponseCbor, fromCompleteTaskResponseCbor, fromGetNextTaskGroupResponseCbor, fromGetNextTaskResponseCbor, fromGetQueueAndStateCountsResponseCbor, fromGetQueueTaskCountsResponseCbor, fromGetQueuesResponseCbor, fromGetTaskStateByIDResponseCbor, fromGetTaskStateCountsResponseCbor, fromSubmitTaskResponseCbor, fromUpdateTaskResponseCbor, toCancelTaskRequestCbor, toCleanUpTimedOutRequestCbor, toCompleteTaskRequestCbor, toGetNextTaskGroupRequestCbor, toGetNextTaskRequestCbor, toGetQueueAndStateCountsRequestCbor, toGetQueueTaskCountsRequestCbor, toGetQueuesRequestCbor, toGetTaskStateByIDRequestCbor, toGetTaskStateCountsRequestCbor, toSubmitTaskRequestCbor, toUpdateTaskRequestCbor } from "./codec.gen.ts";
 
 export interface AsyncServiceTransport {
   call(service: string, op: string, req: Uint8Array): Promise<Uint8Array>;
@@ -17,7 +17,7 @@ export class CorndogsAsyncClient {
    * @throws transport errors (network, timeout) raised by the transport
    */
   async submitTask(req: SubmitTaskRequest): Promise<SubmitTaskResponse> {
-    const csilResp = await this.t.call("corndogs", "SubmitTask", toSubmitTaskRequestCbor(req));
+    const csilResp = await this.t.call("CorndogsService", "SubmitTask", toSubmitTaskRequestCbor(req));
     return fromSubmitTaskResponseCbor(csilResp);
   }
 
@@ -26,7 +26,7 @@ export class CorndogsAsyncClient {
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getTaskStateByID(req: GetTaskStateByIDRequest): Promise<GetTaskStateByIDResponse> {
-    const csilResp = await this.t.call("corndogs", "GetTaskStateByID", toGetTaskStateByIDRequestCbor(req));
+    const csilResp = await this.t.call("CorndogsService", "GetTaskStateByID", toGetTaskStateByIDRequestCbor(req));
     return fromGetTaskStateByIDResponseCbor(csilResp);
   }
 
@@ -35,7 +35,7 @@ export class CorndogsAsyncClient {
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getNextTask(req: GetNextTaskRequest): Promise<GetNextTaskResponse> {
-    const csilResp = await this.t.call("corndogs", "GetNextTask", toGetNextTaskRequestCbor(req));
+    const csilResp = await this.t.call("CorndogsService", "GetNextTask", toGetNextTaskRequestCbor(req));
     return fromGetNextTaskResponseCbor(csilResp);
   }
 
@@ -43,8 +43,17 @@ export class CorndogsAsyncClient {
    * @throws {ServiceError} when the API returns an error response
    * @throws transport errors (network, timeout) raised by the transport
    */
+  async getNextTaskGroup(req: GetNextTaskGroupRequest): Promise<GetNextTaskGroupResponse> {
+    const csilResp = await this.t.call("CorndogsService", "GetNextTaskGroup", toGetNextTaskGroupRequestCbor(req));
+    return fromGetNextTaskGroupResponseCbor(csilResp);
+  }
+
+  /**
+   * @throws {ServiceError} when the API returns an error response
+   * @throws transport errors (network, timeout) raised by the transport
+   */
   async updateTask(req: UpdateTaskRequest): Promise<UpdateTaskResponse> {
-    const csilResp = await this.t.call("corndogs", "UpdateTask", toUpdateTaskRequestCbor(req));
+    const csilResp = await this.t.call("CorndogsService", "UpdateTask", toUpdateTaskRequestCbor(req));
     return fromUpdateTaskResponseCbor(csilResp);
   }
 
@@ -53,7 +62,7 @@ export class CorndogsAsyncClient {
    * @throws transport errors (network, timeout) raised by the transport
    */
   async completeTask(req: CompleteTaskRequest): Promise<CompleteTaskResponse> {
-    const csilResp = await this.t.call("corndogs", "CompleteTask", toCompleteTaskRequestCbor(req));
+    const csilResp = await this.t.call("CorndogsService", "CompleteTask", toCompleteTaskRequestCbor(req));
     return fromCompleteTaskResponseCbor(csilResp);
   }
 
@@ -62,7 +71,7 @@ export class CorndogsAsyncClient {
    * @throws transport errors (network, timeout) raised by the transport
    */
   async cancelTask(req: CancelTaskRequest): Promise<CancelTaskResponse> {
-    const csilResp = await this.t.call("corndogs", "CancelTask", toCancelTaskRequestCbor(req));
+    const csilResp = await this.t.call("CorndogsService", "CancelTask", toCancelTaskRequestCbor(req));
     return fromCancelTaskResponseCbor(csilResp);
   }
 
@@ -71,7 +80,7 @@ export class CorndogsAsyncClient {
    * @throws transport errors (network, timeout) raised by the transport
    */
   async cleanUpTimedOut(req: CleanUpTimedOutRequest): Promise<CleanUpTimedOutResponse> {
-    const csilResp = await this.t.call("corndogs", "CleanUpTimedOut", toCleanUpTimedOutRequestCbor(req));
+    const csilResp = await this.t.call("CorndogsService", "CleanUpTimedOut", toCleanUpTimedOutRequestCbor(req));
     return fromCleanUpTimedOutResponseCbor(csilResp);
   }
 
@@ -80,7 +89,7 @@ export class CorndogsAsyncClient {
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getQueues(req: GetQueuesRequest): Promise<GetQueuesResponse> {
-    const csilResp = await this.t.call("corndogs", "GetQueues", toGetQueuesRequestCbor(req));
+    const csilResp = await this.t.call("CorndogsService", "GetQueues", toGetQueuesRequestCbor(req));
     return fromGetQueuesResponseCbor(csilResp);
   }
 
@@ -89,7 +98,7 @@ export class CorndogsAsyncClient {
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getQueueTaskCounts(req: GetQueueTaskCountsRequest): Promise<GetQueueTaskCountsResponse> {
-    const csilResp = await this.t.call("corndogs", "GetQueueTaskCounts", toGetQueueTaskCountsRequestCbor(req));
+    const csilResp = await this.t.call("CorndogsService", "GetQueueTaskCounts", toGetQueueTaskCountsRequestCbor(req));
     return fromGetQueueTaskCountsResponseCbor(csilResp);
   }
 
@@ -98,7 +107,7 @@ export class CorndogsAsyncClient {
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getTaskStateCounts(req: GetTaskStateCountsRequest): Promise<GetTaskStateCountsResponse> {
-    const csilResp = await this.t.call("corndogs", "GetTaskStateCounts", toGetTaskStateCountsRequestCbor(req));
+    const csilResp = await this.t.call("CorndogsService", "GetTaskStateCounts", toGetTaskStateCountsRequestCbor(req));
     return fromGetTaskStateCountsResponseCbor(csilResp);
   }
 
@@ -107,7 +116,7 @@ export class CorndogsAsyncClient {
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getQueueAndStateCounts(req: GetQueueAndStateCountsRequest): Promise<GetQueueAndStateCountsResponse> {
-    const csilResp = await this.t.call("corndogs", "GetQueueAndStateCounts", toGetQueueAndStateCountsRequestCbor(req));
+    const csilResp = await this.t.call("CorndogsService", "GetQueueAndStateCounts", toGetQueueAndStateCountsRequestCbor(req));
     return fromGetQueueAndStateCountsResponseCbor(csilResp);
   }
 }

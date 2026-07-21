@@ -1,5 +1,7 @@
 //! Generated types from CSIL specification
 
+#![allow(non_camel_case_types, clippy::large_enum_variant)]
+
 pub type StringInt64Map = std::collections::HashMap<String, i64>;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -56,6 +58,20 @@ pub struct GetNextTaskResponse {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct GetNextTaskGroupRequest {
+    pub queues: Vec<String>,
+    pub current_state: String,
+    pub override_timeout: i64,
+    pub override_current_state: String,
+    pub override_auto_target_state: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GetNextTaskGroupResponse {
+    pub task: Option<Task>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct CompleteTaskRequest {
     pub uuid: String,
     pub queue: String,
@@ -108,8 +124,7 @@ pub struct CleanUpTimedOutResponse {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct GetQueuesRequest {
-}
+pub struct GetQueuesRequest {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GetQueuesResponse {
@@ -118,8 +133,7 @@ pub struct GetQueuesResponse {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct GetQueueTaskCountsRequest {
-}
+pub struct GetQueueTaskCountsRequest {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GetQueueTaskCountsResponse {
@@ -149,8 +163,7 @@ pub struct QueueAndStateCounts {
 pub type QueueAndStateCountsMap = std::collections::HashMap<String, QueueAndStateCounts>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct GetQueueAndStateCountsRequest {
-}
+pub struct GetQueueAndStateCountsRequest {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GetQueueAndStateCountsResponse {
@@ -162,4 +175,3 @@ pub struct ServiceError {
     pub code: u64,
     pub message: String,
 }
-

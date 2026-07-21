@@ -17,8 +17,8 @@ import (
 // payload is tag-24-wrapped CBOR of the request/response type. See csilgen
 // docs/csil-rpc-transport.md.
 const (
-	rpcServiceName = "corndogs"      // wire service name (lowercased, "Service"-stripped)
-	rpcPath        = "/csil/v1/rpc"  // canonical envelope-in-body mount
+	rpcServiceName = "CorndogsService" // wire service name = the verbatim CSIL `service` block name (what generated clients send)
+	rpcPath        = "/csil/v1/rpc"    // canonical envelope-in-body mount
 )
 
 // rpcHandlerFunc decodes a request payload, invokes a service method, and returns
@@ -57,6 +57,7 @@ func buildRPCRoutes(svc api.CorndogsService) map[string]rpcHandlerFunc {
 		"SubmitTask":             rpcRoute(svc.SubmitTask, api.DecodeSubmitTaskRequest, api.EncodeSubmitTaskResponse, "SubmitTaskResponse"),
 		"GetTaskStateByID":       rpcRoute(svc.GetTaskStateByID, api.DecodeGetTaskStateByIDRequest, api.EncodeGetTaskStateByIDResponse, "GetTaskStateByIDResponse"),
 		"GetNextTask":            rpcRoute(svc.GetNextTask, api.DecodeGetNextTaskRequest, api.EncodeGetNextTaskResponse, "GetNextTaskResponse"),
+		"GetNextTaskGroup":       rpcRoute(svc.GetNextTaskGroup, api.DecodeGetNextTaskGroupRequest, api.EncodeGetNextTaskGroupResponse, "GetNextTaskGroupResponse"),
 		"UpdateTask":             rpcRoute(svc.UpdateTask, api.DecodeUpdateTaskRequest, api.EncodeUpdateTaskResponse, "UpdateTaskResponse"),
 		"CompleteTask":           rpcRoute(svc.CompleteTask, api.DecodeCompleteTaskRequest, api.EncodeCompleteTaskResponse, "CompleteTaskResponse"),
 		"CancelTask":             rpcRoute(svc.CancelTask, api.DecodeCancelTaskRequest, api.EncodeCancelTaskResponse, "CancelTaskResponse"),

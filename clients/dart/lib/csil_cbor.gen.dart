@@ -67,7 +67,10 @@ class CsilCbor {
       // Canonical RFC3339 (tag 0): Dart's toIso8601String always emits a
       // fractional-seconds part (.000); the wire form omits it when it is zero, so
       // strip an all-zero fraction to match the other languages byte-for-byte.
-      final iso = v.toUtc().toIso8601String().replaceFirst(RegExp(r'\.0+Z$'), 'Z');
+      final iso = v.toUtc().toIso8601String().replaceFirst(
+        RegExp(r'\.0+Z$'),
+        'Z',
+      );
       final u = utf8.encode(iso);
       _head(b, 3, u.length);
       b.add(u);
@@ -94,6 +97,43 @@ class CsilCbor {
       throw ArgumentError('CsilCbor: trailing bytes');
     }
     return r.value;
+  }
+
+  static T expectLiteral<T>(Object? actual, Object? expected, T value) {
+    if (!_valueEquals(actual, expected)) {
+      throw ArgumentError('CsilCbor: literal mismatch');
+    }
+    return value;
+  }
+
+  /// Validate that a decoded closed-set (all-literal choice) value is one of
+  /// its declared members, returning it cast to `T`. The wire carries the bare
+  /// literal for this shape (it is its own discriminant), so decode has no
+  /// index to dispatch on the way a tagged-sum union does — membership is the
+  /// only check available.
+  static T expectOneOf<T>(Object? actual, List<T> allowed) {
+    for (final a in allowed) {
+      if (_valueEquals(actual, a)) return a;
+    }
+    throw ArgumentError('CsilCbor: value not a member of the closed set');
+  }
+
+  static bool _valueEquals(Object? a, Object? b) {
+    if (a is Uint8List && b is Uint8List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (!_valueEquals(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    return a == b;
   }
 
   static _CsilRead _readArg(Uint8List b, int pos, int low) {
@@ -170,7 +210,9 @@ class CsilCbor {
         final inner = _dec(b, p);
         if (arg == 0 && inner.value is String) {
           return _CsilDecoded(
-              DateTime.parse(inner.value as String).toUtc(), inner.next);
+            DateTime.parse(inner.value as String).toUtc(),
+            inner.next,
+          );
         }
         return _CsilDecoded(inner.value, inner.next);
       default:

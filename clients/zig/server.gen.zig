@@ -18,6 +18,7 @@ pub const CorndogsHandlers = struct {
     submit_task: *const fn (ctx: *anyopaque, req: *const types.SubmitTaskRequest, resp: *types.SubmitTaskResponse) anyerror!void,
     get_task_state_by_id: *const fn (ctx: *anyopaque, req: *const types.GetTaskStateByIDRequest, resp: *types.GetTaskStateByIDResponse) anyerror!void,
     get_next_task: *const fn (ctx: *anyopaque, req: *const types.GetNextTaskRequest, resp: *types.GetNextTaskResponse) anyerror!void,
+    get_next_task_group: *const fn (ctx: *anyopaque, req: *const types.GetNextTaskGroupRequest, resp: *types.GetNextTaskGroupResponse) anyerror!void,
     update_task: *const fn (ctx: *anyopaque, req: *const types.UpdateTaskRequest, resp: *types.UpdateTaskResponse) anyerror!void,
     complete_task: *const fn (ctx: *anyopaque, req: *const types.CompleteTaskRequest, resp: *types.CompleteTaskResponse) anyerror!void,
     cancel_task: *const fn (ctx: *anyopaque, req: *const types.CancelTaskRequest, resp: *types.CancelTaskResponse) anyerror!void,

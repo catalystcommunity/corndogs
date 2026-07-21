@@ -20,6 +20,11 @@ class CorndogsHandlers
     raise NotImplementedError, "CorndogsHandlers#get_next_task"
   end
 
+  # GetNextTaskGroup
+  def get_next_task_group(req)
+    raise NotImplementedError, "CorndogsHandlers#get_next_task_group"
+  end
+
   # UpdateTask
   def update_task(req)
     raise NotImplementedError, "CorndogsHandlers#update_task"

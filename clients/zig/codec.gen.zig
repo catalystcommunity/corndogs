@@ -574,6 +574,74 @@ fn dec_GetNextTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetNe
     }
 }
 
+fn enc_GetNextTaskGroupRequest(out: *std.ArrayList(u8), v: *const types.GetNextTaskGroupRequest) CodecError!void {
+    try w_map_head(out, 5);
+    try w_text(out, "queues");
+    try w_array_head(out, v.queues.len);
+    for (v.queues) |csil_it| {
+        try w_text(out, csil_it);
+    }
+    try w_text(out, "current_state");
+    try w_text(out, v.current_state);
+    try w_text(out, "override_timeout");
+    try w_int(out, v.override_timeout);
+    try w_text(out, "override_current_state");
+    try w_text(out, v.override_current_state);
+    try w_text(out, "override_auto_target_state");
+    try w_text(out, v.override_auto_target_state);
+}
+
+fn dec_GetNextTaskGroupRequest(alloc: std.mem.Allocator, m: Value, out: *types.GetNextTaskGroupRequest) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "queues");
+        if (csil_fv != .array) return error.WrongType;
+        out.queues = try alloc.alloc([]const u8, csil_fv.array.len);
+        for (csil_fv.array, 0..) |csil_it, csil_i| {
+            out.queues[csil_i] = try as_text(csil_it);
+        }
+    }
+    {
+        const csil_fv = try req(m, "current_state");
+        out.current_state = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "override_timeout");
+        out.override_timeout = try as_i64(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "override_current_state");
+        out.override_current_state = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "override_auto_target_state");
+        out.override_auto_target_state = try as_text(csil_fv);
+    }
+}
+
+fn enc_GetNextTaskGroupResponse(out: *std.ArrayList(u8), v: *const types.GetNextTaskGroupResponse) CodecError!void {
+    var csil_n: usize = 0;
+    if (v.task != null) csil_n += 1;
+    try w_map_head(out, csil_n);
+    if (v.task) |csil_x| {
+        try w_text(out, "task");
+        try enc_Task(out, &(csil_x));
+    }
+}
+
+fn dec_GetNextTaskGroupResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetNextTaskGroupResponse) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        if (mget(m, "task")) |csil_fv| {
+            var csil_tmp: types.Task = undefined;
+            try dec_Task(alloc, csil_fv, &csil_tmp);
+            out.task = csil_tmp;
+        } else {
+            out.task = null;
+        }
+    }
+}
+
 fn enc_CompleteTaskRequest(out: *std.ArrayList(u8), v: *const types.CompleteTaskRequest) CodecError!void {
     try w_map_head(out, 3);
     try w_text(out, "uuid");
@@ -1138,6 +1206,38 @@ pub fn encode_GetNextTaskResponse(alloc: std.mem.Allocator, v: *const types.GetN
 pub fn decode_GetNextTaskResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.GetNextTaskResponse) CodecError!void {
     const root = try decode(alloc, bytes);
     try dec_GetNextTaskResponse(alloc, root, out);
+}
+
+/// Encode a GetNextTaskGroupRequest to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_GetNextTaskGroupRequest(alloc: std.mem.Allocator, v: *const types.GetNextTaskGroupRequest) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_GetNextTaskGroupRequest(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a GetNextTaskGroupRequest. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_GetNextTaskGroupRequest(alloc: std.mem.Allocator, bytes: []const u8, out: *types.GetNextTaskGroupRequest) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_GetNextTaskGroupRequest(alloc, root, out);
+}
+
+/// Encode a GetNextTaskGroupResponse to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_GetNextTaskGroupResponse(alloc: std.mem.Allocator, v: *const types.GetNextTaskGroupResponse) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_GetNextTaskGroupResponse(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a GetNextTaskGroupResponse. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_GetNextTaskGroupResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.GetNextTaskGroupResponse) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_GetNextTaskGroupResponse(alloc, root, out);
 }
 
 /// Encode a CompleteTaskRequest to CBOR. The returned slice is owned by the caller

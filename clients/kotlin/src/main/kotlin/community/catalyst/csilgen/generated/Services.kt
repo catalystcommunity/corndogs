@@ -8,6 +8,7 @@ interface CorndogsService {
     fun submitTask(request: SubmitTaskRequest): SubmitTaskResponse
     fun getTaskStateByID(request: GetTaskStateByIDRequest): GetTaskStateByIDResponse
     fun getNextTask(request: GetNextTaskRequest): GetNextTaskResponse
+    fun getNextTaskGroup(request: GetNextTaskGroupRequest): GetNextTaskGroupResponse
     fun updateTask(request: UpdateTaskRequest): UpdateTaskResponse
     fun completeTask(request: CompleteTaskRequest): CompleteTaskResponse
     fun cancelTask(request: CancelTaskRequest): CancelTaskResponse

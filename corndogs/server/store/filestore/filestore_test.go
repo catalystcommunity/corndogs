@@ -175,6 +175,98 @@ func TestPriorityAndFIFOOrdering(t *testing.T) {
 	}
 }
 
+func TestGetNextTaskGroup(t *testing.T) {
+	for _, backend := range backends {
+		t.Run(backend, func(t *testing.T) {
+			withFakeClock(t) // monotonic clock => submit order == update_time order
+			s, cleanup := newStore(t, backend, SyncNever)
+			defer cleanup()
+
+			// Spread tasks across three queues with mixed priorities, plus a task in
+			// a queue NOT in the requested group and one in a different state, so the
+			// only correct dequeue is a global priority-across-queues order.
+			submit := func(queue, state string, prio int64, payload string) {
+				_, err := s.SubmitTask(ctx(), &api.SubmitTaskRequest{
+					Queue: queue, CurrentState: state, AutoTargetState: "wip",
+					Priority: prio, Timeout: -1, Payload: []byte(payload),
+				})
+				require.NoError(t, err)
+			}
+			submit("q1", "submitted", 10, "q1-hi")    // prio10, oldest of the two prio10s
+			submit("q2", "submitted", 10, "q2-hi")    // prio10, newer than q1-hi
+			submit("q3", "submitted", 5, "q3-lo")     // lowest priority
+			submit("other", "submitted", 100, "nope") // higher prio but not in the group
+			submit("q1", "different", 100, "nope2")   // higher prio but wrong state
+
+			group := []string{"q1", "q2", "q3"}
+
+			// Expected order across the group: priority desc, then update_time asc
+			// (FIFO). q1-hi was submitted before q2-hi, so among the two prio-10 tasks
+			// q1-hi wins first, then q2-hi, then the prio-5 q3-lo.
+			var order []string
+			for i := 0; i < 3; i++ {
+				got, err := s.GetNextTaskGroup(ctx(), &api.GetNextTaskGroupRequest{
+					Queues: group, CurrentState: "submitted",
+				})
+				require.NoError(t, err)
+				require.NotNil(t, got.Task, "expected a task on iteration %d", i)
+				order = append(order, string(got.Task.Payload))
+			}
+			require.Equal(t, []string{"q1-hi", "q2-hi", "q3-lo"}, order)
+
+			// Group is now drained for that state; the out-of-group and wrong-state
+			// tasks are untouched.
+			empty, err := s.GetNextTaskGroup(ctx(), &api.GetNextTaskGroupRequest{Queues: group, CurrentState: "submitted"})
+			require.NoError(t, err)
+			require.Nil(t, empty.Task)
+
+			// The higher-priority task in "other" was never claimed by the group.
+			still, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "other", CurrentState: "submitted"})
+			require.NoError(t, err)
+			require.NotNil(t, still.Task)
+			require.Equal(t, "nope", string(still.Task.Payload))
+		})
+	}
+}
+
+func TestGetNextTaskGroupSemantics(t *testing.T) {
+	for _, backend := range backends {
+		t.Run(backend, func(t *testing.T) {
+			withFakeClock(t)
+			s, cleanup := newStore(t, backend, SyncNever)
+			defer cleanup()
+
+			_, err := s.SubmitTask(ctx(), &api.SubmitTaskRequest{
+				Queue: "qA", CurrentState: "submitted", AutoTargetState: "submitted-working", Timeout: -1,
+			})
+			require.NoError(t, err)
+
+			// Claim semantics match GetNextTask: states swap, overrides apply.
+			got, err := s.GetNextTaskGroup(ctx(), &api.GetNextTaskGroupRequest{
+				Queues:                  []string{"qA", "qB"},
+				CurrentState:            "submitted",
+				OverrideCurrentState:    "ocs",
+				OverrideAutoTargetState: "oats",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, got.Task)
+			require.Equal(t, "qA", got.Task.Queue)
+			require.Equal(t, "ocs", got.Task.CurrentState)
+			require.Equal(t, "oats", got.Task.AutoTargetState)
+
+			// No matching task in any queue => nil task, no error.
+			none, err := s.GetNextTaskGroup(ctx(), &api.GetNextTaskGroupRequest{Queues: []string{"qB", "qC"}, CurrentState: "submitted"})
+			require.NoError(t, err)
+			require.Nil(t, none.Task)
+
+			// Empty queue set => nil task, no error.
+			emptyset, err := s.GetNextTaskGroup(ctx(), &api.GetNextTaskGroupRequest{Queues: nil, CurrentState: "submitted"})
+			require.NoError(t, err)
+			require.Nil(t, emptyset.Task)
+		})
+	}
+}
+
 func TestGetByIDActiveAndArchived(t *testing.T) {
 	for _, backend := range backends {
 		t.Run(backend, func(t *testing.T) {

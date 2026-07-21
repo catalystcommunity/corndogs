@@ -81,6 +81,26 @@ and encode_get_next_task_response (v : get_next_task_response) : Cbor.t =
          (match v.task with Some csil_x -> Some (Cbor.Text "task", (encode_task csil_x)) | None -> None);
        ])
 
+and encode_get_next_task_group_request (v : get_next_task_group_request) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "queues", (Cbor.Array (List.map (fun csil_e -> (Cbor.Text csil_e)) v.queues)));
+         Some (Cbor.Text "current_state", (Cbor.Text v.current_state));
+         Some (Cbor.Text "override_timeout", (Cbor.int64 v.override_timeout));
+         Some (Cbor.Text "override_current_state", (Cbor.Text v.override_current_state));
+         Some (Cbor.Text "override_auto_target_state", (Cbor.Text v.override_auto_target_state));
+       ])
+
+and encode_get_next_task_group_response (v : get_next_task_group_response) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         (match v.task with Some csil_x -> Some (Cbor.Text "task", (encode_task csil_x)) | None -> None);
+       ])
+
 and encode_complete_task_request (v : complete_task_request) : Cbor.t =
   Cbor.Map
     (List.filter_map
@@ -335,6 +355,36 @@ and decode_get_next_task_response (csil_c : Cbor.t) : get_next_task_response =
       }
   | _ -> failwith "csilgen: expected map for get_next_task_response"
 
+and decode_get_next_task_group_request (csil_c : Cbor.t) : get_next_task_group_request =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        queues = (match (csil_req "queues") with Cbor.Array csil_xs -> List.map (fun csil_e -> (Cbor.to_text csil_e)) csil_xs | _ -> failwith "csilgen: expected array");
+        current_state = (Cbor.to_text (csil_req "current_state"));
+        override_timeout = (Cbor.to_i64 (csil_req "override_timeout"));
+        override_current_state = (Cbor.to_text (csil_req "override_current_state"));
+        override_auto_target_state = (Cbor.to_text (csil_req "override_auto_target_state"));
+      }
+  | _ -> failwith "csilgen: expected map for get_next_task_group_request"
+
+and decode_get_next_task_group_response (csil_c : Cbor.t) : get_next_task_group_response =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        task = (match csil_field "task" with Some csil_v -> Some (decode_task csil_v) | None -> None);
+      }
+  | _ -> failwith "csilgen: expected map for get_next_task_group_response"
+
 and decode_complete_task_request (csil_c : Cbor.t) : complete_task_request =
   match csil_c with
   | Cbor.Map csil_kvs ->
@@ -585,6 +635,14 @@ let decode_get_next_task_request_bytes (b : bytes) : get_next_task_request =
 let encode_get_next_task_response_bytes (v : get_next_task_response) : bytes = Cbor.encode (encode_get_next_task_response v)
 let decode_get_next_task_response_bytes (b : bytes) : get_next_task_response =
   match Cbor.decode b with Ok c -> decode_get_next_task_response c | Error e -> failwith e
+
+let encode_get_next_task_group_request_bytes (v : get_next_task_group_request) : bytes = Cbor.encode (encode_get_next_task_group_request v)
+let decode_get_next_task_group_request_bytes (b : bytes) : get_next_task_group_request =
+  match Cbor.decode b with Ok c -> decode_get_next_task_group_request c | Error e -> failwith e
+
+let encode_get_next_task_group_response_bytes (v : get_next_task_group_response) : bytes = Cbor.encode (encode_get_next_task_group_response v)
+let decode_get_next_task_group_response_bytes (b : bytes) : get_next_task_group_response =
+  match Cbor.decode b with Ok c -> decode_get_next_task_group_response c | Error e -> failwith e
 
 let encode_complete_task_request_bytes (v : complete_task_request) : bytes = Cbor.encode (encode_complete_task_request v)
 let decode_complete_task_request_bytes (b : bytes) : complete_task_request =

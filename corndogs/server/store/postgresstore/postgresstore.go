@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
+	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/conversions"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/logging"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store/postgresstore/models"
-	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/google/uuid"
 	"github.com/pressly/goose/v3"
 	"github.com/rs/zerolog/log"
@@ -124,6 +124,97 @@ func (s PostgresStore) MustGetTaskStateByID(ctx context.Context, req *api.GetTas
 		panic(err)
 	}
 	return &api.GetTaskStateByIDResponse{Task: taskProto}, err
+}
+
+// GetNextTaskGroup claims the single best task across a set of queues. It is
+// GetNextTask generalized from `queue = ?` to `queue IN (?)`: the ORDER BY runs
+// over every candidate row in every named queue at once, so priority is
+// respected across the whole group (highest priority first, then oldest), and
+// FOR UPDATE SKIP LOCKED still guarantees exactly one worker claims each task.
+func (s PostgresStore) GetNextTaskGroup(ctx context.Context, req *api.GetNextTaskGroupRequest) (*api.GetNextTaskGroupResponse, error) {
+	taskProto := &api.Task{}
+	if len(req.Queues) == 0 {
+		return &api.GetNextTaskGroupResponse{Task: nil}, nil
+	}
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		model := models.Task{}
+		var nextUuid string
+		result := tx.Raw(
+			`UPDATE tasks SET current_state = current_state || ?
+				 WHERE uuid = (
+					 SELECT uuid FROM tasks
+					 WHERE queue IN ? AND current_state = ?
+                     ORDER BY priority DESC, update_time ASC
+					 FOR UPDATE SKIP LOCKED
+					 LIMIT 1)
+				 RETURNING uuid`,
+			config.DefaultWorkingSuffix,
+			req.Queues,
+			req.CurrentState,
+		)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
+				taskProto = nil
+				return nil
+			}
+			log.Err(result.Error)
+			return result.Error
+		}
+		result.Scan(&nextUuid)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
+				taskProto = nil
+				return nil
+			}
+			log.Err(result.Error)
+			return result.Error
+		}
+		if nextUuid == "" {
+			taskProto = nil
+			return nil
+		}
+		model.UUID = nextUuid
+		result = tx.First(&model)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
+				taskProto = nil
+				return nil
+			}
+			log.Err(result.Error)
+			return result.Error
+		}
+		// swap states so if a timeout occurs we set them back to what they were
+		model.CurrentState = model.AutoTargetState
+		model.AutoTargetState = req.CurrentState
+
+		if req.OverrideCurrentState != "" {
+			model.CurrentState = req.OverrideCurrentState
+		}
+		if req.OverrideAutoTargetState != "" {
+			model.AutoTargetState = req.OverrideAutoTargetState
+		}
+		if req.OverrideTimeout < 0 {
+			model.Timeout = 0
+		} else if req.OverrideTimeout != 0 {
+			model.Timeout = req.OverrideTimeout
+		}
+
+		result = tx.Save(model)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
+				taskProto = nil
+				return nil
+			}
+			log.Err(result.Error)
+			return result.Error
+		}
+		return conversions.CopyStruct(model, taskProto)
+	})
+	if err != nil {
+		log.Err(err)
+		panic(err)
+	}
+	return &api.GetNextTaskGroupResponse{Task: taskProto}, err
 }
 
 func (s PostgresStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequest) (*api.GetNextTaskResponse, error) {

@@ -119,6 +119,24 @@ data class GetNextTaskResponse(
     val task: Task? = null
 )
 
+/** GetNextTaskGroupRequest record. */
+data class GetNextTaskGroupRequest(
+    val queues: List<String>,
+    // wire key: current_state
+    val currentState: String,
+    // wire key: override_timeout
+    val overrideTimeout: Long,
+    // wire key: override_current_state
+    val overrideCurrentState: String,
+    // wire key: override_auto_target_state
+    val overrideAutoTargetState: String
+)
+
+/** GetNextTaskGroupResponse record. */
+data class GetNextTaskGroupResponse(
+    val task: Task? = null
+)
+
 /** CompleteTaskRequest record. */
 data class CompleteTaskRequest(
     val uuid: String,
