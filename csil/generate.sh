@@ -21,7 +21,7 @@
 #     && cargo run -p xtask install-wasm   # then `csilgen` on PATH + ./csil/generate.sh
 set -euo pipefail
 
-CSILGEN_REV="19bd3c2"   # csilgen git rev this output was generated against (matches the image's ARG CSILGEN_REF)
+CSILGEN_REV="ae2608b"   # csilgen git rev this output was generated against (matches the image's ARG CSILGEN_REF)
 
 # CSIL-RPC client languages, each emitted as a complete, self-contained, publishable
 # PACKAGE (csilgen emit_packages, set in the spec): generated surfaces + codec + a

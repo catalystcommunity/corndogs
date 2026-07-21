@@ -14,46 +14,50 @@ public final class CorndogsClient {
     }
 
     public SubmitTaskResponse submitTask(SubmitTaskRequest req) throws ClientException {
-        return CsilCbor.decodeSubmitTaskResponse(transport.call("corndogs", "SubmitTask", CsilCbor.encodeSubmitTaskRequest(req)));
+        return CsilCbor.decodeSubmitTaskResponse(transport.call("CorndogsService", "SubmitTask", CsilCbor.encodeSubmitTaskRequest(req)));
     }
 
     public GetTaskStateByIdResponse getTaskStateById(GetTaskStateByIdRequest req) throws ClientException {
-        return CsilCbor.decodeGetTaskStateByIdResponse(transport.call("corndogs", "GetTaskStateById", CsilCbor.encodeGetTaskStateByIdRequest(req)));
+        return CsilCbor.decodeGetTaskStateByIdResponse(transport.call("CorndogsService", "GetTaskStateByID", CsilCbor.encodeGetTaskStateByIdRequest(req)));
     }
 
     public GetNextTaskResponse getNextTask(GetNextTaskRequest req) throws ClientException {
-        return CsilCbor.decodeGetNextTaskResponse(transport.call("corndogs", "GetNextTask", CsilCbor.encodeGetNextTaskRequest(req)));
+        return CsilCbor.decodeGetNextTaskResponse(transport.call("CorndogsService", "GetNextTask", CsilCbor.encodeGetNextTaskRequest(req)));
+    }
+
+    public GetNextTaskGroupResponse getNextTaskGroup(GetNextTaskGroupRequest req) throws ClientException {
+        return CsilCbor.decodeGetNextTaskGroupResponse(transport.call("CorndogsService", "GetNextTaskGroup", CsilCbor.encodeGetNextTaskGroupRequest(req)));
     }
 
     public UpdateTaskResponse updateTask(UpdateTaskRequest req) throws ClientException {
-        return CsilCbor.decodeUpdateTaskResponse(transport.call("corndogs", "UpdateTask", CsilCbor.encodeUpdateTaskRequest(req)));
+        return CsilCbor.decodeUpdateTaskResponse(transport.call("CorndogsService", "UpdateTask", CsilCbor.encodeUpdateTaskRequest(req)));
     }
 
     public CompleteTaskResponse completeTask(CompleteTaskRequest req) throws ClientException {
-        return CsilCbor.decodeCompleteTaskResponse(transport.call("corndogs", "CompleteTask", CsilCbor.encodeCompleteTaskRequest(req)));
+        return CsilCbor.decodeCompleteTaskResponse(transport.call("CorndogsService", "CompleteTask", CsilCbor.encodeCompleteTaskRequest(req)));
     }
 
     public CancelTaskResponse cancelTask(CancelTaskRequest req) throws ClientException {
-        return CsilCbor.decodeCancelTaskResponse(transport.call("corndogs", "CancelTask", CsilCbor.encodeCancelTaskRequest(req)));
+        return CsilCbor.decodeCancelTaskResponse(transport.call("CorndogsService", "CancelTask", CsilCbor.encodeCancelTaskRequest(req)));
     }
 
     public CleanUpTimedOutResponse cleanUpTimedOut(CleanUpTimedOutRequest req) throws ClientException {
-        return CsilCbor.decodeCleanUpTimedOutResponse(transport.call("corndogs", "CleanUpTimedOut", CsilCbor.encodeCleanUpTimedOutRequest(req)));
+        return CsilCbor.decodeCleanUpTimedOutResponse(transport.call("CorndogsService", "CleanUpTimedOut", CsilCbor.encodeCleanUpTimedOutRequest(req)));
     }
 
     public GetQueuesResponse getQueues(GetQueuesRequest req) throws ClientException {
-        return CsilCbor.decodeGetQueuesResponse(transport.call("corndogs", "GetQueues", CsilCbor.encodeGetQueuesRequest(req)));
+        return CsilCbor.decodeGetQueuesResponse(transport.call("CorndogsService", "GetQueues", CsilCbor.encodeGetQueuesRequest(req)));
     }
 
     public GetQueueTaskCountsResponse getQueueTaskCounts(GetQueueTaskCountsRequest req) throws ClientException {
-        return CsilCbor.decodeGetQueueTaskCountsResponse(transport.call("corndogs", "GetQueueTaskCounts", CsilCbor.encodeGetQueueTaskCountsRequest(req)));
+        return CsilCbor.decodeGetQueueTaskCountsResponse(transport.call("CorndogsService", "GetQueueTaskCounts", CsilCbor.encodeGetQueueTaskCountsRequest(req)));
     }
 
     public GetTaskStateCountsResponse getTaskStateCounts(GetTaskStateCountsRequest req) throws ClientException {
-        return CsilCbor.decodeGetTaskStateCountsResponse(transport.call("corndogs", "GetTaskStateCounts", CsilCbor.encodeGetTaskStateCountsRequest(req)));
+        return CsilCbor.decodeGetTaskStateCountsResponse(transport.call("CorndogsService", "GetTaskStateCounts", CsilCbor.encodeGetTaskStateCountsRequest(req)));
     }
 
     public GetQueueAndStateCountsResponse getQueueAndStateCounts(GetQueueAndStateCountsRequest req) throws ClientException {
-        return CsilCbor.decodeGetQueueAndStateCountsResponse(transport.call("corndogs", "GetQueueAndStateCounts", CsilCbor.encodeGetQueueAndStateCountsRequest(req)));
+        return CsilCbor.decodeGetQueueAndStateCountsResponse(transport.call("CorndogsService", "GetQueueAndStateCounts", CsilCbor.encodeGetQueueAndStateCountsRequest(req)));
     }
 }

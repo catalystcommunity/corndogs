@@ -9,6 +9,7 @@ public interface CorndogsService {
     SubmitTaskResponse submitTask(SubmitTaskRequest req);
     GetTaskStateByIdResponse getTaskStateById(GetTaskStateByIdRequest req);
     GetNextTaskResponse getNextTask(GetNextTaskRequest req);
+    GetNextTaskGroupResponse getNextTaskGroup(GetNextTaskGroupRequest req);
     UpdateTaskResponse updateTask(UpdateTaskRequest req);
     CompleteTaskResponse completeTask(CompleteTaskRequest req);
     CancelTaskResponse cancelTask(CancelTaskRequest req);

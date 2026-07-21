@@ -53,6 +53,20 @@ GetNextTaskRequest = {
 }
 GetNextTaskResponse = { ? task: Task }
 
+;;; GetNextTaskGroup claims the single best task across a SET of queues in one
+;;; request. current_state (if provided) filters by state exactly as GetNextTask
+;;; does; priority is respected ACROSS the named queues (highest priority first,
+;;; then oldest), so the winner is the globally-best task among all of them. The
+;;; override_* fields carry the same claim semantics as GetNextTask.
+GetNextTaskGroupRequest = {
+    queues: [* text],
+    current_state: text,
+    override_timeout: int,
+    override_current_state: text,
+    override_auto_target_state: text
+}
+GetNextTaskGroupResponse = { ? task: Task }
+
 CompleteTaskRequest = { uuid: text, queue: text, current_state: text }
 CompleteTaskResponse = { ? task: Task }
 
@@ -107,6 +121,7 @@ service CorndogsService {
     SubmitTask: SubmitTaskRequest -> SubmitTaskResponse / ServiceError,
     GetTaskStateByID: GetTaskStateByIDRequest -> GetTaskStateByIDResponse / ServiceError,
     GetNextTask: GetNextTaskRequest -> GetNextTaskResponse / ServiceError,
+    GetNextTaskGroup: GetNextTaskGroupRequest -> GetNextTaskGroupResponse / ServiceError,
     UpdateTask: UpdateTaskRequest -> UpdateTaskResponse / ServiceError,
     CompleteTask: CompleteTaskRequest -> CompleteTaskResponse / ServiceError,
     CancelTask: CancelTaskRequest -> CancelTaskResponse / ServiceError,

@@ -12,6 +12,14 @@ WebSocket, WebRTC, QUIC, or raw UDP unchanged.
 npm install corndogs csilgen-transport
 ```
 
+The generated modules import each other with `.ts`-extensioned relative
+specifiers (`./types.gen.ts`), matching this package's `tsconfig.json`
+(`rewriteRelativeImportExtensions`) and Node's ESM loader. Regenerating
+outside of package mode — a bare `csilgen generate --target typescript`
+dropped into an existing project — pass `import_extension: "js"` or
+`"none"` to match a project that does not enable that TypeScript 5.7+
+flag.
+
 ## CSIL-RPC (HTTP)
 
 Request/response. The library owns the envelope (`RpcRequest`/`RpcResponse`);

@@ -39,6 +39,16 @@ and get_next_task_request = {
 
 and get_next_task_response = { task : task option }
 
+and get_next_task_group_request = {
+  queues : string list;
+  current_state : string;
+  override_timeout : int64;
+  override_current_state : string;
+  override_auto_target_state : string;
+}
+
+and get_next_task_group_response = { task : task option }
+
 and complete_task_request = {
   uuid : string;
   queue : string;

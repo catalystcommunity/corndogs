@@ -62,6 +62,20 @@ pub const GetNextTaskResponse = struct {
     task: ?Task = null,
 };
 
+/// GetNextTaskGroupRequest is a structured data type.
+pub const GetNextTaskGroupRequest = struct {
+    queues: [][]const u8,
+    current_state: []const u8,
+    override_timeout: i64,
+    override_current_state: []const u8,
+    override_auto_target_state: []const u8,
+};
+
+/// GetNextTaskGroupResponse is a structured data type.
+pub const GetNextTaskGroupResponse = struct {
+    task: ?Task = null,
+};
+
 /// CompleteTaskRequest is a structured data type.
 pub const CompleteTaskRequest = struct {
     uuid: []const u8,
@@ -115,8 +129,7 @@ pub const CleanUpTimedOutResponse = struct {
 };
 
 /// GetQueuesRequest is a structured data type.
-pub const GetQueuesRequest = struct {
-};
+pub const GetQueuesRequest = struct {};
 
 /// GetQueuesResponse is a structured data type.
 pub const GetQueuesResponse = struct {
@@ -125,8 +138,7 @@ pub const GetQueuesResponse = struct {
 };
 
 /// GetQueueTaskCountsRequest is a structured data type.
-pub const GetQueueTaskCountsRequest = struct {
-};
+pub const GetQueueTaskCountsRequest = struct {};
 
 /// GetTaskStateCountsRequest is a structured data type.
 pub const GetTaskStateCountsRequest = struct {
@@ -134,8 +146,7 @@ pub const GetTaskStateCountsRequest = struct {
 };
 
 /// GetQueueAndStateCountsRequest is a structured data type.
-pub const GetQueueAndStateCountsRequest = struct {
-};
+pub const GetQueueAndStateCountsRequest = struct {};
 
 /// ServiceError is a structured data type.
 pub const ServiceError = struct {

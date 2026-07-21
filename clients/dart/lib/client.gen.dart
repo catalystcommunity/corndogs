@@ -21,59 +21,118 @@ final class CorndogsClient {
   const CorndogsClient(this.transport);
 
   SubmitTaskResponse submitTask(SubmitTaskRequest request) {
-    final csilResp = transport.call('corndogs', 'SubmitTask', request.toCbor());
+    final csilResp = transport.call(
+      'CorndogsService',
+      'SubmitTask',
+      request.toCbor(),
+    );
     return SubmitTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
   GetTaskStateByIdResponse getTaskStateById(GetTaskStateByIdRequest request) {
-    final csilResp = transport.call('corndogs', 'GetTaskStateByID', request.toCbor());
+    final csilResp = transport.call(
+      'CorndogsService',
+      'GetTaskStateByID',
+      request.toCbor(),
+    );
     return GetTaskStateByIdResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
   GetNextTaskResponse getNextTask(GetNextTaskRequest request) {
-    final csilResp = transport.call('corndogs', 'GetNextTask', request.toCbor());
+    final csilResp = transport.call(
+      'CorndogsService',
+      'GetNextTask',
+      request.toCbor(),
+    );
     return GetNextTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
+  GetNextTaskGroupResponse getNextTaskGroup(GetNextTaskGroupRequest request) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'GetNextTaskGroup',
+      request.toCbor(),
+    );
+    return GetNextTaskGroupResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
   UpdateTaskResponse updateTask(UpdateTaskRequest request) {
-    final csilResp = transport.call('corndogs', 'UpdateTask', request.toCbor());
+    final csilResp = transport.call(
+      'CorndogsService',
+      'UpdateTask',
+      request.toCbor(),
+    );
     return UpdateTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
   CompleteTaskResponse completeTask(CompleteTaskRequest request) {
-    final csilResp = transport.call('corndogs', 'CompleteTask', request.toCbor());
+    final csilResp = transport.call(
+      'CorndogsService',
+      'CompleteTask',
+      request.toCbor(),
+    );
     return CompleteTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
   CancelTaskResponse cancelTask(CancelTaskRequest request) {
-    final csilResp = transport.call('corndogs', 'CancelTask', request.toCbor());
+    final csilResp = transport.call(
+      'CorndogsService',
+      'CancelTask',
+      request.toCbor(),
+    );
     return CancelTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
   CleanUpTimedOutResponse cleanUpTimedOut(CleanUpTimedOutRequest request) {
-    final csilResp = transport.call('corndogs', 'CleanUpTimedOut', request.toCbor());
+    final csilResp = transport.call(
+      'CorndogsService',
+      'CleanUpTimedOut',
+      request.toCbor(),
+    );
     return CleanUpTimedOutResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
   GetQueuesResponse getQueues(GetQueuesRequest request) {
-    final csilResp = transport.call('corndogs', 'GetQueues', request.toCbor());
+    final csilResp = transport.call(
+      'CorndogsService',
+      'GetQueues',
+      request.toCbor(),
+    );
     return GetQueuesResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
-  GetQueueTaskCountsResponse getQueueTaskCounts(GetQueueTaskCountsRequest request) {
-    final csilResp = transport.call('corndogs', 'GetQueueTaskCounts', request.toCbor());
+  GetQueueTaskCountsResponse getQueueTaskCounts(
+    GetQueueTaskCountsRequest request,
+  ) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'GetQueueTaskCounts',
+      request.toCbor(),
+    );
     return GetQueueTaskCountsResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
-  GetTaskStateCountsResponse getTaskStateCounts(GetTaskStateCountsRequest request) {
-    final csilResp = transport.call('corndogs', 'GetTaskStateCounts', request.toCbor());
+  GetTaskStateCountsResponse getTaskStateCounts(
+    GetTaskStateCountsRequest request,
+  ) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'GetTaskStateCounts',
+      request.toCbor(),
+    );
     return GetTaskStateCountsResponse.fromCborValue(CsilCbor.decode(csilResp));
   }
 
-  GetQueueAndStateCountsResponse getQueueAndStateCounts(GetQueueAndStateCountsRequest request) {
-    final csilResp = transport.call('corndogs', 'GetQueueAndStateCounts', request.toCbor());
-    return GetQueueAndStateCountsResponse.fromCborValue(CsilCbor.decode(csilResp));
+  GetQueueAndStateCountsResponse getQueueAndStateCounts(
+    GetQueueAndStateCountsRequest request,
+  ) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'GetQueueAndStateCounts',
+      request.toCbor(),
+    );
+    return GetQueueAndStateCountsResponse.fromCborValue(
+      CsilCbor.decode(csilResp),
+    );
   }
-
 }
-

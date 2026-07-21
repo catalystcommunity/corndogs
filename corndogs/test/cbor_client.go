@@ -27,7 +27,7 @@ func cborDo[Req any, Resp any](
 	ctx context.Context, c *CorndogsClient, op string, req *Req,
 	encode func(Req) []byte, decode func([]byte) (Resp, error),
 ) (*Resp, error) {
-	env, err := csilrpc.NewRpcRequest("corndogs", op, encode(*req)).Encode()
+	env, err := csilrpc.NewRpcRequest("CorndogsService", op, encode(*req)).Encode()
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +75,9 @@ func (c *CorndogsClient) GetTaskStateByID(ctx context.Context, req *api.GetTaskS
 }
 func (c *CorndogsClient) GetNextTask(ctx context.Context, req *api.GetNextTaskRequest) (*api.GetNextTaskResponse, error) {
 	return cborDo(ctx, c, "GetNextTask", req, api.EncodeGetNextTaskRequest, api.DecodeGetNextTaskResponse)
+}
+func (c *CorndogsClient) GetNextTaskGroup(ctx context.Context, req *api.GetNextTaskGroupRequest) (*api.GetNextTaskGroupResponse, error) {
+	return cborDo(ctx, c, "GetNextTaskGroup", req, api.EncodeGetNextTaskGroupRequest, api.DecodeGetNextTaskGroupResponse)
 }
 func (c *CorndogsClient) UpdateTask(ctx context.Context, req *api.UpdateTaskRequest) (*api.UpdateTaskResponse, error) {
 	return cborDo(ctx, c, "UpdateTask", req, api.EncodeUpdateTaskRequest, api.DecodeUpdateTaskResponse)

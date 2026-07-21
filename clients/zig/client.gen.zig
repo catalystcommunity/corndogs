@@ -22,123 +22,134 @@ pub const CorndogsClient = struct {
         return .{ .transport = transport };
     }
 
-    /// Invoke corndogs/SubmitTask with a typed request, returning the decoded
+    /// Invoke CorndogsService/SubmitTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
     pub fn submit_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.SubmitTaskRequest, out: *types.SubmitTaskResponse) anyerror!void {
         const csil_reqb = try codec.encode_SubmitTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "corndogs", "SubmitTask", csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "SubmitTask", csil_reqb);
         defer alloc.free(csil_respb);
         try codec.decode_SubmitTaskResponse(alloc, csil_respb, out);
     }
 
-    /// Invoke corndogs/GetTaskStateByID with a typed request, returning the decoded
+    /// Invoke CorndogsService/GetTaskStateByID with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
     pub fn get_task_state_by_id(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetTaskStateByIDRequest, out: *types.GetTaskStateByIDResponse) anyerror!void {
         const csil_reqb = try codec.encode_GetTaskStateByIDRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "corndogs", "GetTaskStateByID", csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetTaskStateByID", csil_reqb);
         defer alloc.free(csil_respb);
         try codec.decode_GetTaskStateByIDResponse(alloc, csil_respb, out);
     }
 
-    /// Invoke corndogs/GetNextTask with a typed request, returning the decoded
+    /// Invoke CorndogsService/GetNextTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
     pub fn get_next_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetNextTaskRequest, out: *types.GetNextTaskResponse) anyerror!void {
         const csil_reqb = try codec.encode_GetNextTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "corndogs", "GetNextTask", csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetNextTask", csil_reqb);
         defer alloc.free(csil_respb);
         try codec.decode_GetNextTaskResponse(alloc, csil_respb, out);
     }
 
-    /// Invoke corndogs/UpdateTask with a typed request, returning the decoded
+    /// Invoke CorndogsService/GetNextTaskGroup with a typed request, returning the decoded
+    /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
+    /// and free it once when done.
+    pub fn get_next_task_group(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetNextTaskGroupRequest, out: *types.GetNextTaskGroupResponse) anyerror!void {
+        const csil_reqb = try codec.encode_GetNextTaskGroupRequest(alloc, req);
+        defer alloc.free(csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetNextTaskGroup", csil_reqb);
+        defer alloc.free(csil_respb);
+        try codec.decode_GetNextTaskGroupResponse(alloc, csil_respb, out);
+    }
+
+    /// Invoke CorndogsService/UpdateTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
     pub fn update_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.UpdateTaskRequest, out: *types.UpdateTaskResponse) anyerror!void {
         const csil_reqb = try codec.encode_UpdateTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "corndogs", "UpdateTask", csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "UpdateTask", csil_reqb);
         defer alloc.free(csil_respb);
         try codec.decode_UpdateTaskResponse(alloc, csil_respb, out);
     }
 
-    /// Invoke corndogs/CompleteTask with a typed request, returning the decoded
+    /// Invoke CorndogsService/CompleteTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
     pub fn complete_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CompleteTaskRequest, out: *types.CompleteTaskResponse) anyerror!void {
         const csil_reqb = try codec.encode_CompleteTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "corndogs", "CompleteTask", csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "CompleteTask", csil_reqb);
         defer alloc.free(csil_respb);
         try codec.decode_CompleteTaskResponse(alloc, csil_respb, out);
     }
 
-    /// Invoke corndogs/CancelTask with a typed request, returning the decoded
+    /// Invoke CorndogsService/CancelTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
     pub fn cancel_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CancelTaskRequest, out: *types.CancelTaskResponse) anyerror!void {
         const csil_reqb = try codec.encode_CancelTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "corndogs", "CancelTask", csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "CancelTask", csil_reqb);
         defer alloc.free(csil_respb);
         try codec.decode_CancelTaskResponse(alloc, csil_respb, out);
     }
 
-    /// Invoke corndogs/CleanUpTimedOut with a typed request, returning the decoded
+    /// Invoke CorndogsService/CleanUpTimedOut with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
     pub fn clean_up_timed_out(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CleanUpTimedOutRequest, out: *types.CleanUpTimedOutResponse) anyerror!void {
         const csil_reqb = try codec.encode_CleanUpTimedOutRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "corndogs", "CleanUpTimedOut", csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "CleanUpTimedOut", csil_reqb);
         defer alloc.free(csil_respb);
         try codec.decode_CleanUpTimedOutResponse(alloc, csil_respb, out);
     }
 
-    /// Invoke corndogs/GetQueues with a typed request, returning the decoded
+    /// Invoke CorndogsService/GetQueues with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
     pub fn get_queues(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetQueuesRequest, out: *types.GetQueuesResponse) anyerror!void {
         const csil_reqb = try codec.encode_GetQueuesRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "corndogs", "GetQueues", csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetQueues", csil_reqb);
         defer alloc.free(csil_respb);
         try codec.decode_GetQueuesResponse(alloc, csil_respb, out);
     }
 
-    /// Invoke corndogs/GetQueueTaskCounts with a typed request, returning the decoded
+    /// Invoke CorndogsService/GetQueueTaskCounts with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
     pub fn get_queue_task_counts(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetQueueTaskCountsRequest, out: *types.GetQueueTaskCountsResponse) anyerror!void {
         const csil_reqb = try codec.encode_GetQueueTaskCountsRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "corndogs", "GetQueueTaskCounts", csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetQueueTaskCounts", csil_reqb);
         defer alloc.free(csil_respb);
         try codec.decode_GetQueueTaskCountsResponse(alloc, csil_respb, out);
     }
 
-    /// Invoke corndogs/GetTaskStateCounts with a typed request, returning the decoded
+    /// Invoke CorndogsService/GetTaskStateCounts with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
     pub fn get_task_state_counts(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetTaskStateCountsRequest, out: *types.GetTaskStateCountsResponse) anyerror!void {
         const csil_reqb = try codec.encode_GetTaskStateCountsRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "corndogs", "GetTaskStateCounts", csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetTaskStateCounts", csil_reqb);
         defer alloc.free(csil_respb);
         try codec.decode_GetTaskStateCountsResponse(alloc, csil_respb, out);
     }
 
-    /// Invoke corndogs/GetQueueAndStateCounts with a typed request, returning the decoded
+    /// Invoke CorndogsService/GetQueueAndStateCounts with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
     pub fn get_queue_and_state_counts(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetQueueAndStateCountsRequest, out: *types.GetQueueAndStateCountsResponse) anyerror!void {
         const csil_reqb = try codec.encode_GetQueueAndStateCountsRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "corndogs", "GetQueueAndStateCounts", csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetQueueAndStateCounts", csil_reqb);
         defer alloc.free(csil_respb);
         try codec.decode_GetQueueAndStateCountsResponse(alloc, csil_respb, out);
     }

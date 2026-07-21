@@ -14,57 +14,62 @@ let make_client ~call = { call }
 
 module Corndogs_service = struct
   let submit_task (c : client) (req : submit_task_request) : (submit_task_response, string) result =
-    match c.call ~service:"corndogs" ~op:"SubmitTask" ~payload:(Codec.encode_submit_task_request_bytes req) with
+    match c.call ~service:"CorndogsService" ~op:"SubmitTask" ~payload:(Codec.encode_submit_task_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_submit_task_response_bytes payload)
     | Error _ as e -> e
 
   let get_task_state_by_id (c : client) (req : get_task_state_by_id_request) : (get_task_state_by_id_response, string) result =
-    match c.call ~service:"corndogs" ~op:"GetTaskStateByID" ~payload:(Codec.encode_get_task_state_by_id_request_bytes req) with
+    match c.call ~service:"CorndogsService" ~op:"GetTaskStateByID" ~payload:(Codec.encode_get_task_state_by_id_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_get_task_state_by_id_response_bytes payload)
     | Error _ as e -> e
 
   let get_next_task (c : client) (req : get_next_task_request) : (get_next_task_response, string) result =
-    match c.call ~service:"corndogs" ~op:"GetNextTask" ~payload:(Codec.encode_get_next_task_request_bytes req) with
+    match c.call ~service:"CorndogsService" ~op:"GetNextTask" ~payload:(Codec.encode_get_next_task_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_get_next_task_response_bytes payload)
     | Error _ as e -> e
 
+  let get_next_task_group (c : client) (req : get_next_task_group_request) : (get_next_task_group_response, string) result =
+    match c.call ~service:"CorndogsService" ~op:"GetNextTaskGroup" ~payload:(Codec.encode_get_next_task_group_request_bytes req) with
+    | Ok payload -> Ok (Codec.decode_get_next_task_group_response_bytes payload)
+    | Error _ as e -> e
+
   let update_task (c : client) (req : update_task_request) : (update_task_response, string) result =
-    match c.call ~service:"corndogs" ~op:"UpdateTask" ~payload:(Codec.encode_update_task_request_bytes req) with
+    match c.call ~service:"CorndogsService" ~op:"UpdateTask" ~payload:(Codec.encode_update_task_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_update_task_response_bytes payload)
     | Error _ as e -> e
 
   let complete_task (c : client) (req : complete_task_request) : (complete_task_response, string) result =
-    match c.call ~service:"corndogs" ~op:"CompleteTask" ~payload:(Codec.encode_complete_task_request_bytes req) with
+    match c.call ~service:"CorndogsService" ~op:"CompleteTask" ~payload:(Codec.encode_complete_task_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_complete_task_response_bytes payload)
     | Error _ as e -> e
 
   let cancel_task (c : client) (req : cancel_task_request) : (cancel_task_response, string) result =
-    match c.call ~service:"corndogs" ~op:"CancelTask" ~payload:(Codec.encode_cancel_task_request_bytes req) with
+    match c.call ~service:"CorndogsService" ~op:"CancelTask" ~payload:(Codec.encode_cancel_task_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_cancel_task_response_bytes payload)
     | Error _ as e -> e
 
   let clean_up_timed_out (c : client) (req : clean_up_timed_out_request) : (clean_up_timed_out_response, string) result =
-    match c.call ~service:"corndogs" ~op:"CleanUpTimedOut" ~payload:(Codec.encode_clean_up_timed_out_request_bytes req) with
+    match c.call ~service:"CorndogsService" ~op:"CleanUpTimedOut" ~payload:(Codec.encode_clean_up_timed_out_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_clean_up_timed_out_response_bytes payload)
     | Error _ as e -> e
 
   let get_queues (c : client) (req : get_queues_request) : (get_queues_response, string) result =
-    match c.call ~service:"corndogs" ~op:"GetQueues" ~payload:(Codec.encode_get_queues_request_bytes req) with
+    match c.call ~service:"CorndogsService" ~op:"GetQueues" ~payload:(Codec.encode_get_queues_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_get_queues_response_bytes payload)
     | Error _ as e -> e
 
   let get_queue_task_counts (c : client) (req : get_queue_task_counts_request) : (get_queue_task_counts_response, string) result =
-    match c.call ~service:"corndogs" ~op:"GetQueueTaskCounts" ~payload:(Codec.encode_get_queue_task_counts_request_bytes req) with
+    match c.call ~service:"CorndogsService" ~op:"GetQueueTaskCounts" ~payload:(Codec.encode_get_queue_task_counts_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_get_queue_task_counts_response_bytes payload)
     | Error _ as e -> e
 
   let get_task_state_counts (c : client) (req : get_task_state_counts_request) : (get_task_state_counts_response, string) result =
-    match c.call ~service:"corndogs" ~op:"GetTaskStateCounts" ~payload:(Codec.encode_get_task_state_counts_request_bytes req) with
+    match c.call ~service:"CorndogsService" ~op:"GetTaskStateCounts" ~payload:(Codec.encode_get_task_state_counts_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_get_task_state_counts_response_bytes payload)
     | Error _ as e -> e
 
   let get_queue_and_state_counts (c : client) (req : get_queue_and_state_counts_request) : (get_queue_and_state_counts_response, string) result =
-    match c.call ~service:"corndogs" ~op:"GetQueueAndStateCounts" ~payload:(Codec.encode_get_queue_and_state_counts_request_bytes req) with
+    match c.call ~service:"CorndogsService" ~op:"GetQueueAndStateCounts" ~payload:(Codec.encode_get_queue_and_state_counts_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_get_queue_and_state_counts_response_bytes payload)
     | Error _ as e -> e
 end

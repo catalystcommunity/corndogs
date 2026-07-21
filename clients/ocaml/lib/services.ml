@@ -17,6 +17,8 @@ module Corndogs_service = struct
     get_task_state_by_id : bytes -> outcome;
     (* request payload decodes to: get_next_task_request *)
     get_next_task : bytes -> outcome;
+    (* request payload decodes to: get_next_task_group_request *)
+    get_next_task_group : bytes -> outcome;
     (* request payload decodes to: update_task_request *)
     update_task : bytes -> outcome;
     (* request payload decodes to: complete_task_request *)
@@ -42,6 +44,7 @@ module Corndogs_service = struct
     | "SubmitTask" -> h.submit_task payload
     | "GetTaskStateByID" -> h.get_task_state_by_id payload
     | "GetNextTask" -> h.get_next_task payload
+    | "GetNextTaskGroup" -> h.get_next_task_group payload
     | "UpdateTask" -> h.update_task payload
     | "CompleteTask" -> h.complete_task payload
     | "CancelTask" -> h.cancel_task payload

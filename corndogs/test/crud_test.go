@@ -154,6 +154,67 @@ func TestGetNextTaskOverrideState(t *testing.T) {
 	require.Equal(t, getNextTaskRequest.OverrideAutoTargetState, getNextTaskResponse.Task.AutoTargetState, "Task AutoTargetState is not overridden")
 }
 
+func TestGetNextTaskGroup(t *testing.T) {
+	testID := GetTestID()
+	corndogsClient := GetCorndogsClient()
+
+	// Three queues in the group with mixed priorities, plus one out-of-group queue
+	// whose higher-priority task must NOT be claimed by the group request.
+	q1 := "grpQ1" + testID
+	q2 := "grpQ2" + testID
+	q3 := "grpQ3" + testID
+	other := "grpOther" + testID
+
+	submit := func(queue string, prio int64, payload string) {
+		_, err := corndogsClient.SubmitTask(context.Background(), &api.SubmitTaskRequest{
+			Queue:           queue,
+			CurrentState:    "testSubmitted",
+			AutoTargetState: "testSubmitted-working",
+			Timeout:         -1,
+			Priority:        prio,
+			Payload:         []byte(payload),
+		})
+		require.Nil(t, err, fmt.Sprintf("submit %s error: %v", queue, err))
+	}
+	// q1-hi is submitted before q2-hi so FIFO breaks the priority-10 tie.
+	submit(q1, 10, "q1-hi")
+	submit(q2, 10, "q2-hi")
+	submit(q3, 5, "q3-lo")
+	submit(other, 100, "nope")
+
+	group := []string{q1, q2, q3}
+	// Priority is respected across the group: both priority-10 tasks (oldest first)
+	// before the priority-5 task.
+	var order []string
+	for i := 0; i < 3; i++ {
+		resp, err := corndogsClient.GetNextTaskGroup(context.Background(), &api.GetNextTaskGroupRequest{
+			Queues:       group,
+			CurrentState: "testSubmitted",
+		})
+		require.Nil(t, err, fmt.Sprintf("GetNextTaskGroup iter %d error: %v", i, err))
+		require.NotNil(t, resp.Task, "Task in response was nil on iter %d", i)
+		order = append(order, string(resp.Task.Payload))
+	}
+	require.Equal(t, []string{"q1-hi", "q2-hi", "q3-lo"}, order, "priority-across-queues dequeue order")
+
+	// Group is now drained for that state.
+	empty, err := corndogsClient.GetNextTaskGroup(context.Background(), &api.GetNextTaskGroupRequest{
+		Queues:       group,
+		CurrentState: "testSubmitted",
+	})
+	require.Nil(t, err, fmt.Sprintf("drain check error: %v", err))
+	require.Nil(t, empty.Task, "group should be drained")
+
+	// The higher-priority out-of-group task was never claimed by the group request.
+	still, err := corndogsClient.GetNextTask(context.Background(), &api.GetNextTaskRequest{
+		Queue:        other,
+		CurrentState: "testSubmitted",
+	})
+	require.Nil(t, err, fmt.Sprintf("out-of-group check error: %v", err))
+	require.NotNil(t, still.Task, "out-of-group task should still be available")
+	require.Equal(t, "nope", string(still.Task.Payload), "out-of-group task payload")
+}
+
 func TestGetTaskStateByID(t *testing.T) {
 	testID := GetTestID()
 	corndogsClient := GetCorndogsClient()

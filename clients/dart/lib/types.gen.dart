@@ -73,7 +73,17 @@ final class Task {
   }
 
   @override
-  int get hashCode => Object.hashAll([uuid, queue, currentState, autoTargetState, submitTime, updateTime, timeout, Object.hashAll(payload), priority]);
+  int get hashCode => Object.hashAll([
+    uuid,
+    queue,
+    currentState,
+    autoTargetState,
+    submitTime,
+    updateTime,
+    timeout,
+    Object.hashAll(payload),
+    priority,
+  ]);
 
   static bool _bytesEqual(Uint8List? a, Uint8List? b) {
     if (a == null || b == null) return a == b;
@@ -174,7 +184,14 @@ final class SubmitTaskRequest {
   }
 
   @override
-  int get hashCode => Object.hashAll([queue, currentState, autoTargetState, timeout, Object.hashAll(payload), priority]);
+  int get hashCode => Object.hashAll([
+    queue,
+    currentState,
+    autoTargetState,
+    timeout,
+    Object.hashAll(payload),
+    priority,
+  ]);
 
   static bool _bytesEqual(Uint8List? a, Uint8List? b) {
     if (a == null || b == null) return a == b;
@@ -221,9 +238,7 @@ final class SubmitTaskRequest {
 final class SubmitTaskResponse {
   final Task? task;
 
-  const SubmitTaskResponse({
-    this.task,
-  });
+  const SubmitTaskResponse({this.task});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -232,9 +247,7 @@ final class SubmitTaskResponse {
   }
 
   factory SubmitTaskResponse.fromMap(Map<String, Object?> map) {
-    return SubmitTaskResponse(
-      task: map['task'] as Task?,
-    );
+    return SubmitTaskResponse(task: map['task'] as Task?);
   }
 
   @override
@@ -273,10 +286,7 @@ final class GetTaskStateByIdRequest {
   final String uuid;
   final String queue;
 
-  const GetTaskStateByIdRequest({
-    required this.uuid,
-    required this.queue,
-  });
+  const GetTaskStateByIdRequest({required this.uuid, required this.queue});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -295,8 +305,7 @@ final class GetTaskStateByIdRequest {
   @override
   bool operator ==(Object other) {
     if (other is! GetTaskStateByIdRequest) return false;
-    return uuid == other.uuid &&
-        queue == other.queue;
+    return uuid == other.uuid && queue == other.queue;
   }
 
   @override
@@ -330,9 +339,7 @@ final class GetTaskStateByIdRequest {
 final class GetTaskStateByIdResponse {
   final Task? task;
 
-  const GetTaskStateByIdResponse({
-    this.task,
-  });
+  const GetTaskStateByIdResponse({this.task});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -341,9 +348,7 @@ final class GetTaskStateByIdResponse {
   }
 
   factory GetTaskStateByIdResponse.fromMap(Map<String, Object?> map) {
-    return GetTaskStateByIdResponse(
-      task: map['task'] as Task?,
-    );
+    return GetTaskStateByIdResponse(task: map['task'] as Task?);
   }
 
   @override
@@ -424,7 +429,13 @@ final class GetNextTaskRequest {
   }
 
   @override
-  int get hashCode => Object.hashAll([queue, currentState, overrideTimeout, overrideCurrentState, overrideAutoTargetState]);
+  int get hashCode => Object.hashAll([
+    queue,
+    currentState,
+    overrideTimeout,
+    overrideCurrentState,
+    overrideAutoTargetState,
+  ]);
 
   /// The CBOR-encodable dynamic tree for this record (deep).
   Map<String, Object?> toCborValue() {
@@ -460,9 +471,7 @@ final class GetNextTaskRequest {
 final class GetNextTaskResponse {
   final Task? task;
 
-  const GetNextTaskResponse({
-    this.task,
-  });
+  const GetNextTaskResponse({this.task});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -471,9 +480,7 @@ final class GetNextTaskResponse {
   }
 
   factory GetNextTaskResponse.fromMap(Map<String, Object?> map) {
-    return GetNextTaskResponse(
-      task: map['task'] as Task?,
-    );
+    return GetNextTaskResponse(task: map['task'] as Task?);
   }
 
   @override
@@ -506,6 +513,141 @@ final class GetNextTaskResponse {
   /// Decode a CSIL CBOR byte payload into this record.
   factory GetNextTaskResponse.fromCbor(List<int> bytes) =>
       GetNextTaskResponse.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class GetNextTaskGroupRequest {
+  final List<String> queues;
+  final String currentState;
+  final int overrideTimeout;
+  final String overrideCurrentState;
+  final String overrideAutoTargetState;
+
+  const GetNextTaskGroupRequest({
+    required this.queues,
+    required this.currentState,
+    required this.overrideTimeout,
+    required this.overrideCurrentState,
+    required this.overrideAutoTargetState,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['queues'] = queues;
+    map['current_state'] = currentState;
+    map['override_timeout'] = overrideTimeout;
+    map['override_current_state'] = overrideCurrentState;
+    map['override_auto_target_state'] = overrideAutoTargetState;
+    return map;
+  }
+
+  factory GetNextTaskGroupRequest.fromMap(Map<String, Object?> map) {
+    return GetNextTaskGroupRequest(
+      queues: map['queues'] as List<String>,
+      currentState: map['current_state'] as String,
+      overrideTimeout: map['override_timeout'] as int,
+      overrideCurrentState: map['override_current_state'] as String,
+      overrideAutoTargetState: map['override_auto_target_state'] as String,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! GetNextTaskGroupRequest) return false;
+    return queues == other.queues &&
+        currentState == other.currentState &&
+        overrideTimeout == other.overrideTimeout &&
+        overrideCurrentState == other.overrideCurrentState &&
+        overrideAutoTargetState == other.overrideAutoTargetState;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    queues,
+    currentState,
+    overrideTimeout,
+    overrideCurrentState,
+    overrideAutoTargetState,
+  ]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['queues'] = queues;
+    map['current_state'] = currentState;
+    map['override_timeout'] = overrideTimeout;
+    map['override_current_state'] = overrideCurrentState;
+    map['override_auto_target_state'] = overrideAutoTargetState;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory GetNextTaskGroupRequest.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return GetNextTaskGroupRequest(
+      queues: (map['queues'] as List)
+          .map((csilE) => csilE as String)
+          .cast<String>()
+          .toList(),
+      currentState: map['current_state'] as String,
+      overrideTimeout: map['override_timeout'] as int,
+      overrideCurrentState: map['override_current_state'] as String,
+      overrideAutoTargetState: map['override_auto_target_state'] as String,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory GetNextTaskGroupRequest.fromCbor(List<int> bytes) =>
+      GetNextTaskGroupRequest.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class GetNextTaskGroupResponse {
+  final Task? task;
+
+  const GetNextTaskGroupResponse({this.task});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    if (task != null) map['task'] = task;
+    return map;
+  }
+
+  factory GetNextTaskGroupResponse.fromMap(Map<String, Object?> map) {
+    return GetNextTaskGroupResponse(task: map['task'] as Task?);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! GetNextTaskGroupResponse) return false;
+    return task == other.task;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([task]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    if (task != null) map['task'] = task!.toCborValue();
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory GetNextTaskGroupResponse.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return GetNextTaskGroupResponse(
+      task: map['task'] == null ? null : Task.fromCborValue(map['task']),
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory GetNextTaskGroupResponse.fromCbor(List<int> bytes) =>
+      GetNextTaskGroupResponse.fromCborValue(CsilCbor.decode(bytes));
 }
 
 final class CompleteTaskRequest {
@@ -576,9 +718,7 @@ final class CompleteTaskRequest {
 final class CompleteTaskResponse {
   final Task? task;
 
-  const CompleteTaskResponse({
-    this.task,
-  });
+  const CompleteTaskResponse({this.task});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -587,9 +727,7 @@ final class CompleteTaskResponse {
   }
 
   factory CompleteTaskResponse.fromMap(Map<String, Object?> map) {
-    return CompleteTaskResponse(
-      task: map['task'] as Task?,
-    );
+    return CompleteTaskResponse(task: map['task'] as Task?);
   }
 
   @override
@@ -685,7 +823,16 @@ final class UpdateTaskRequest {
   }
 
   @override
-  int get hashCode => Object.hashAll([uuid, queue, currentState, autoTargetState, timeout, newState, Object.hashAll(payload), priority]);
+  int get hashCode => Object.hashAll([
+    uuid,
+    queue,
+    currentState,
+    autoTargetState,
+    timeout,
+    newState,
+    Object.hashAll(payload),
+    priority,
+  ]);
 
   static bool _bytesEqual(Uint8List? a, Uint8List? b) {
     if (a == null || b == null) return a == b;
@@ -736,9 +883,7 @@ final class UpdateTaskRequest {
 final class UpdateTaskResponse {
   final Task? task;
 
-  const UpdateTaskResponse({
-    this.task,
-  });
+  const UpdateTaskResponse({this.task});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -747,9 +892,7 @@ final class UpdateTaskResponse {
   }
 
   factory UpdateTaskResponse.fromMap(Map<String, Object?> map) {
-    return UpdateTaskResponse(
-      task: map['task'] as Task?,
-    );
+    return UpdateTaskResponse(task: map['task'] as Task?);
   }
 
   @override
@@ -852,9 +995,7 @@ final class CancelTaskRequest {
 final class CancelTaskResponse {
   final Task? task;
 
-  const CancelTaskResponse({
-    this.task,
-  });
+  const CancelTaskResponse({this.task});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -863,9 +1004,7 @@ final class CancelTaskResponse {
   }
 
   factory CancelTaskResponse.fromMap(Map<String, Object?> map) {
-    return CancelTaskResponse(
-      task: map['task'] as Task?,
-    );
+    return CancelTaskResponse(task: map['task'] as Task?);
   }
 
   @override
@@ -904,10 +1043,7 @@ final class CleanUpTimedOutRequest {
   final int atTime;
   final String queue;
 
-  const CleanUpTimedOutRequest({
-    required this.atTime,
-    required this.queue,
-  });
+  const CleanUpTimedOutRequest({required this.atTime, required this.queue});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -926,8 +1062,7 @@ final class CleanUpTimedOutRequest {
   @override
   bool operator ==(Object other) {
     if (other is! CleanUpTimedOutRequest) return false;
-    return atTime == other.atTime &&
-        queue == other.queue;
+    return atTime == other.atTime && queue == other.queue;
   }
 
   @override
@@ -961,9 +1096,7 @@ final class CleanUpTimedOutRequest {
 final class CleanUpTimedOutResponse {
   final int timedOut;
 
-  const CleanUpTimedOutResponse({
-    required this.timedOut,
-  });
+  const CleanUpTimedOutResponse({required this.timedOut});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -972,9 +1105,7 @@ final class CleanUpTimedOutResponse {
   }
 
   factory CleanUpTimedOutResponse.fromMap(Map<String, Object?> map) {
-    return CleanUpTimedOutResponse(
-      timedOut: map['timed_out'] as int,
-    );
+    return CleanUpTimedOutResponse(timedOut: map['timed_out'] as int);
   }
 
   @override
@@ -996,9 +1127,7 @@ final class CleanUpTimedOutResponse {
   /// Reconstruct this record from a decoded CBOR dynamic tree.
   factory CleanUpTimedOutResponse.fromCborValue(Object? cbor) {
     final map = cbor as Map;
-    return CleanUpTimedOutResponse(
-      timedOut: map['timed_out'] as int,
-    );
+    return CleanUpTimedOutResponse(timedOut: map['timed_out'] as int);
   }
 
   /// Encode this record to canonical CSIL CBOR bytes.
@@ -1020,8 +1149,7 @@ final class GetQueuesRequest {
   }
 
   factory GetQueuesRequest.fromMap(Map<String, Object?> map) {
-    return GetQueuesRequest(
-    );
+    return GetQueuesRequest();
   }
 
   @override
@@ -1041,8 +1169,7 @@ final class GetQueuesRequest {
 
   /// Reconstruct this record from a decoded CBOR dynamic tree.
   factory GetQueuesRequest.fromCborValue(Object? cbor) {
-    return GetQueuesRequest(
-    );
+    return GetQueuesRequest();
   }
 
   /// Encode this record to canonical CSIL CBOR bytes.
@@ -1057,10 +1184,7 @@ final class GetQueuesResponse {
   final List<String> queues;
   final int totalTaskCount;
 
-  const GetQueuesResponse({
-    required this.queues,
-    required this.totalTaskCount,
-  });
+  const GetQueuesResponse({required this.queues, required this.totalTaskCount});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -1079,8 +1203,7 @@ final class GetQueuesResponse {
   @override
   bool operator ==(Object other) {
     if (other is! GetQueuesResponse) return false;
-    return queues == other.queues &&
-        totalTaskCount == other.totalTaskCount;
+    return queues == other.queues && totalTaskCount == other.totalTaskCount;
   }
 
   @override
@@ -1098,7 +1221,10 @@ final class GetQueuesResponse {
   factory GetQueuesResponse.fromCborValue(Object? cbor) {
     final map = cbor as Map;
     return GetQueuesResponse(
-      queues: (map['queues'] as List).map((csilE) => csilE as String).cast<String>().toList(),
+      queues: (map['queues'] as List)
+          .map((csilE) => csilE as String)
+          .cast<String>()
+          .toList(),
       totalTaskCount: map['total_task_count'] as int,
     );
   }
@@ -1122,8 +1248,7 @@ final class GetQueueTaskCountsRequest {
   }
 
   factory GetQueueTaskCountsRequest.fromMap(Map<String, Object?> map) {
-    return GetQueueTaskCountsRequest(
-    );
+    return GetQueueTaskCountsRequest();
   }
 
   @override
@@ -1143,8 +1268,7 @@ final class GetQueueTaskCountsRequest {
 
   /// Reconstruct this record from a decoded CBOR dynamic tree.
   factory GetQueueTaskCountsRequest.fromCborValue(Object? cbor) {
-    return GetQueueTaskCountsRequest(
-    );
+    return GetQueueTaskCountsRequest();
   }
 
   /// Encode this record to canonical CSIL CBOR bytes.
@@ -1200,7 +1324,9 @@ final class GetQueueTaskCountsResponse {
   factory GetQueueTaskCountsResponse.fromCborValue(Object? cbor) {
     final map = cbor as Map;
     return GetQueueTaskCountsResponse(
-      queueCounts: (map['queue_counts'] as Map).map((csilK, csilV) => MapEntry(csilK as String, csilV as int)).cast<String, int>(),
+      queueCounts: (map['queue_counts'] as Map)
+          .map((csilK, csilV) => MapEntry(csilK as String, csilV as int))
+          .cast<String, int>(),
       totalTaskCount: map['total_task_count'] as int,
     );
   }
@@ -1216,9 +1342,7 @@ final class GetQueueTaskCountsResponse {
 final class GetTaskStateCountsRequest {
   final String queue;
 
-  const GetTaskStateCountsRequest({
-    required this.queue,
-  });
+  const GetTaskStateCountsRequest({required this.queue});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -1227,9 +1351,7 @@ final class GetTaskStateCountsRequest {
   }
 
   factory GetTaskStateCountsRequest.fromMap(Map<String, Object?> map) {
-    return GetTaskStateCountsRequest(
-      queue: map['queue'] as String,
-    );
+    return GetTaskStateCountsRequest(queue: map['queue'] as String);
   }
 
   @override
@@ -1251,9 +1373,7 @@ final class GetTaskStateCountsRequest {
   /// Reconstruct this record from a decoded CBOR dynamic tree.
   factory GetTaskStateCountsRequest.fromCborValue(Object? cbor) {
     final map = cbor as Map;
-    return GetTaskStateCountsRequest(
-      queue: map['queue'] as String,
-    );
+    return GetTaskStateCountsRequest(queue: map['queue'] as String);
   }
 
   /// Encode this record to canonical CSIL CBOR bytes.
@@ -1317,7 +1437,9 @@ final class GetTaskStateCountsResponse {
     return GetTaskStateCountsResponse(
       queue: map['queue'] as String,
       count: map['count'] as int,
-      stateCounts: (map['state_counts'] as Map).map((csilK, csilV) => MapEntry(csilK as String, csilV as int)).cast<String, int>(),
+      stateCounts: (map['state_counts'] as Map)
+          .map((csilK, csilV) => MapEntry(csilK as String, csilV as int))
+          .cast<String, int>(),
     );
   }
 
@@ -1382,7 +1504,9 @@ final class QueueAndStateCounts {
     return QueueAndStateCounts(
       queue: map['queue'] as String,
       count: map['count'] as int,
-      stateCounts: (map['state_counts'] as Map).map((csilK, csilV) => MapEntry(csilK as String, csilV as int)).cast<String, int>(),
+      stateCounts: (map['state_counts'] as Map)
+          .map((csilK, csilV) => MapEntry(csilK as String, csilV as int))
+          .cast<String, int>(),
     );
   }
 
@@ -1407,8 +1531,7 @@ final class GetQueueAndStateCountsRequest {
   }
 
   factory GetQueueAndStateCountsRequest.fromMap(Map<String, Object?> map) {
-    return GetQueueAndStateCountsRequest(
-    );
+    return GetQueueAndStateCountsRequest();
   }
 
   @override
@@ -1428,8 +1551,7 @@ final class GetQueueAndStateCountsRequest {
 
   /// Reconstruct this record from a decoded CBOR dynamic tree.
   factory GetQueueAndStateCountsRequest.fromCborValue(Object? cbor) {
-    return GetQueueAndStateCountsRequest(
-    );
+    return GetQueueAndStateCountsRequest();
   }
 
   /// Encode this record to canonical CSIL CBOR bytes.
@@ -1443,9 +1565,7 @@ final class GetQueueAndStateCountsRequest {
 final class GetQueueAndStateCountsResponse {
   final QueueAndStateCountsMap queueAndStateCounts;
 
-  const GetQueueAndStateCountsResponse({
-    required this.queueAndStateCounts,
-  });
+  const GetQueueAndStateCountsResponse({required this.queueAndStateCounts});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -1455,7 +1575,8 @@ final class GetQueueAndStateCountsResponse {
 
   factory GetQueueAndStateCountsResponse.fromMap(Map<String, Object?> map) {
     return GetQueueAndStateCountsResponse(
-      queueAndStateCounts: map['queue_and_state_counts'] as QueueAndStateCountsMap,
+      queueAndStateCounts:
+          map['queue_and_state_counts'] as QueueAndStateCountsMap,
     );
   }
 
@@ -1471,7 +1592,9 @@ final class GetQueueAndStateCountsResponse {
   /// The CBOR-encodable dynamic tree for this record (deep).
   Map<String, Object?> toCborValue() {
     final map = <String, Object?>{};
-    map['queue_and_state_counts'] = queueAndStateCounts.map((csilK, csilV) => MapEntry(csilK, csilV.toCborValue()));
+    map['queue_and_state_counts'] = queueAndStateCounts.map(
+      (csilK, csilV) => MapEntry(csilK, csilV.toCborValue()),
+    );
     return map;
   }
 
@@ -1479,7 +1602,14 @@ final class GetQueueAndStateCountsResponse {
   factory GetQueueAndStateCountsResponse.fromCborValue(Object? cbor) {
     final map = cbor as Map;
     return GetQueueAndStateCountsResponse(
-      queueAndStateCounts: (map['queue_and_state_counts'] as Map).map((csilK, csilV) => MapEntry(csilK as String, QueueAndStateCounts.fromCborValue(csilV))).cast<String, QueueAndStateCounts>(),
+      queueAndStateCounts: (map['queue_and_state_counts'] as Map)
+          .map(
+            (csilK, csilV) => MapEntry(
+              csilK as String,
+              QueueAndStateCounts.fromCborValue(csilV),
+            ),
+          )
+          .cast<String, QueueAndStateCounts>(),
     );
   }
 
@@ -1495,10 +1625,7 @@ final class ServiceError {
   final int code;
   final String message;
 
-  const ServiceError({
-    required this.code,
-    required this.message,
-  });
+  const ServiceError({required this.code, required this.message});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
@@ -1517,8 +1644,7 @@ final class ServiceError {
   @override
   bool operator ==(Object other) {
     if (other is! ServiceError) return false;
-    return code == other.code &&
-        message == other.message;
+    return code == other.code && message == other.message;
   }
 
   @override
@@ -1548,4 +1674,3 @@ final class ServiceError {
   factory ServiceError.fromCbor(List<int> bytes) =>
       ServiceError.fromCborValue(CsilCbor.decode(bytes));
 }
-

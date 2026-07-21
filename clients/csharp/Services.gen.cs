@@ -11,6 +11,7 @@ public interface ICorndogsService
     SubmitTaskResponse SubmitTask(SubmitTaskRequest submitTaskRequest);
     GetTaskStateByIDResponse GetTaskStateByID(GetTaskStateByIDRequest getTaskStateByIDRequest);
     GetNextTaskResponse GetNextTask(GetNextTaskRequest getNextTaskRequest);
+    GetNextTaskGroupResponse GetNextTaskGroup(GetNextTaskGroupRequest getNextTaskGroupRequest);
     UpdateTaskResponse UpdateTask(UpdateTaskRequest updateTaskRequest);
     CompleteTaskResponse CompleteTask(CompleteTaskRequest completeTaskRequest);
     CancelTaskResponse CancelTask(CancelTaskRequest cancelTaskRequest);

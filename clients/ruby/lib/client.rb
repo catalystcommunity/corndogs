@@ -17,56 +17,61 @@ class CorndogsClient
 
   # SubmitTask: -> SubmitTaskResponse
   def submit_task(req)
-    SubmitTaskResponse.from_cbor(@transport.call("corndogs", "SubmitTask", req.to_cbor))
+    SubmitTaskResponse.from_cbor(@transport.call("CorndogsService", "SubmitTask", req.to_cbor))
   end
 
   # GetTaskStateByID: -> GetTaskStateByIdResponse
   def get_task_state_by_id(req)
-    GetTaskStateByIdResponse.from_cbor(@transport.call("corndogs", "GetTaskStateByID", req.to_cbor))
+    GetTaskStateByIdResponse.from_cbor(@transport.call("CorndogsService", "GetTaskStateByID", req.to_cbor))
   end
 
   # GetNextTask: -> GetNextTaskResponse
   def get_next_task(req)
-    GetNextTaskResponse.from_cbor(@transport.call("corndogs", "GetNextTask", req.to_cbor))
+    GetNextTaskResponse.from_cbor(@transport.call("CorndogsService", "GetNextTask", req.to_cbor))
+  end
+
+  # GetNextTaskGroup: -> GetNextTaskGroupResponse
+  def get_next_task_group(req)
+    GetNextTaskGroupResponse.from_cbor(@transport.call("CorndogsService", "GetNextTaskGroup", req.to_cbor))
   end
 
   # UpdateTask: -> UpdateTaskResponse
   def update_task(req)
-    UpdateTaskResponse.from_cbor(@transport.call("corndogs", "UpdateTask", req.to_cbor))
+    UpdateTaskResponse.from_cbor(@transport.call("CorndogsService", "UpdateTask", req.to_cbor))
   end
 
   # CompleteTask: -> CompleteTaskResponse
   def complete_task(req)
-    CompleteTaskResponse.from_cbor(@transport.call("corndogs", "CompleteTask", req.to_cbor))
+    CompleteTaskResponse.from_cbor(@transport.call("CorndogsService", "CompleteTask", req.to_cbor))
   end
 
   # CancelTask: -> CancelTaskResponse
   def cancel_task(req)
-    CancelTaskResponse.from_cbor(@transport.call("corndogs", "CancelTask", req.to_cbor))
+    CancelTaskResponse.from_cbor(@transport.call("CorndogsService", "CancelTask", req.to_cbor))
   end
 
   # CleanUpTimedOut: -> CleanUpTimedOutResponse
   def clean_up_timed_out(req)
-    CleanUpTimedOutResponse.from_cbor(@transport.call("corndogs", "CleanUpTimedOut", req.to_cbor))
+    CleanUpTimedOutResponse.from_cbor(@transport.call("CorndogsService", "CleanUpTimedOut", req.to_cbor))
   end
 
   # GetQueues: -> GetQueuesResponse
   def get_queues(req)
-    GetQueuesResponse.from_cbor(@transport.call("corndogs", "GetQueues", req.to_cbor))
+    GetQueuesResponse.from_cbor(@transport.call("CorndogsService", "GetQueues", req.to_cbor))
   end
 
   # GetQueueTaskCounts: -> GetQueueTaskCountsResponse
   def get_queue_task_counts(req)
-    GetQueueTaskCountsResponse.from_cbor(@transport.call("corndogs", "GetQueueTaskCounts", req.to_cbor))
+    GetQueueTaskCountsResponse.from_cbor(@transport.call("CorndogsService", "GetQueueTaskCounts", req.to_cbor))
   end
 
   # GetTaskStateCounts: -> GetTaskStateCountsResponse
   def get_task_state_counts(req)
-    GetTaskStateCountsResponse.from_cbor(@transport.call("corndogs", "GetTaskStateCounts", req.to_cbor))
+    GetTaskStateCountsResponse.from_cbor(@transport.call("CorndogsService", "GetTaskStateCounts", req.to_cbor))
   end
 
   # GetQueueAndStateCounts: -> GetQueueAndStateCountsResponse
   def get_queue_and_state_counts(req)
-    GetQueueAndStateCountsResponse.from_cbor(@transport.call("corndogs", "GetQueueAndStateCounts", req.to_cbor))
+    GetQueueAndStateCountsResponse.from_cbor(@transport.call("CorndogsService", "GetQueueAndStateCounts", req.to_cbor))
   end
 end

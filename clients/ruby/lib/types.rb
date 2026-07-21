@@ -56,6 +56,25 @@ GetNextTaskResponse = Data.define(:task) do
   end
 end
 
+# GetNextTaskGroup claims the single best task across a SET of queues in one
+# request. current_state (if provided) filters by state exactly as GetNextTask
+# does; priority is respected ACROSS the named queues (highest priority first,
+# then oldest), so the winner is the globally-best task among all of them. The
+# override_* fields carry the same claim semantics as GetNextTask.
+# queues [Array<String>]
+# current_state [String]
+# override_timeout [Integer]
+# override_current_state [String]
+# override_auto_target_state [String]
+GetNextTaskGroupRequest = Data.define(:queues, :current_state, :override_timeout, :override_current_state, :override_auto_target_state)
+
+# task [Task]
+GetNextTaskGroupResponse = Data.define(:task) do
+  def initialize(task: nil)
+    super
+  end
+end
+
 # uuid [String]
 # queue [String]
 # current_state [String]

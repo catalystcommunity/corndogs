@@ -86,6 +86,26 @@ public sealed record GetNextTaskResponse
     public Task? Task { get; init; }
 }
 
+public sealed record GetNextTaskGroupRequest
+{
+    // CBOR key: queues
+    public required System.Collections.Generic.List<string> Queues { get; init; }
+    // CBOR key: current_state
+    public required string CurrentState { get; init; }
+    // CBOR key: override_timeout
+    public required long OverrideTimeout { get; init; }
+    // CBOR key: override_current_state
+    public required string OverrideCurrentState { get; init; }
+    // CBOR key: override_auto_target_state
+    public required string OverrideAutoTargetState { get; init; }
+}
+
+public sealed record GetNextTaskGroupResponse
+{
+    // CBOR key: task
+    public Task? Task { get; init; }
+}
+
 public sealed record CompleteTaskRequest
 {
     // CBOR key: uuid
