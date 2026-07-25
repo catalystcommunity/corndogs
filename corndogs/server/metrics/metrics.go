@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
+	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
-	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -20,9 +20,11 @@ var CanceledTasksTotal prometheus.Counter
 var TimedOutTasksTotal prometheus.Counter
 var TasksInQueue *prometheus.GaugeVec
 
-func StartMetricsEndpoint() {
+// StartMetricsEndpoint registers /metrics on the default mux and serves it (with
+// anything else on the default mux, e.g. /healthz) on addr.
+func StartMetricsEndpoint(addr string) {
 	http.Handle("/metrics", promhttp.Handler())
-	go http.ListenAndServe(":8080", nil)
+	go func() { _ = http.ListenAndServe(addr, nil) }()
 }
 
 func InitializeMetrics() {

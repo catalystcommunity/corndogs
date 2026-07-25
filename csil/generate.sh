@@ -49,11 +49,54 @@ csilgen validate --input "${SPEC}"
 # wholly owned by csilgen and rewritten each run — there are no hand-written files to
 # preserve (carriers retired; manifests are generated). The csil-gen-check job diffs
 # clients/ after running this, so output must be deterministic.
+# Corndogs SHIPS its own client transports (CSIL-RPC over TCP + a heartbeat) and its
+# own README examples, per language, so users get a working client out of the box
+# without reading csilgen docs. Those hand-written files live inside each generated
+# package and are PRESERVED across regeneration (csilgen owns only the *.gen/codec/
+# types/genquickstart surfaces). List each language's Corndogs-maintained files here
+# as they are added; they are backed up before the package is rewritten and restored
+# after. (csil-gen-check stays clean because these files don't change on regen.)
+declare -A CORNDOGS_CARRIERS
+CORNDOGS_CARRIERS[python]="corndogs/transport.py corndogs/transport_async.py README.md"
+CORNDOGS_CARRIERS[typescript]="transport.ts README.md package.json"
+CORNDOGS_CARRIERS[rust]="src/transport.rs README.md src/lib.rs"
+CORNDOGS_CARRIERS[csharp]="Transport.cs TransportAsync.cs README.md"
+CORNDOGS_CARRIERS[dart]="lib/transport.dart README.md"
+CORNDOGS_CARRIERS[java]="src/main/java/csilgen/generated/TcpTransport.java README.md"
+CORNDOGS_CARRIERS[kotlin]="src/main/kotlin/community/catalyst/csilgen/generated/TcpTransport.kt README.md"
+CORNDOGS_CARRIERS[ruby]="lib/transport.rb README.md"
+CORNDOGS_CARRIERS[elixir]="lib/transport.ex README.md"
+CORNDOGS_CARRIERS[c]="transport.h transport.c README.md"
+CORNDOGS_CARRIERS[zig]="transport.zig README.md"
+CORNDOGS_CARRIERS[ocaml]="lib/transport.ml README.md lib/dune"
+CORNDOGS_CARRIERS[swift]="Sources/Corndogs/Transport.swift README.md"
+# NOTE: three languages need a one-line edit to an otherwise-generated file to
+# register the carrier — rust `src/lib.rs` (adds `pub mod transport;`), ocaml
+# `lib/dune` (adds unix + threads.posix libs), typescript `package.json` (adds the
+# `@types/node` devDep + `./transport` export). Those files are preserved here too,
+# so Corndogs owns them; regeneration for a fixed spec is deterministic, so the
+# preserved copies stay in sync. If the spec's module/package shape ever changes,
+# reconcile those three files by hand.
+
 for lang in "${LANGUAGES[@]}"; do
   echo "=== package ${lang}-client -> clients/${lang} ==="
+  bak="$(mktemp -d)"
+  for f in ${CORNDOGS_CARRIERS[$lang]:-}; do
+    if [ -f "${OUT}/${lang}/${f}" ]; then
+      mkdir -p "$(dirname "${bak}/${f}")"
+      cp "${OUT}/${lang}/${f}" "${bak}/${f}"
+    fi
+  done
   rm -rf "${OUT:?}/${lang}"
   mkdir -p "${OUT}/${lang}"
   csilgen generate --input "${SPEC}" --target "${lang}-client" --output "${OUT}/${lang}"
+  for f in ${CORNDOGS_CARRIERS[$lang]:-}; do
+    if [ -f "${bak}/${f}" ]; then
+      mkdir -p "$(dirname "${OUT}/${lang}/${f}")"
+      cp "${bak}/${f}" "${OUT}/${lang}/${f}"
+    fi
+  done
+  rm -rf "${bak}"
 done
 
 # Go is the one package corndogs consumes itself: the `go` target emits ALL surfaces

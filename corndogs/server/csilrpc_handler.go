@@ -2,23 +2,16 @@ package server
 
 import (
 	"context"
-	"fmt"
-	"io"
-	"net/http"
 
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
-	"github.com/CatalystCommunity/corndogs/corndogs/server/csilrpc"
-	zlog "github.com/rs/zerolog/log"
 )
 
-// CSIL-RPC transport for corndogs. The canonical mount is the envelope-in-body
-// HTTP profile: clients POST a CsilRpcRequest envelope to rpcPath and get a
-// CsilRpcResponse envelope back (application/cbor, HTTP 200). The application
-// payload is tag-24-wrapped CBOR of the request/response type. See csilgen
-// docs/csil-rpc-transport.md.
+// CSIL-RPC route table for corndogs. buildRPCRoutes maps each CSIL operation to
+// a typed handler; the TCP serve loop (tcp_rpc.go) dispatches to it. The wire is
+// CSIL-RPC (csilgen docs/csil-rpc-transport.md): the application payload is a
+// tag-24-wrapped CBOR of the request/response type.
 const (
 	rpcServiceName = "CorndogsService" // wire service name = the verbatim CSIL `service` block name (what generated clients send)
-	rpcPath        = "/csil/v1/rpc"    // canonical envelope-in-body mount
 )
 
 // rpcHandlerFunc decodes a request payload, invokes a service method, and returns
@@ -67,64 +60,4 @@ func buildRPCRoutes(svc api.CorndogsService) map[string]rpcHandlerFunc {
 		"GetTaskStateCounts":     rpcRoute(svc.GetTaskStateCounts, api.DecodeGetTaskStateCountsRequest, api.EncodeGetTaskStateCountsResponse, "GetTaskStateCountsResponse"),
 		"GetQueueAndStateCounts": rpcRoute(svc.GetQueueAndStateCounts, api.DecodeGetQueueAndStateCountsRequest, api.EncodeGetQueueAndStateCountsResponse, "GetQueueAndStateCountsResponse"),
 	}
-}
-
-// newCSILRPCHandler returns the HTTP handler for the envelope-in-body profile.
-func newCSILRPCHandler(svc api.CorndogsService) http.HandlerFunc {
-	routes := buildRPCRoutes(svc)
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			writeRPC(w, csilrpc.NewRpcResponseTransportError(csilrpc.StatusMalformedEnvelope, "method not allowed"))
-			return
-		}
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			writeRPC(w, csilrpc.NewRpcResponseTransportError(csilrpc.StatusMalformedEnvelope, "read body: "+err.Error()))
-			return
-		}
-		req, err := csilrpc.DecodeRpcRequest(body)
-		if err != nil {
-			writeRPC(w, csilrpc.NewRpcResponseTransportError(csilrpc.StatusMalformedEnvelope, err.Error()))
-			return
-		}
-		if req.Service != rpcServiceName {
-			writeRPC(w, csilrpc.NewRpcResponseTransportError(csilrpc.StatusUnknownServiceOrOp, "unknown service: "+req.Service).WithID(req.ID))
-			return
-		}
-		route, ok := routes[req.Op]
-		if !ok {
-			writeRPC(w, csilrpc.NewRpcResponseTransportError(csilrpc.StatusUnknownServiceOrOp, "unknown op: "+req.Op).WithID(req.ID))
-			return
-		}
-		// Store methods panic on internal failure; recover so the connection isn't
-		// dropped and the caller gets a transport "internal" status instead.
-		variant, out, herr := func() (v string, o []byte, e error) {
-			defer func() {
-				if p := recover(); p != nil {
-					e = fmt.Errorf("panic: %v", p)
-				}
-			}()
-			return route(r.Context(), req.Payload)
-		}()
-		if herr != nil {
-			zlog.Error().Err(herr).Str("op", req.Op).Msg("csil-rpc handler error")
-			writeRPC(w, csilrpc.NewRpcResponseTransportError(csilrpc.StatusInternal, herr.Error()).WithID(req.ID))
-			return
-		}
-		writeRPC(w, csilrpc.NewRpcResponseOk(variant, out).WithID(req.ID))
-	}
-}
-
-// writeRPC encodes a CsilRpcResponse envelope and writes it. Per the spec the
-// HTTP status is 200 whenever an envelope is returned, even one carrying a
-// non-zero transport status.
-func writeRPC(w http.ResponseWriter, resp csilrpc.RpcResponse) {
-	b, err := resp.Encode()
-	if err != nil {
-		http.Error(w, "encode error", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/cbor")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(b)
 }
