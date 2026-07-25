@@ -60,7 +60,7 @@ func LoadConfig() Config {
 		Backend: config.GetEnvOrDefault("CORNDOGS_FILESTORE_BACKEND", "bolt"),
 		DataDir: dataDir,
 		// Default the audit dir to the data dir; only differs if explicitly set.
-		AuditDir:     config.GetEnvOrDefault("CORNDOGS_FILESTORE_AUDIT_DIR", dataDir),
+		AuditDir:      config.GetEnvOrDefault("CORNDOGS_FILESTORE_AUDIT_DIR", dataDir),
 		AuditEnabled:  config.GetEnvAsBoolOrDefault("CORNDOGS_FILESTORE_AUDIT_ENABLED", "true"),
 		AuditChunkMB:  config.GetEnvAsIntOrDefault("CORNDOGS_FILESTORE_AUDIT_CHUNK_MB", "250"),
 		Sync:          SyncMode(config.GetEnvOrDefault("CORNDOGS_FILESTORE_SYNC", string(SyncGroup))),

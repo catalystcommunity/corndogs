@@ -39,6 +39,87 @@ go run main.go submit-task --queue myqueue --current-state submitted
 ```
    Generated clients for other languages live under [`clients/`](./clients).
 
+# Using a client
+
+Corndogs ships a ready-to-use client for every supported language under
+[`clients/`](./clients) - Go, Python, Rust, TypeScript, Java, Kotlin, C#, Dart,
+Ruby, Elixir, OCaml, Zig, C, and Swift. Each is a thin wrapper over one persistent
+TCP connection (CSIL-RPC), and each package's own README has copy-paste examples in
+that language. Conceptually, in any of them:
+
+```
+# ── initialize ───────────────────────────────────────────────
+transport = TcpTransport("host:5080")     # persistent CSIL-RPC/TCP connection
+transport.start_heartbeat(every = 15s)    # keep an idle connection alive (optional)
+client = CorndogsClient(transport)
+
+#   async languages provide an async transport + client; the calls below
+#   become `await client.op(...)`. Same shape either way.
+
+#   clustered (file backend, Tier-1 HA): seed several nodes and the client
+#   follows leader redirects on its own.
+client = CorndogsClient.cluster("node1:5080", "node2:5080", "node3:5080")
+
+# ── produce: put work in ─────────────────────────────────────
+client.submit_task(
+    queue             = "emails",
+    current_state     = "submitted",   # the state it waits in
+    auto_target_state = "sending",     # the state it moves to when claimed
+    timeout           = 30,            # seconds a claim may hold it before it reverts
+    payload           = bytes(...),    # opaque; corndogs never looks inside it
+    priority          = 0,             # higher is claimed first
+)
+
+# ── consume: the worker loop ─────────────────────────────────
+loop:
+    result = client.get_next_task(queue = "emails", current_state = "submitted")
+    #   claims the single best (priority, then oldest) task in that state and
+    #   atomically moves it to "sending". Returns nothing if the queue is empty.
+    if result.task == null:
+        sleep(a bit); continue
+
+    task = result.task
+    try:
+        do_work(task.payload)
+        client.complete_task(task.uuid)                        # terminal: archived "completed"
+    catch retryable:
+        client.update_task(task.uuid, new_state = "submitted") # hand it back
+    catch fatal:
+        client.cancel_task(task.uuid)                          # terminal: archived "canceled"
+    #   if this process dies mid-work, the timeout reverts "sending" → "submitted"
+    #   and another worker re-claims it - there is no lease to renew.
+
+# ── claim across several queues at once, priority respected globally ──
+result = client.get_next_task_group(
+    queues        = ["emails", "sms", "push"],
+    current_state = "submitted",
+)   # returns the single best task across all three queues
+```
+
+## Differences from many other systems
+
+These are deliberate - and they're why the worker loop above has none of the
+bookkeeping a Celery/Sidekiq-style system would make you write:
+
+- **Corndogs manages task *state*; it never runs your code.** The payload is an
+  opaque bytestring it never opens - there are no registered "task functions", no
+  serialized closures, no framework living inside your worker. A worker is just
+  something that makes requests over a connection, so any language and any workload
+  work equally well with no SDK lock-in.
+
+- **Claiming a task *is* a state transition - there is no separate ack.**
+  `get_next_task` atomically moves the task out of its waiting state into its
+  working state in one step, so two workers can never hold the same task. You finish
+  by moving it to a terminal state (`complete`/`cancel`) or back (`update`). There's
+  no visibility-timeout-then-delete dance and no ack channel to leak.
+
+- **The timeout is the entire recovery mechanism.** A crashed or hung worker never
+  leaves a task wedged: its timeout reverts the task to its original state and
+  someone else re-claims it. That's why the loop renews nothing - the heartbeat only
+  keeps the *connection* warm, never a per-task lease. And *you* decide when timeouts
+  are evaluated (via `CleanUpTimedOut`), so you can expire work early or late, which
+  is a gift when testing.
+
 # Intended Design
 ## Data Structures
 

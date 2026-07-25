@@ -121,22 +121,23 @@ spec:
             {{- end }}
             {{- end }}
           ports:
-            - name: corndogshttp
+            # CSIL-RPC over TCP (the client transport) — NOT HTTP.
+            - name: corndogsrpc
               containerPort: 5080
               protocol: TCP
-            {{- if .Values.appconfig.prometheusEnabled }}
-            - name: corndogsmetrics
+            # HTTP ops: /healthz always, /metrics when Prometheus is enabled.
+            - name: corndogsops
               containerPort: 8080
               protocol: TCP
-            {{- end }}
+          # Liveness: the RPC listener accepts TCP. Readiness: the HTTP health
+          # endpoint (on the ops port, never the RPC port).
           livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 5080
+            tcpSocket:
+              port: corndogsrpc
           readinessProbe:
             httpGet:
               path: /healthz
-              port: 5080
+              port: corndogsops
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- if eq .Values.storage.backend "file" }}

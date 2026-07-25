@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
@@ -34,16 +37,185 @@ type BoltStore struct {
 	cfg       Config
 	stop      chan struct{} // stops the interval-sync ticker
 	committer *committer    // non-nil only in group-commit mode
+
+	// Replication (Tier-1 clustering, leader side). When replSink is non-nil the
+	// store captures the physical mutations of each committed direct write and
+	// publishes them as one LSN-stamped MutationBatch. writeMu serializes the
+	// capture-enabled write path so mutation capture and LSN assignment stay in
+	// commit order (bbolt already single-writes; this extends the critical section
+	// to cover capture). When replSink is nil there is zero overhead and the path
+	// is byte-for-byte the original single-node behavior.
+	writeMu  sync.Mutex
+	cap      *captureBuf
+	replSink func(MutationBatch)
+	replLSN  uint64
+}
+
+// EnableReplication turns on leader-side mutation capture. sink receives one
+// batch per committed write, in LSN order starting at startLSN+1. It must be
+// called before serving writes.
+//
+// Enabling capture selects the direct write path (writeCapturing) over the group
+// committer, by design: sink runs synchronously on the goroutine that performed the
+// write, immediately after the commit, so LSN assignment and publication stay in
+// commit order. For a clustered leader that goroutine is the single engine goroutine
+// that owns the (not-thread-safe) Replicator — moving publication onto the
+// committer's own goroutine would both race that Replicator and reorder LSNs. Group
+// commit would not add throughput here anyway: clustered writes are already
+// serialized one-at-a-time through the engine, so a batch is only ever one write.
+func (s *BoltStore) EnableReplication(startLSN uint64, sink func(MutationBatch)) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	s.cap = &captureBuf{}
+	s.replLSN = startLSN
+	s.replSink = sink
+}
+
+// SnapshotTo writes a consistent bbolt snapshot of the whole store to w and
+// returns the LSN that snapshot reflects. A follower bootstrapping (or catching up
+// from far behind) restores this snapshot, then applies replicated batches with
+// LSN > the returned value. Taken under the write lock so the snapshot bytes and
+// the returned LSN correspond exactly — no write can interleave.
+func (s *BoltStore) SnapshotTo(w io.Writer) (uint64, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	lsn := s.replLSN
+	err := s.db.View(func(tx *bolt.Tx) error {
+		_, e := tx.WriteTo(w)
+		return e
+	})
+	return lsn, err
+}
+
+// RestoreSnapshot replaces this store's entire local state with the bbolt snapshot
+// read from r, and sets the local LSN to lsn. This is the **rejoin rollback**: a
+// node that led a losing partition applied writes locally that were never
+// cluster-committed (never reached an ack quorum); rather than trying to un-apply
+// individual mutations (bbolt has no undo), it discards its diverged database
+// wholesale and re-bootstraps from the winning leader's snapshot, then tails the
+// stream from lsn. The swap is atomic (write temp, fsync, close, rename, reopen)
+// so a crash mid-restore leaves either the old or the new database, never a torn
+// one.
+func (s *BoltStore) RestoreSnapshot(r io.Reader, lsn uint64) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
+	dbPath := filepath.Join(s.cfg.DataDir, "corndogs.bolt")
+	tmpPath := dbPath + ".restore"
+	tmp, err := os.Create(tmpPath)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(tmp, r); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	// Validate the snapshot opens as bbolt before we throw away the live db.
+	check, err := bolt.Open(tmpPath, 0o600, bolt.DefaultOptions)
+	if err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("restore: snapshot is not a valid bolt db: %w", err)
+	}
+	_ = check.Close()
+
+	opts := *bolt.DefaultOptions
+	opts.NoSync = s.cfg.Sync == SyncInterval || s.cfg.Sync == SyncNever
+
+	if err := s.db.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, dbPath); err != nil {
+		// The rename failed, so the original db is still at dbPath. Reopen it so we
+		// don't leave the store holding a closed handle (which would brick the node
+		// on every subsequent op); surface the rename error to the caller.
+		if db, oerr := bolt.Open(dbPath, 0o600, &opts); oerr == nil {
+			s.db = db
+		}
+		return err
+	}
+	// The snapshot (validated above) is now at dbPath; reopen it as the live db.
+	db, err := bolt.Open(dbPath, 0o600, &opts)
+	if err != nil {
+		return fmt.Errorf("restore: reopen after swap failed: %w", err)
+	}
+	s.db = db
+	s.replLSN = lsn
+	return nil
+}
+
+// DB exposes the underlying bbolt handle for snapshot/verification use by the
+// clustering layer. Callers must not mutate it directly — writes go through the
+// store so they are captured for replication.
+func (s *BoltStore) DB() *bolt.DB { return s.db }
+
+// ReplLSN returns the store's current replication LSN (the last captured batch on
+// a leader, or the last applied batch on a follower).
+func (s *BoltStore) ReplLSN() uint64 {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return s.replLSN
+}
+
+// ApplyReplicated applies one replicated batch on a follower and advances the
+// local LSN. Batches must arrive gap-free (b.LSN == ReplLSN()+1); the caller
+// (the replication coordinator) requests catch-up on a gap.
+func (s *BoltStore) ApplyReplicated(b MutationBatch) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if b.LSN != s.replLSN+1 {
+		return fmt.Errorf("filestore: non-contiguous replicated batch LSN %d (have %d)", b.LSN, s.replLSN)
+	}
+	if err := s.db.Update(func(tx *bolt.Tx) error { return applyBatch(tx, b) }); err != nil {
+		return err
+	}
+	s.replLSN = b.LSN
+	return nil
 }
 
 // write routes a write transaction through the group committer when enabled,
 // otherwise commits it directly. Either way it returns only after the write is
 // committed (and, except in never/interval modes, durably fsync'd).
 func (s *BoltStore) write(fn func(tx *bolt.Tx) error) error {
+	if s.replSink != nil {
+		// Capture-enabled (clustered leader) writes take the direct path so the batch
+		// is published synchronously on this goroutine — see EnableReplication.
+		return s.writeCapturing(fn)
+	}
 	if s.committer != nil {
 		return s.committer.submit(fn)
 	}
 	return s.db.Update(fn)
+}
+
+// writeCapturing runs one write while recording its physical mutations, then
+// publishes them as a single LSN-stamped batch iff the transaction committed and
+// actually changed something. The write mutex makes capture + LSN assignment
+// atomic with respect to other writers.
+func (s *BoltStore) writeCapturing(fn func(tx *bolt.Tx) error) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	s.cap.reset()
+	if err := s.db.Update(fn); err != nil {
+		s.cap.reset()
+		return err
+	}
+	if len(s.cap.muts) > 0 {
+		s.replLSN++
+		batch := MutationBatch{LSN: s.replLSN, Mutations: append([]Mutation(nil), s.cap.muts...)}
+		s.replSink(batch)
+	}
+	s.cap.reset()
+	return nil
 }
 
 // NewBoltStore constructs an unopened BoltStore. Call Initialize to open it.
@@ -118,8 +290,9 @@ func (s *BoltStore) syncLoop() {
 	}
 }
 
-// putTask writes a task and its uuid index entry within a write transaction.
-func putTask(tx *bolt.Tx, t *Task) error {
+// putTask writes a task and its uuid index entry within a write transaction, and
+// records the two puts for replication when capture is enabled.
+func (s *BoltStore) putTask(tx *bolt.Tx, t *Task) error {
 	val, err := json.Marshal(t)
 	if err != nil {
 		return err
@@ -128,15 +301,31 @@ func putTask(tx *bolt.Tx, t *Task) error {
 	if err := tx.Bucket(bucketTasks).Put(key, val); err != nil {
 		return err
 	}
-	return tx.Bucket(bucketByUUID).Put([]byte(t.UUID), key)
-}
-
-// deleteTask removes a task (by its current key) and its uuid index entry.
-func deleteTask(tx *bolt.Tx, t *Task) error {
-	if err := tx.Bucket(bucketTasks).Delete(encodeTaskKey(t)); err != nil {
+	if err := tx.Bucket(bucketByUUID).Put([]byte(t.UUID), key); err != nil {
 		return err
 	}
-	return tx.Bucket(bucketByUUID).Delete([]byte(t.UUID))
+	if s.cap != nil {
+		s.cap.put(bucketTasks, key, val)
+		s.cap.put(bucketByUUID, []byte(t.UUID), key)
+	}
+	return nil
+}
+
+// deleteTask removes a task (by its current key) and its uuid index entry, and
+// records the two deletes for replication when capture is enabled.
+func (s *BoltStore) deleteTask(tx *bolt.Tx, t *Task) error {
+	key := encodeTaskKey(t)
+	if err := tx.Bucket(bucketTasks).Delete(key); err != nil {
+		return err
+	}
+	if err := tx.Bucket(bucketByUUID).Delete([]byte(t.UUID)); err != nil {
+		return err
+	}
+	if s.cap != nil {
+		s.cap.del(bucketTasks, key)
+		s.cap.del(bucketByUUID, []byte(t.UUID))
+	}
+	return nil
 }
 
 // loadByUUID fetches a live task by uuid, or nil if absent.
@@ -170,7 +359,7 @@ func (s *BoltStore) SubmitTask(ctx context.Context, req *api.SubmitTaskRequest) 
 		Priority:        req.Priority,
 		Payload:         req.Payload,
 	}
-	err := s.write(func(tx *bolt.Tx) error { return putTask(tx, t) })
+	err := s.write(func(tx *bolt.Tx) error { return s.putTask(tx, t) })
 	if err != nil {
 		return nil, err
 	}
@@ -217,11 +406,11 @@ func (s *BoltStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequest
 		if err := json.Unmarshal(v, &t); err != nil {
 			return err
 		}
-		if err := deleteTask(tx, &t); err != nil {
+		if err := s.deleteTask(tx, &t); err != nil {
 			return err
 		}
 		applyGetNext(&t, req, nowNano())
-		if err := putTask(tx, &t); err != nil {
+		if err := s.putTask(tx, &t); err != nil {
 			return err
 		}
 		out = toAPITask(&t)
@@ -272,11 +461,11 @@ func (s *BoltStore) GetNextTaskGroup(ctx context.Context, req *api.GetNextTaskGr
 		if best == nil {
 			return nil // no task available in any queue
 		}
-		if err := deleteTask(tx, best); err != nil {
+		if err := s.deleteTask(tx, best); err != nil {
 			return err
 		}
 		applyGetNext(best, claim, nowNano())
-		if err := putTask(tx, best); err != nil {
+		if err := s.putTask(tx, best); err != nil {
 			return err
 		}
 		out = toAPITask(best)
@@ -310,7 +499,7 @@ func (s *BoltStore) UpdateTask(ctx context.Context, req *api.UpdateTaskRequest) 
 		if err != nil || t == nil {
 			return err
 		}
-		if err := deleteTask(tx, t); err != nil {
+		if err := s.deleteTask(tx, t); err != nil {
 			return err
 		}
 		from := t.CurrentState
@@ -322,7 +511,7 @@ func (s *BoltStore) UpdateTask(ctx context.Context, req *api.UpdateTaskRequest) 
 			t.Payload = req.Payload
 		}
 		t.UpdateTime = nowNano()
-		if err := putTask(tx, t); err != nil {
+		if err := s.putTask(tx, t); err != nil {
 			return err
 		}
 		out = toAPITask(t)
@@ -356,7 +545,10 @@ func (s *BoltStore) archiveAndDelete(id, terminalState, op string) (*api.Task, e
 		if err := tx.Bucket(bucketArchived).Put([]byte(a.UUID), val); err != nil {
 			return err
 		}
-		if err := deleteTask(tx, t); err != nil {
+		if s.cap != nil {
+			s.cap.put(bucketArchived, []byte(a.UUID), val)
+		}
+		if err := s.deleteTask(tx, t); err != nil {
 			return err
 		}
 		out = archivedToAPITask(&a)
@@ -403,13 +595,13 @@ func (s *BoltStore) CleanUpTimedOut(ctx context.Context, req *api.CleanUpTimedOu
 		}
 		for i := range expired {
 			t := expired[i]
-			if err := deleteTask(tx, &t); err != nil {
+			if err := s.deleteTask(tx, &t); err != nil {
 				return err
 			}
 			t.CurrentState, t.AutoTargetState = t.AutoTargetState, t.CurrentState
 			t.Timeout = 0
 			t.UpdateTime = nowNano()
-			if err := putTask(tx, &t); err != nil {
+			if err := s.putTask(tx, &t); err != nil {
 				return err
 			}
 			s.audit.Record(AuditEvent{Op: "timeout", UUID: t.UUID, Queue: t.Queue, ToState: t.CurrentState})
