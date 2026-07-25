@@ -36,6 +36,13 @@ type Engine struct {
 	waiters []commitWaiter
 	now     int64
 
+	// leadership edge tracking: leaderSince is the tick at which this node last
+	// became leader (used to grant a freshly elected leader a grace window before the
+	// pre-apply quorum check can reject writes — followers need a moment to send their
+	// first ack). wasLeader mirrors the last observed leader role on this goroutine.
+	leaderSince int64
+	wasLeader   bool
+
 	// topology + stats snapshots for the RPC/watch/metrics layer (guarded; read
 	// off-goroutine, written only on the engine goroutine).
 	mu    sync.RWMutex
@@ -136,12 +143,14 @@ func (e *Engine) handleProposal(p proposal) {
 		p.done <- ErrNotLeader
 		return
 	}
-	if !e.rep.CanCommit() {
-		// We cannot currently reach the semi-sync durability quorum, so this write
-		// would apply locally (and to a minority) but never commit — leaving state
-		// diverged from what the client is told (a claimed-but-undelivered task, or a
-		// submit the client retries into a duplicate). Reject *before* applying so the
-		// error truthfully means "nothing happened" and a retry is safe (docs §6).
+	if e.quorumUnreachable() {
+		// We have led long enough to have a current view of followers yet still cannot
+		// reach the semi-sync durability quorum — a real partition, not the brief
+		// post-election window. Applying now would persist locally (and to a minority)
+		// but never commit, leaving state diverged from what the client is told (a
+		// claimed-but-undelivered task, or a submit the client retries into a
+		// duplicate). Reject *before* applying so the error truthfully means "nothing
+		// happened" and a retry is safe (docs §6).
 		p.done <- ErrCommitTimeout
 		return
 	}
@@ -171,9 +180,33 @@ func (e *Engine) commitTimeoutTicks() int64 {
 	return 3 * e.settings.Election.FailureTimeout
 }
 
+// quorumUnreachable reports that a proposed write should be rejected before it is
+// applied because the semi-sync durability quorum is genuinely out of reach. It is
+// deliberately conservative: a freshly elected leader has not yet received its
+// followers' first heartbeat-ack, so CanCommit() is momentarily false even though
+// the write would commit as soon as those acks arrive. During that grace window
+// (one failure-timeout after becoming leader) we let the write through and rely on
+// the commit waiter; only once we have led long enough for a true view of followers
+// and still lack a quorum do we treat it as a partition and reject up front.
+func (e *Engine) quorumUnreachable() bool {
+	if e.rep.CanCommit() {
+		return false
+	}
+	return e.now-e.leaderSince >= e.settings.Election.FailureTimeout
+}
+
 // afterStep releases any commit waiters the latest step satisfied (or timed out)
 // and republishes topology if it changed.
 func (e *Engine) afterStep() {
+	// Track the leader-role edge so quorumUnreachable can grant a grace window from
+	// the moment this node becomes leader.
+	if isLeader := e.rep.IsLeader(); isLeader && !e.wasLeader {
+		e.leaderSince = e.now
+		e.wasLeader = true
+	} else if !isLeader {
+		e.wasLeader = false
+	}
+
 	committed := e.rep.CommittedLSN()
 	kept := e.waiters[:0]
 	for _, w := range e.waiters {
