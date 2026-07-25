@@ -1,59 +1,76 @@
 package test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"net/http"
+	"net"
+	"sync"
+	"time"
 
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/csilrpc"
 )
 
-// CorndogsClient is a CSIL-RPC test client matching the call shape the integration
-// tests use: Method(ctx, *Request) (*Response, error).
-type CorndogsClient struct{ base string }
-
-// GetCorndogsClient returns a client pointed at the local server on :5080.
-func GetCorndogsClient() *CorndogsClient {
-	return &CorndogsClient{base: "http://127.0.0.1:5080"}
+// CorndogsClient is a CSIL-RPC test client over a persistent TCP StreamCarrier
+// connection, matching the call shape the integration tests use:
+// Method(ctx, *Request) (*Response, error).
+type CorndogsClient struct {
+	addr string
+	mu   sync.Mutex // serializes calls on the one-in-flight connection + guards rpc
+	rpc  *csilrpc.RpcClient
+	conn net.Conn
 }
 
-// cborDo performs one CSIL-RPC call over the envelope-in-body HTTP profile. The
-// request/response payloads use the csilgen-generated per-type codecs (encode/
-// decode passed in); the carrier only moves bytes + the envelope.
+// GetCorndogsClient returns a client pointed at the local server's TCP CSIL-RPC
+// port (:5080).
+func GetCorndogsClient() *CorndogsClient {
+	return &CorndogsClient{addr: "127.0.0.1:5080"}
+}
+
+// rpcClient returns the connected RpcClient, dialing on first use. Caller holds mu.
+func (c *CorndogsClient) rpcClient() (*csilrpc.RpcClient, error) {
+	if c.rpc != nil {
+		return c.rpc, nil
+	}
+	conn, err := net.DialTimeout("tcp", c.addr, 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	c.conn = conn
+	c.rpc = csilrpc.NewRpcClient(csilrpc.NewStreamCarrier(conn), true)
+	return c.rpc, nil
+}
+
+func (c *CorndogsClient) reset() {
+	if c.conn != nil {
+		_ = c.conn.Close()
+	}
+	c.conn, c.rpc = nil, nil
+}
+
+// cborDo performs one CSIL-RPC call over the persistent TCP connection. Calls are
+// serialized (the connection is one-in-flight); a transport failure resets the
+// connection so the next call re-dials. A context deadline is honored by bounding
+// the socket with SetDeadline, so a call against a hung server fails fast instead of
+// blocking forever.
 func cborDo[Req any, Resp any](
 	ctx context.Context, c *CorndogsClient, op string, req *Req,
 	encode func(Req) []byte, decode func([]byte) (Resp, error),
 ) (*Resp, error) {
-	env, err := csilrpc.NewRpcRequest("CorndogsService", op, encode(*req)).Encode()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	rpc, err := c.rpcClient()
 	if err != nil {
 		return nil, err
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/csil/v1/rpc", bytes.NewReader(env))
+	if dl, ok := ctx.Deadline(); ok {
+		_ = c.conn.SetDeadline(dl)
+		defer c.conn.SetDeadline(time.Time{})
+	}
+	rr, err := rpc.Call("CorndogsService", op, encode(*req), nil)
 	if err != nil {
+		c.reset()
 		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/cbor")
-	httpResp, err := http.DefaultClient.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer httpResp.Body.Close()
-	raw, err := io.ReadAll(httpResp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		return nil, fmt.Errorf("http %d", httpResp.StatusCode)
-	}
-	rr, err := csilrpc.DecodeRpcResponse(raw)
-	if err != nil {
-		return nil, err
-	}
-	if terr := rr.AsTransportError(); terr != nil {
-		return nil, terr
 	}
 	if rr.Variant != nil && *rr.Variant == "ServiceError" {
 		if serr, derr := api.DecodeServiceError(rr.Payload); derr == nil {
