@@ -44,6 +44,11 @@ __pycache__/
 # Go build output (the server binary is built into images/tmp, never committed)
 corndogs/main
 
+# Embedded file-backend runtime data (bbolt db + audit logs). Created by
+# `go run main.go run` with the file backend (CORNDOGS_FILESTORE_DIR, default
+# ./corndogs-data) and by tests. Never committed — matches the dir at any depth.
+corndogs-data/
+
 # Python venvs (client dev / verification)
 .venv/
 venv/
