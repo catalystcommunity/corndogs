@@ -57,16 +57,16 @@ func TestBasicPriority(t *testing.T) {
 	}
 	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.Equal(t, int64(1), getNextTaskResponse.Task.Priority, "expected priority to be one")
-	require.Equal(t, onePriorityUuid, getNextTaskResponse.Task.Uuid, "didnt get expected task")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(1), getNextTaskResponse.Delivery.Task.Priority, "expected priority to be one")
+	require.Equal(t, onePriorityUuid, getNextTaskResponse.Delivery.Task.Uuid, "didnt get expected task")
 
 	getNextTaskResponse, err = corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.Equal(t, int64(0), getNextTaskResponse.Task.Priority, "expected priority to be zero")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(0), getNextTaskResponse.Delivery.Task.Priority, "expected priority to be zero")
 }
 
 func TestOldestWithinPriority(t *testing.T) {
@@ -116,17 +116,17 @@ func TestOldestWithinPriority(t *testing.T) {
 	}
 	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.Equal(t, int64(0), getNextTaskResponse.Task.Priority, "expected priority to be zero")
-	require.Equal(t, oldestUuid, getNextTaskResponse.Task.Uuid, "didnt get expected oldest task")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(0), getNextTaskResponse.Delivery.Task.Priority, "expected priority to be zero")
+	require.Equal(t, oldestUuid, getNextTaskResponse.Delivery.Task.Uuid, "didnt get expected oldest task")
 
 	getNextTaskResponse, err = corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.Equal(t, int64(0), getNextTaskResponse.Task.Priority, "expected priority to be zero")
-	require.Equal(t, newestUuid, getNextTaskResponse.Task.Uuid, "didnt get expected newest task")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(0), getNextTaskResponse.Delivery.Task.Priority, "expected priority to be zero")
+	require.Equal(t, newestUuid, getNextTaskResponse.Delivery.Task.Uuid, "didnt get expected newest task")
 }
 
 func TestBasicDeprioritize(t *testing.T) {
@@ -177,16 +177,16 @@ func TestBasicDeprioritize(t *testing.T) {
 	}
 	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.Equal(t, int64(0), getNextTaskResponse.Task.Priority, "expected priority to be zero")
-	require.Equal(t, defaultPriorityUuid, getNextTaskResponse.Task.Uuid, "didnt get expected task")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(0), getNextTaskResponse.Delivery.Task.Priority, "expected priority to be zero")
+	require.Equal(t, defaultPriorityUuid, getNextTaskResponse.Delivery.Task.Uuid, "didnt get expected task")
 
 	getNextTaskResponse, err = corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.Equal(t, int64(-1), getNextTaskResponse.Task.Priority, "expected priority to be negative one")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(-1), getNextTaskResponse.Delivery.Task.Priority, "expected priority to be negative one")
 }
 
 func TestUpdatePriorityUp(t *testing.T) {

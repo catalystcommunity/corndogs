@@ -98,15 +98,23 @@ drops in unchanged.
 use corndogs::*;
 use csilgen_transport::carrier::{FrameCarrier, StreamCarrier};
 use csilgen_transport::events::{control, Event, Heartbeat, Hello, HelloAck, Profile};
-use csilgen_transport::VERSION;
+use csilgen_transport::{MAX_FRAME_DEFAULT, VERSION};
 use std::net::TcpStream;
 
 // One example carrier: a TLS byte stream framed by the library's StreamCarrier (CSIL
 // 4-byte length prefix). std has no TLS, so wrap a TcpStream in a rustls (or native-tls)
 // TlsStream for production — the framing is identical over any Read + Write.
-fn open_tls_carrier(addr: &str) -> std::io::Result<StreamCarrier<TcpStream>> {
+
+// The max-frame guard is a carrier setting, not a generated constant: raise it when a
+// peer accepts payloads larger than the 16 MiB default (the envelope adds framing and
+// request metadata around the payload, so the limit must exceed the largest payload),
+// or lower it to harden an exposed listener. Valid limits are 1..=MAX_FRAME_LIMIT and
+// are checked at construction.
+const MAX_FRAME: usize = MAX_FRAME_DEFAULT;
+
+fn open_tls_carrier(addr: &str) -> Result<StreamCarrier<TcpStream>, Box<dyn std::error::Error>> {
     let stream = TcpStream::connect(addr)?;
-    Ok(StreamCarrier::new(stream))
+    Ok(StreamCarrier::with_max_frame(stream, MAX_FRAME)?)
 }
 
 fn session(carrier: &mut impl FrameCarrier) -> Result<(), Box<dyn std::error::Error>> {

@@ -341,7 +341,6 @@ def _encode_task_value(v: "Task") -> Dict[Any, Any]:
     csil_m: Dict[Any, Any] = {}
     csil_m["uuid"] = v.uuid
     csil_m["queue"] = v.queue
-    csil_m["payload"] = v.payload
     csil_m["timeout"] = v.timeout
     csil_m["priority"] = v.priority
     csil_m["submit_time"] = v.submit_time
@@ -360,7 +359,6 @@ def _decode_task_value(tree: Any) -> "Task":
         submit_time=_csil_expect_int(tree["submit_time"]),
         update_time=_csil_expect_int(tree["update_time"]),
         timeout=_csil_expect_int(tree["timeout"]),
-        payload=_csil_expect_bytes(tree["payload"]),
         priority=_csil_expect_int(tree["priority"]),
     )
 
@@ -375,6 +373,31 @@ def _task_from_cbor(data: bytes) -> "Task":
 
 Task.to_cbor = _task_to_cbor
 Task.from_cbor = staticmethod(_task_from_cbor)
+
+def _encode_task_delivery_value(v: "TaskDelivery") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["task"] = _encode_task_value(v.task)
+    csil_m["payload"] = v.payload
+    return csil_m
+
+def _decode_task_delivery_value(tree: Any) -> "TaskDelivery":
+    tree = _csil_expect_map(tree)
+    return TaskDelivery(
+        task=_decode_task_value(tree["task"]),
+        payload=_csil_expect_bytes(tree["payload"]),
+    )
+
+
+def _task_delivery_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_task_delivery_value(self))
+
+
+def _task_delivery_from_cbor(data: bytes) -> "TaskDelivery":
+    return _decode_task_delivery_value(cbor_decode(data))
+
+
+TaskDelivery.to_cbor = _task_delivery_to_cbor
+TaskDelivery.from_cbor = staticmethod(_task_delivery_from_cbor)
 
 def _encode_submit_task_request_value(v: "SubmitTaskRequest") -> Dict[Any, Any]:
     csil_m: Dict[Any, Any] = {}
@@ -517,15 +540,15 @@ GetNextTaskRequest.from_cbor = staticmethod(_get_next_task_request_from_cbor)
 
 def _encode_get_next_task_response_value(v: "GetNextTaskResponse") -> Dict[Any, Any]:
     csil_m: Dict[Any, Any] = {}
-    csil_x = v.task
+    csil_x = v.delivery
     if csil_x is not None:
-        csil_m["task"] = _encode_task_value(csil_x)
+        csil_m["delivery"] = _encode_task_delivery_value(csil_x)
     return csil_m
 
 def _decode_get_next_task_response_value(tree: Any) -> "GetNextTaskResponse":
     tree = _csil_expect_map(tree)
     return GetNextTaskResponse(
-        task=(None if tree.get("task") is None else _decode_task_value(tree["task"])),
+        delivery=(None if tree.get("delivery") is None else _decode_task_delivery_value(tree["delivery"])),
     )
 
 
@@ -573,15 +596,15 @@ GetNextTaskGroupRequest.from_cbor = staticmethod(_get_next_task_group_request_fr
 
 def _encode_get_next_task_group_response_value(v: "GetNextTaskGroupResponse") -> Dict[Any, Any]:
     csil_m: Dict[Any, Any] = {}
-    csil_x = v.task
+    csil_x = v.delivery
     if csil_x is not None:
-        csil_m["task"] = _encode_task_value(csil_x)
+        csil_m["delivery"] = _encode_task_delivery_value(csil_x)
     return csil_m
 
 def _decode_get_next_task_group_response_value(tree: Any) -> "GetNextTaskGroupResponse":
     tree = _csil_expect_map(tree)
     return GetNextTaskGroupResponse(
-        task=(None if tree.get("task") is None else _decode_task_value(tree["task"])),
+        delivery=(None if tree.get("delivery") is None else _decode_task_delivery_value(tree["delivery"])),
     )
 
 
@@ -652,7 +675,9 @@ def _encode_update_task_request_value(v: "UpdateTaskRequest") -> Dict[Any, Any]:
     csil_m: Dict[Any, Any] = {}
     csil_m["uuid"] = v.uuid
     csil_m["queue"] = v.queue
-    csil_m["payload"] = v.payload
+    csil_x = v.payload
+    if csil_x is not None:
+        csil_m["payload"] = csil_x
     csil_m["timeout"] = v.timeout
     csil_m["priority"] = v.priority
     csil_m["new_state"] = v.new_state
@@ -669,7 +694,7 @@ def _decode_update_task_request_value(tree: Any) -> "UpdateTaskRequest":
         auto_target_state=_csil_expect_text(tree["auto_target_state"]),
         timeout=_csil_expect_int(tree["timeout"]),
         new_state=_csil_expect_text(tree["new_state"]),
-        payload=_csil_expect_bytes(tree["payload"]),
+        payload=(None if tree.get("payload") is None else _csil_expect_bytes(tree["payload"])),
         priority=_csil_expect_int(tree["priority"]),
     )
 

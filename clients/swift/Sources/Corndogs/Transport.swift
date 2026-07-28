@@ -31,7 +31,7 @@ import Dispatch
 import Foundation
 
 private let tagEncodedCbor: UInt64 = 24  // RFC 8949 §3.4.5.1 — embedded encoded CBOR data item
-private let maxFrame = 256 << 20  // frame size guard (256 MiB)
+private let maxFrame = 1025 << 20  // payload maximum plus envelope allowance
 private let controlService = "CorndogsService"
 private let opPing = "$ping"  // control-plane heartbeat op (never collides with app ops)
 

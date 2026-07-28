@@ -38,7 +38,7 @@ defmodule Corndogs.Transport do
 
   # RFC 8949 §3.4.5.1 — embedded encoded CBOR data item.
   @tag_encoded_cbor 24
-  @max_frame 256 * 1024 * 1024
+  @max_frame 1025 * 1024 * 1024
   @default_connect_timeout 5_000
   @default_heartbeat_interval 15_000
 

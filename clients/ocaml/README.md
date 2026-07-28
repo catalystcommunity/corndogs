@@ -31,7 +31,7 @@ let () =
         override_timeout = 0L; override_current_state = ""; override_auto_target_state = "" }
   in
   (match submitted, next with
-   | Ok _, Ok { task = Some t } -> Printf.printf "claimed %s\n" t.uuid
+   | Ok _, Ok { delivery = Some d } -> Printf.printf "claimed %s\n" d.task.uuid
    | _, _ -> ());
 
   stop ();

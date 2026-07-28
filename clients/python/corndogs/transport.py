@@ -31,7 +31,7 @@ from .client import ServiceError
 _TAG_ENCODED_CBOR = 24
 _CONTROL_SERVICE = "CorndogsService"
 _OP_PING = "$ping"
-_MAX_FRAME = 256 << 20
+_MAX_FRAME = 1025 << 20  # payload hard maximum plus RPC envelope allowance
 
 
 class TransportError(Exception):

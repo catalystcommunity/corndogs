@@ -474,10 +474,9 @@ func cborAsMap(v cborValue) (cborMap, error) {
 
 // csilEncTask builds the canonical CBOR value tree for a Task.
 func csilEncTask(csilV Task) cborValue {
-	csilEntries := make(cborMap, 0, 9)
+	csilEntries := make(cborMap, 0, 8)
 	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
-	csilEntries = append(csilEntries, cborEntry{cborText("payload"), cborBytes(csilV.Payload)})
 	csilEntries = append(csilEntries, cborEntry{cborText("timeout"), cborInt(csilV.Timeout)})
 	csilEntries = append(csilEntries, cborEntry{cborText("priority"), cborInt(csilV.Priority)})
 	csilEntries = append(csilEntries, cborEntry{cborText("submit_time"), cborInt(csilV.SubmitTime)})
@@ -568,17 +567,6 @@ func csilDecTask(csilRoot cborValue) (Task, error) {
 		csilOut.Timeout = csilVal
 	}
 	{
-		csilField, csilErr := cborRequire(csilRoot, "payload")
-		if csilErr != nil {
-			return csilOut, csilErr
-		}
-		csilVal, csilErr := (cborAsBytes)(csilField)
-		if csilErr != nil {
-			return csilOut, csilErr
-		}
-		csilOut.Payload = csilVal
-	}
-	{
 		csilField, csilErr := cborRequire(csilRoot, "priority")
 		if csilErr != nil {
 			return csilOut, csilErr
@@ -605,6 +593,57 @@ func DecodeTask(csilData []byte) (Task, error) {
 		return csilZero, csilErr
 	}
 	return csilDecTask(csilRoot)
+}
+
+// csilEncTaskDelivery builds the canonical CBOR value tree for a TaskDelivery.
+func csilEncTaskDelivery(csilV TaskDelivery) cborValue {
+	csilEntries := make(cborMap, 0, 2)
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("payload"), cborBytes(csilV.Payload)})
+	return csilEntries
+}
+
+// csilDecTaskDelivery reconstructs a TaskDelivery from a decoded CBOR value tree.
+func csilDecTaskDelivery(csilRoot cborValue) (TaskDelivery, error) {
+	var csilOut TaskDelivery
+	{
+		csilField, csilErr := cborRequire(csilRoot, "task")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (csilDecTask)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Task = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "payload")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBytes)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Payload = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeTaskDelivery encodes a TaskDelivery to canonical CSIL CBOR bytes.
+func EncodeTaskDelivery(csilV TaskDelivery) []byte {
+	return cborEncode(csilEncTaskDelivery(csilV))
+}
+
+// DecodeTaskDelivery decodes canonical CSIL CBOR bytes into a TaskDelivery.
+func DecodeTaskDelivery(csilData []byte) (TaskDelivery, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero TaskDelivery
+		return csilZero, csilErr
+	}
+	return csilDecTaskDelivery(csilRoot)
 }
 
 // csilEncSubmitTaskRequest builds the canonical CBOR value tree for a SubmitTaskRequest.
@@ -921,8 +960,8 @@ func DecodeGetNextTaskRequest(csilData []byte) (GetNextTaskRequest, error) {
 // csilEncGetNextTaskResponse builds the canonical CBOR value tree for a GetNextTaskResponse.
 func csilEncGetNextTaskResponse(csilV GetNextTaskResponse) cborValue {
 	csilEntries := make(cborMap, 0, 1)
-	if csilV.Task != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask((*csilV.Task))})
+	if csilV.Delivery != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilEncTaskDelivery((*csilV.Delivery))})
 	}
 	return csilEntries
 }
@@ -930,12 +969,12 @@ func csilEncGetNextTaskResponse(csilV GetNextTaskResponse) cborValue {
 // csilDecGetNextTaskResponse reconstructs a GetNextTaskResponse from a decoded CBOR value tree.
 func csilDecGetNextTaskResponse(csilRoot cborValue) (GetNextTaskResponse, error) {
 	var csilOut GetNextTaskResponse
-	if csilField, csilOk := cborMapGet(csilRoot, "task"); csilOk {
-		csilVal, csilErr := (csilDecTask)(csilField)
+	if csilField, csilOk := cborMapGet(csilRoot, "delivery"); csilOk {
+		csilVal, csilErr := (csilDecTaskDelivery)(csilField)
 		if csilErr != nil {
 			return csilOut, csilErr
 		}
-		csilOut.Task = &csilVal
+		csilOut.Delivery = &csilVal
 	}
 	return csilOut, nil
 }
@@ -1045,8 +1084,8 @@ func DecodeGetNextTaskGroupRequest(csilData []byte) (GetNextTaskGroupRequest, er
 // csilEncGetNextTaskGroupResponse builds the canonical CBOR value tree for a GetNextTaskGroupResponse.
 func csilEncGetNextTaskGroupResponse(csilV GetNextTaskGroupResponse) cborValue {
 	csilEntries := make(cborMap, 0, 1)
-	if csilV.Task != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask((*csilV.Task))})
+	if csilV.Delivery != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilEncTaskDelivery((*csilV.Delivery))})
 	}
 	return csilEntries
 }
@@ -1054,12 +1093,12 @@ func csilEncGetNextTaskGroupResponse(csilV GetNextTaskGroupResponse) cborValue {
 // csilDecGetNextTaskGroupResponse reconstructs a GetNextTaskGroupResponse from a decoded CBOR value tree.
 func csilDecGetNextTaskGroupResponse(csilRoot cborValue) (GetNextTaskGroupResponse, error) {
 	var csilOut GetNextTaskGroupResponse
-	if csilField, csilOk := cborMapGet(csilRoot, "task"); csilOk {
-		csilVal, csilErr := (csilDecTask)(csilField)
+	if csilField, csilOk := cborMapGet(csilRoot, "delivery"); csilOk {
+		csilVal, csilErr := (csilDecTaskDelivery)(csilField)
 		if csilErr != nil {
 			return csilOut, csilErr
 		}
-		csilOut.Task = &csilVal
+		csilOut.Delivery = &csilVal
 	}
 	return csilOut, nil
 }
@@ -1184,7 +1223,9 @@ func csilEncUpdateTaskRequest(csilV UpdateTaskRequest) cborValue {
 	csilEntries := make(cborMap, 0, 8)
 	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
-	csilEntries = append(csilEntries, cborEntry{cborText("payload"), cborBytes(csilV.Payload)})
+	if csilV.Payload != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("payload"), cborBytes((*csilV.Payload))})
+	}
 	csilEntries = append(csilEntries, cborEntry{cborText("timeout"), cborInt(csilV.Timeout)})
 	csilEntries = append(csilEntries, cborEntry{cborText("priority"), cborInt(csilV.Priority)})
 	csilEntries = append(csilEntries, cborEntry{cborText("new_state"), cborText(csilV.NewState)})
@@ -1262,16 +1303,12 @@ func csilDecUpdateTaskRequest(csilRoot cborValue) (UpdateTaskRequest, error) {
 		}
 		csilOut.NewState = csilVal
 	}
-	{
-		csilField, csilErr := cborRequire(csilRoot, "payload")
-		if csilErr != nil {
-			return csilOut, csilErr
-		}
+	if csilField, csilOk := cborMapGet(csilRoot, "payload"); csilOk {
 		csilVal, csilErr := (cborAsBytes)(csilField)
 		if csilErr != nil {
 			return csilOut, csilErr
 		}
-		csilOut.Payload = csilVal
+		csilOut.Payload = &csilVal
 	}
 	{
 		csilField, csilErr := cborRequire(csilRoot, "priority")

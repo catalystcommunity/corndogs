@@ -31,6 +31,12 @@ func encodeTimeAsc(t int64) [8]byte {
 	return b
 }
 
+// decodeTimeAsc reverses encodeTimeAsc.
+func decodeTimeAsc(b []byte) int64 {
+	u := binary.BigEndian.Uint64(b) ^ (1 << 63)
+	return int64(u)
+}
+
 // taskPrefix is the byte prefix shared by every task in a (queue, state) group.
 // Seeking to it and iterating yields tasks in (priority desc, update_time asc)
 // order — exactly the postgres ORDER BY.
@@ -52,6 +58,23 @@ func encodeTaskKey(t *Task) []byte {
 	buf.Write(tm[:])
 	buf.WriteString(t.UUID)
 	return buf.Bytes()
+}
+
+const nanosPerSecond = int64(1_000_000_000)
+
+// taskDeadline returns the timeout deadline used by both the deadline index and
+// the PostgreSQL-compatible timeout predicate.
+func taskDeadline(t *Task) int64 {
+	return t.UpdateTime + t.Timeout*nanosPerSecond
+}
+
+// encodeDeadlineKey orders tasks by deadline, then UUID.
+func encodeDeadlineKey(t *Task) []byte {
+	deadline := encodeTimeAsc(taskDeadline(t))
+	key := make([]byte, 8+len(t.UUID))
+	copy(key, deadline[:])
+	copy(key[8:], t.UUID)
+	return key
 }
 
 // applyGetNext mutates a freshly-claimed task per the GetNextTask contract,
@@ -85,6 +108,5 @@ func applyGetNext(t *Task, req *api.GetNextTaskRequest, now int64) {
 //
 //	timeout > 0 AND (update_time + timeout*1e9) < atTime
 func timedOut(t *Task, atTime int64) bool {
-	const nanosPerSecond = 1_000_000_000
-	return t.Timeout > 0 && (t.UpdateTime+t.Timeout*nanosPerSecond) < atTime
+	return t.Timeout > 0 && taskDeadline(t) < atTime
 }

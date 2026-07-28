@@ -12,9 +12,10 @@ and task = {
   submit_time : int64;
   update_time : int64;
   timeout : int64;
-  payload : bytes;
   priority : int64;
 }
+
+and task_delivery = { task : task; payload : bytes }
 
 and submit_task_request = {
   queue : string;
@@ -37,7 +38,7 @@ and get_next_task_request = {
   override_auto_target_state : string;
 }
 
-and get_next_task_response = { task : task option }
+and get_next_task_response = { delivery : task_delivery option }
 
 and get_next_task_group_request = {
   queues : string list;
@@ -47,7 +48,7 @@ and get_next_task_group_request = {
   override_auto_target_state : string;
 }
 
-and get_next_task_group_response = { task : task option }
+and get_next_task_group_response = { delivery : task_delivery option }
 
 and complete_task_request = {
   uuid : string;
@@ -64,7 +65,7 @@ and update_task_request = {
   auto_target_state : string;
   timeout : int64;
   new_state : string;
-  payload : bytes;
+  payload : bytes option;
   priority : int64;
 }
 

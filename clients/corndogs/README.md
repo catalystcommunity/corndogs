@@ -30,7 +30,7 @@ func main() {
 	got, _ := c.GetNextTask(ctx, corndogs.GetNextTaskRequest{
 		Queue: "emails", CurrentState: "submitted",
 	})
-	_ = got.Task
+	_ = got.Delivery
 }
 ```
 

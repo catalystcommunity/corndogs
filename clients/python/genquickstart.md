@@ -86,17 +86,26 @@ just one example — a WebSocket/WebTransport/QUIC carrier drops in unchanged.
 import socket
 import ssl
 
-from csilgen_transport import VERSION
+from csilgen_transport import MAX_FRAME_DEFAULT, VERSION
 from csilgen_transport.carrier import StreamCarrier
 from csilgen_transport.events import Event, Hello, HelloAck, Heartbeat, Profile, control
 
 # One example carrier: a TLS byte stream framed with CSIL's 4-byte length prefix.
+
+# The max-frame guard is a carrier setting, not a generated constant: raise it when a
+# peer accepts payloads larger than the 16 MiB default (the envelope adds framing and
+# request metadata around the payload, so the limit must exceed the largest payload),
+# or lower it to harden an exposed listener. Valid limits are 1..=MAX_FRAME_LIMIT and
+# are checked at construction.
+MAX_FRAME = MAX_FRAME_DEFAULT
+
+
 def open_tls_carrier(host: str, port: int) -> StreamCarrier:
     raw = socket.create_connection((host, port))
     ctx = ssl.create_default_context()
     tls = ctx.wrap_socket(raw, server_hostname=host)
     # StreamCarrier owns the length-prefix framing over any read/write/flush stream.
-    return StreamCarrier(tls.makefile("rwb"))
+    return StreamCarrier(tls.makefile("rwb"), max_frame=MAX_FRAME)
 
 
 class GenCodec:

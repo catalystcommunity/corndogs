@@ -15,8 +15,13 @@ type Task struct {
 	SubmitTime      int64  `json:"submit_time" yaml:"submit_time"`
 	UpdateTime      int64  `json:"update_time" yaml:"update_time"`
 	Timeout         int64  `json:"timeout" yaml:"timeout"`
-	Payload         []byte `json:"payload" yaml:"payload"`
 	Priority        int64  `json:"priority" yaml:"priority"`
+}
+
+// TaskDelivery represents a structured data type
+type TaskDelivery struct {
+	Task    Task   `json:"task" yaml:"task"`
+	Payload []byte `json:"payload" yaml:"payload"`
 }
 
 // SubmitTaskRequest represents a structured data type
@@ -56,7 +61,7 @@ type GetNextTaskRequest struct {
 
 // GetNextTaskResponse represents a structured data type
 type GetNextTaskResponse struct {
-	Task *Task `json:"task,omitempty" yaml:"task,omitempty"`
+	Delivery *TaskDelivery `json:"delivery,omitempty" yaml:"delivery,omitempty"`
 }
 
 // GetNextTaskGroupRequest represents a structured data type
@@ -70,7 +75,7 @@ type GetNextTaskGroupRequest struct {
 
 // GetNextTaskGroupResponse represents a structured data type
 type GetNextTaskGroupResponse struct {
-	Task *Task `json:"task,omitempty" yaml:"task,omitempty"`
+	Delivery *TaskDelivery `json:"delivery,omitempty" yaml:"delivery,omitempty"`
 }
 
 // CompleteTaskRequest represents a structured data type
@@ -87,14 +92,14 @@ type CompleteTaskResponse struct {
 
 // UpdateTaskRequest represents a structured data type
 type UpdateTaskRequest struct {
-	Uuid            string `json:"uuid" yaml:"uuid"`
-	Queue           string `json:"queue" yaml:"queue"`
-	CurrentState    string `json:"current_state" yaml:"current_state"`
-	AutoTargetState string `json:"auto_target_state" yaml:"auto_target_state"`
-	Timeout         int64  `json:"timeout" yaml:"timeout"`
-	NewState        string `json:"new_state" yaml:"new_state"`
-	Payload         []byte `json:"payload" yaml:"payload"`
-	Priority        int64  `json:"priority" yaml:"priority"`
+	Uuid            string  `json:"uuid" yaml:"uuid"`
+	Queue           string  `json:"queue" yaml:"queue"`
+	CurrentState    string  `json:"current_state" yaml:"current_state"`
+	AutoTargetState string  `json:"auto_target_state" yaml:"auto_target_state"`
+	Timeout         int64   `json:"timeout" yaml:"timeout"`
+	NewState        string  `json:"new_state" yaml:"new_state"`
+	Payload         *[]byte `json:"payload,omitempty" yaml:"payload,omitempty"`
+	Priority        int64   `json:"priority" yaml:"priority"`
 }
 
 // UpdateTaskResponse represents a structured data type

@@ -18,7 +18,8 @@ options {
 ;; named aliases are the correct CSIL idiom).
 StringInt64Map = {* text => int}
 
-;;; A task as returned by the service. Response-only shape.
+;;; Task metadata as returned by the service. Payload bytes are returned only
+;;; when a worker claims a task.
 Task = {
     uuid: text,
     queue: text,
@@ -27,8 +28,13 @@ Task = {
     submit_time: int,
     update_time: int,
     timeout: int,
-    payload: bytes,
     priority: int
+}
+
+;;; A claimed task and its opaque payload bytes.
+TaskDelivery = {
+    task: Task,
+    payload: bytes
 }
 
 SubmitTaskRequest = {
@@ -51,7 +57,7 @@ GetNextTaskRequest = {
     override_current_state: text,
     override_auto_target_state: text
 }
-GetNextTaskResponse = { ? task: Task }
+GetNextTaskResponse = { ? delivery: TaskDelivery }
 
 ;;; GetNextTaskGroup claims the single best task across a SET of queues in one
 ;;; request. current_state (if provided) filters by state exactly as GetNextTask
@@ -65,7 +71,7 @@ GetNextTaskGroupRequest = {
     override_current_state: text,
     override_auto_target_state: text
 }
-GetNextTaskGroupResponse = { ? task: Task }
+GetNextTaskGroupResponse = { ? delivery: TaskDelivery }
 
 CompleteTaskRequest = { uuid: text, queue: text, current_state: text }
 CompleteTaskResponse = { ? task: Task }
@@ -77,7 +83,7 @@ UpdateTaskRequest = {
     auto_target_state: text,
     timeout: int,
     new_state: text,
-    payload: bytes,
+    ? payload: bytes,
     priority: int
 }
 UpdateTaskResponse = { ? task: Task }

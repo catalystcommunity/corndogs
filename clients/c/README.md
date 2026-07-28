@@ -52,7 +52,7 @@ int main(void) {
         fprintf(stderr, "get_next_task failed: %s\n", corndogs_transport_last_error(tr));
         return 1;
     }
-    printf("claimed task %s\n", next_resp.task->uuid);
+    printf("claimed task %s\n", next_resp.delivery->task.uuid);
     csil_codec_arena_free(owner);
 
     corndogs_transport_close(tr); // stops the heartbeat and closes the connection

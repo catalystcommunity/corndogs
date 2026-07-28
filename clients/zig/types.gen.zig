@@ -18,8 +18,13 @@ pub const Task = struct {
     submit_time: i64,
     update_time: i64,
     timeout: i64,
-    payload: []const u8,
     priority: i64,
+};
+
+/// TaskDelivery is a structured data type.
+pub const TaskDelivery = struct {
+    task: Task,
+    payload: []const u8,
 };
 
 /// SubmitTaskRequest is a structured data type.
@@ -59,7 +64,7 @@ pub const GetNextTaskRequest = struct {
 
 /// GetNextTaskResponse is a structured data type.
 pub const GetNextTaskResponse = struct {
-    task: ?Task = null,
+    delivery: ?TaskDelivery = null,
 };
 
 /// GetNextTaskGroupRequest is a structured data type.
@@ -73,7 +78,7 @@ pub const GetNextTaskGroupRequest = struct {
 
 /// GetNextTaskGroupResponse is a structured data type.
 pub const GetNextTaskGroupResponse = struct {
-    task: ?Task = null,
+    delivery: ?TaskDelivery = null,
 };
 
 /// CompleteTaskRequest is a structured data type.
@@ -96,7 +101,7 @@ pub const UpdateTaskRequest = struct {
     auto_target_state: []const u8,
     timeout: i64,
     new_state: []const u8,
-    payload: []const u8,
+    payload: ?[]const u8 = null,
     priority: i64,
 };
 

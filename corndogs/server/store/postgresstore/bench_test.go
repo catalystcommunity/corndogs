@@ -60,7 +60,7 @@ func TestPostgresThroughput(t *testing.T) {
 				defer wg.Done()
 				for {
 					got, err := s.GetNextTask(ctx, &api.GetNextTaskRequest{Queue: "q", CurrentState: "submitted"})
-					if err != nil || got.Task == nil {
+					if err != nil || got.Delivery == nil {
 						return
 					}
 					atomic.AddInt64(&claimed, 1)

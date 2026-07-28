@@ -1,35 +1,70 @@
-# Corndogs API Docs
-This is where the API docs for corndogs lives for now. It contains the operations available. It's mostly semantics and brief descriptions at the moment, since the [Flow](/README.md#flow) section in the readme covers a lot of how you would use these. The wire is CBOR over HTTP (`POST /v1alpha1/CorndogsService/<Method>`); see the `csil/` directory for the contract and `clients/` for the generated clients with their specific fields.
+# Corndogs API
+
+The [Flow](/README.md#flow) section gives a usage example. The `csil/`
+directory contains the service contract. The `clients/` directory contains the
+generated client types.
+
+## Payload rules
+
+Corndogs treats each payload as opaque bytes. Corndogs does not encode, decode,
+or inspect these bytes.
+
+Only `GetNextTask` and `GetNextTaskGroup` return payload bytes. These operations
+return a `TaskDelivery`. A delivery contains task metadata and the payload.
+Other operations return task metadata without the payload.
+
+`UpdateTaskRequest.payload` is optional. If the field is absent, Corndogs keeps
+the stored payload. If the field is present and empty, Corndogs replaces the
+stored payload with an empty byte string. If the field is present and not
+empty, Corndogs replaces the stored payload with the new bytes.
+
+The default maximum payload size is 16 MiB. Set
+`CORNDOGS_MAX_PAYLOAD_BYTES` to change the limit. The value must be from `1`
+through `1073741823` bytes. The server rejects a larger payload.
 
 ## General
 The regular flow stuff.
 
 ### `SubmitTask`
-Used for submitting a new task to a `queue`.\
-Returns the created task.
+
+Submit a new task to a `queue`. The response contains the created task
+metadata.
 
 ### `GetTaskStateByID`
-Gets a task by the `uuid`. Will return archived tasks.
+
+Get task metadata by `uuid`. This operation can return an archived task. It
+does not return the payload.
 
 ### `GetNextTask`
-Gets the next task from `queue` that has the same `current_state`.\
-The `override_` fields override the task data *after* the states are switched.
-See [State and Timeout Overrides](/README.md#state-and-timeout-overrides) in the readme for an example.\
-Returns the next task.
+
+Claim the next task from `queue` that has the specified `current_state`. The
+`override_` fields change task data after Corndogs switches the states. See
+[State and Timeout Overrides](/README.md#state-and-timeout-overrides).
+
+The response contains an optional `TaskDelivery`. The delivery contains the
+task metadata and payload.
+
+### `GetNextTaskGroup`
+
+Claim the next task from a group of queues. The response has the same
+`TaskDelivery` form as `GetNextTask`.
 
 ### `UpdateTask`
-Will update a task with the matching `uuid`, `queue`, and `current_state`. Use `new_state` to update the `current_state`.\
-Returns the updated task.
+
+Update a task that has the matching `uuid`, `queue`, and `current_state`. Use
+`new_state` to change the current state. The response contains task metadata.
 
 ### `CompleteTask`
-Will complete a task with the matching `uuid`, `queue`, and `current_state`.\
-Sets the `current_state` and `auto_target_state` to `completed` and archives the task.\
-Returns the archived task.
+
+Complete a task that has the matching `uuid`, `queue`, and `current_state`.
+Corndogs sets both states to `completed` and archives the task. The response
+contains the archived task metadata.
 
 ### `CancelTask`
-Will cancel a task with the matching `uuid`, `queue`, and `current_state`.\
-Sets the `current_state` and `auto_target_state` to `canceled` and archives the task.\
-Returns the archived task.
+
+Cancel a task that has the matching `uuid`, `queue`, and `current_state`.
+Corndogs sets both states to `canceled` and archives the task. The response
+contains the archived task metadata.
 
 ### `CleanUpTimedOut`
 Will compare tasks to `at_time` to see if they're timed out. Optionally limited to a specific `queue`.\

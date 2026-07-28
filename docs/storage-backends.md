@@ -12,6 +12,20 @@ Both backends implement identical semantics (priority ordering, the timeout
 state-swap, completion/cancellation, metrics). They differ only in operational
 properties.
 
+## Payload storage
+
+Both backends store payloads as opaque bytes. Corndogs does not use JSON
+marshalling for payloads.
+
+The default payload limit is 16 MiB. Set `CORNDOGS_MAX_PAYLOAD_BYTES` to change
+the limit. The minimum is 1 byte. The maximum is 1073741823 bytes. Client frame
+limits must permit the configured payload size and the RPC envelope. The
+clients in this repository permit the full Corndogs range.
+
+Corndogs sends payload bytes only in `GetNextTask` and `GetNextTaskGroup`
+responses. State lookup, submit, update, complete, and cancel responses contain
+only task metadata.
+
 ---
 
 ## postgres (default)
@@ -39,6 +53,10 @@ Migrations run automatically on startup. For Helm deployment of postgres itself
 (bundled bitnami chart or the Zalando operator), see
 [deployment.md](./deployment.md) and the [chart README](../helm_chart/README.md).
 
+The payload column is PostgreSQL `bytea` with `STORAGE EXTERNAL`. PostgreSQL
+can store a large value outside the task row. PostgreSQL does not compress the
+payload. Metadata-only queries do not select the payload column.
+
 ### Trade-offs
 
 - **Pros:** horizontal scale-out, replica failover, backups/replication handled
@@ -53,6 +71,11 @@ An embedded backend that keeps all state in a single bbolt file on a mounted
 volume. There is no separate database process. Because the data file is owned by
 one OS process (it takes an exclusive file lock), the file backend is
 **single-replica only** — it cannot be shared across pods.
+
+The file backend stores task metadata as JSON. It stores payloads as raw values
+in a separate bbolt bucket. A deadline index supports timeout cleanup. On
+startup, Corndogs migrates old task records that contain JSON payload fields.
+The migration uses atomic batches and can continue after a restart.
 
 ### Configuration
 

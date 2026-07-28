@@ -401,10 +401,9 @@ public final class CsilCbor {
     }
 
     static CborValue encTask(Task v) {
-        List<CborEntry> csilEntries = new ArrayList<>(9);
+        List<CborEntry> csilEntries = new ArrayList<>(8);
         csilEntries.add(new CborEntry(new CborText("uuid"), new CborText(v.uuid())));
         csilEntries.add(new CborEntry(new CborText("queue"), new CborText(v.queue())));
-        csilEntries.add(new CborEntry(new CborText("payload"), new CborBytes(v.payload())));
         csilEntries.add(new CborEntry(new CborText("timeout"), new CborInt(v.timeout())));
         csilEntries.add(new CborEntry(new CborText("priority"), new CborInt(v.priority())));
         csilEntries.add(new CborEntry(new CborText("submit_time"), new CborInt(v.submitTime())));
@@ -422,9 +421,8 @@ public final class CsilCbor {
         long submitTime = asI64(require(csilRoot, "submit_time"));
         long updateTime = asI64(require(csilRoot, "update_time"));
         long timeout = asI64(require(csilRoot, "timeout"));
-        byte[] payload = asBytes(require(csilRoot, "payload"));
         long priority = asI64(require(csilRoot, "priority"));
-        return new Task(uuid, queue, currentState, autoTargetState, submitTime, updateTime, timeout, payload, priority);
+        return new Task(uuid, queue, currentState, autoTargetState, submitTime, updateTime, timeout, priority);
     }
 
     public static byte[] encodeTask(Task v) {
@@ -433,6 +431,27 @@ public final class CsilCbor {
 
     public static Task decodeTask(byte[] data) {
         return decTask(decode(data));
+    }
+
+    static CborValue encTaskDelivery(TaskDelivery v) {
+        List<CborEntry> csilEntries = new ArrayList<>(2);
+        csilEntries.add(new CborEntry(new CborText("task"), encTask(v.task())));
+        csilEntries.add(new CborEntry(new CborText("payload"), new CborBytes(v.payload())));
+        return new CborMap(csilEntries);
+    }
+
+    static TaskDelivery decTaskDelivery(CborValue csilRoot) {
+        Task task = decTask(require(csilRoot, "task"));
+        byte[] payload = asBytes(require(csilRoot, "payload"));
+        return new TaskDelivery(task, payload);
+    }
+
+    public static byte[] encodeTaskDelivery(TaskDelivery v) {
+        return encode(encTaskDelivery(v));
+    }
+
+    public static TaskDelivery decodeTaskDelivery(byte[] data) {
+        return decTaskDelivery(decode(data));
     }
 
     static CborValue encSubmitTaskRequest(SubmitTaskRequest v) {
@@ -564,19 +583,19 @@ public final class CsilCbor {
 
     static CborValue encGetNextTaskResponse(GetNextTaskResponse v) {
         List<CborEntry> csilEntries = new ArrayList<>(1);
-        if (v.task() != null) {
-            csilEntries.add(new CborEntry(new CborText("task"), encTask(v.task())));
+        if (v.delivery() != null) {
+            csilEntries.add(new CborEntry(new CborText("delivery"), encTaskDelivery(v.delivery())));
         }
         return new CborMap(csilEntries);
     }
 
     static GetNextTaskResponse decGetNextTaskResponse(CborValue csilRoot) {
-        Task task;
+        TaskDelivery delivery;
         {
-            CborValue csilField = mapGet(csilRoot, "task");
-            task = csilField != null ? decTask(csilField) : null;
+            CborValue csilField = mapGet(csilRoot, "delivery");
+            delivery = csilField != null ? decTaskDelivery(csilField) : null;
         }
-        return new GetNextTaskResponse(task);
+        return new GetNextTaskResponse(delivery);
     }
 
     public static byte[] encodeGetNextTaskResponse(GetNextTaskResponse v) {
@@ -616,19 +635,19 @@ public final class CsilCbor {
 
     static CborValue encGetNextTaskGroupResponse(GetNextTaskGroupResponse v) {
         List<CborEntry> csilEntries = new ArrayList<>(1);
-        if (v.task() != null) {
-            csilEntries.add(new CborEntry(new CborText("task"), encTask(v.task())));
+        if (v.delivery() != null) {
+            csilEntries.add(new CborEntry(new CborText("delivery"), encTaskDelivery(v.delivery())));
         }
         return new CborMap(csilEntries);
     }
 
     static GetNextTaskGroupResponse decGetNextTaskGroupResponse(CborValue csilRoot) {
-        Task task;
+        TaskDelivery delivery;
         {
-            CborValue csilField = mapGet(csilRoot, "task");
-            task = csilField != null ? decTask(csilField) : null;
+            CborValue csilField = mapGet(csilRoot, "delivery");
+            delivery = csilField != null ? decTaskDelivery(csilField) : null;
         }
-        return new GetNextTaskGroupResponse(task);
+        return new GetNextTaskGroupResponse(delivery);
     }
 
     public static byte[] encodeGetNextTaskGroupResponse(GetNextTaskGroupResponse v) {
@@ -691,7 +710,9 @@ public final class CsilCbor {
         List<CborEntry> csilEntries = new ArrayList<>(8);
         csilEntries.add(new CborEntry(new CborText("uuid"), new CborText(v.uuid())));
         csilEntries.add(new CborEntry(new CborText("queue"), new CborText(v.queue())));
-        csilEntries.add(new CborEntry(new CborText("payload"), new CborBytes(v.payload())));
+        if (v.payload() != null) {
+            csilEntries.add(new CborEntry(new CborText("payload"), new CborBytes(v.payload())));
+        }
         csilEntries.add(new CborEntry(new CborText("timeout"), new CborInt(v.timeout())));
         csilEntries.add(new CborEntry(new CborText("priority"), new CborInt(v.priority())));
         csilEntries.add(new CborEntry(new CborText("new_state"), new CborText(v.newState())));
@@ -707,7 +728,11 @@ public final class CsilCbor {
         String autoTargetState = asText(require(csilRoot, "auto_target_state"));
         long timeout = asI64(require(csilRoot, "timeout"));
         String newState = asText(require(csilRoot, "new_state"));
-        byte[] payload = asBytes(require(csilRoot, "payload"));
+        byte[] payload;
+        {
+            CborValue csilField = mapGet(csilRoot, "payload");
+            payload = csilField != null ? asBytes(csilField) : null;
+        }
         long priority = asI64(require(csilRoot, "priority"));
         return new UpdateTaskRequest(uuid, queue, currentState, autoTargetState, timeout, newState, payload, priority);
     }

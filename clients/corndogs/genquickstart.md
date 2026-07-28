@@ -123,12 +123,20 @@ import (
 
 // One example carrier: a TLS byte stream framed with CSIL's 4-byte length prefix
 // via the library's StreamCarrier. Swap tls.Dial for a WebSocket/QUIC stream.
+
+// The max-frame guard is a carrier setting, not a generated constant: raise it when a
+// peer accepts payloads larger than the 16 MiB default (the envelope adds framing and
+// request metadata around the payload, so the limit must exceed the largest payload),
+// or lower it to harden an exposed listener. Valid limits are 1..=transport.MaxFrameLimit
+// and are checked at construction.
+const maxFrame = transport.MaxFrameDefault
+
 func openTLSCarrier(addr string) (transport.FrameCarrier, error) {
 	conn, err := tls.Dial("tcp", addr, &tls.Config{})
 	if err != nil {
 		return nil, err
 	}
-	return transport.NewStreamCarrier(conn), nil
+	return transport.NewStreamCarrierWithMaxFrame(conn, maxFrame)
 }
 
 func session(carrier transport.FrameCarrier) error {

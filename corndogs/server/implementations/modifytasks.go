@@ -3,13 +3,18 @@ package implementations
 import (
 	"context"
 
-	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/metrics"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
 )
 
 func (s *V1Alpha1Server) UpdateTask(ctx context.Context, req api.UpdateTaskRequest) (api.UpdateTaskResponse, error) {
+	if req.Payload != nil {
+		if err := validatePayload(*req.Payload); err != nil {
+			return api.UpdateTaskResponse{}, err
+		}
+	}
 	if req.CurrentState == "" {
 		req.CurrentState = config.DefaultStartingState
 	}

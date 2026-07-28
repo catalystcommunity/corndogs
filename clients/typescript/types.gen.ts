@@ -5,7 +5,8 @@
 export type StringInt64Map = Record<string, number>;
 
 /**
- * A task as returned by the service. Response-only shape.
+ * Task metadata as returned by the service. Payload bytes are returned only
+ * when a worker claims a task.
  */
 export interface Task {
   uuid: string;
@@ -15,8 +16,15 @@ export interface Task {
   submitTime: number;
   updateTime: number;
   timeout: number;
-  payload: Uint8Array;
   priority: number;
+}
+
+/**
+ * A claimed task and its opaque payload bytes.
+ */
+export interface TaskDelivery {
+  task: Task;
+  payload: Uint8Array;
 }
 
 export interface SubmitTaskRequest {
@@ -50,7 +58,7 @@ export interface GetNextTaskRequest {
 }
 
 export interface GetNextTaskResponse {
-  task?: Task;
+  delivery?: TaskDelivery;
 }
 
 /**
@@ -69,7 +77,7 @@ export interface GetNextTaskGroupRequest {
 }
 
 export interface GetNextTaskGroupResponse {
-  task?: Task;
+  delivery?: TaskDelivery;
 }
 
 export interface CompleteTaskRequest {
@@ -89,7 +97,7 @@ export interface UpdateTaskRequest {
   autoTargetState: string;
   timeout: number;
   newState: string;
-  payload: Uint8Array;
+  payload?: Uint8Array;
   priority: number;
 }
 

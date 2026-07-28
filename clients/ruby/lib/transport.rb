@@ -44,7 +44,7 @@ end
 TAG_ENCODED_CBOR = 24 # RFC 8949 3.4.5.1 -- embedded encoded CBOR data item
 CONTROL_SERVICE = "CorndogsService" # control-plane service name for the heartbeat
 OP_PING = "$ping" # control-plane heartbeat op (never collides with app ops)
-MAX_FRAME = 256 << 20 # frame size guard
+MAX_FRAME = 1025 << 20 # payload hard maximum plus RPC envelope allowance
 
 # Sync CSIL-RPC transport over one persistent TCP connection. Calls are
 # serialized (one in flight); the connection re-dials on failure. Thread-safe.

@@ -1,9 +1,16 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"time"
+)
+
+const (
+	DefaultMaxPayloadBytes = int64(16 * 1024 * 1024)
+	HardMaxPayloadBytes    = int64(1<<30 - 1)
+	RPCEnvelopeAllowance   = int64(1 * 1024 * 1024)
 )
 
 var LogLevel = GetEnvOrDefault("LOGLEVEL", "error")
@@ -18,6 +25,32 @@ var DefaultStartingState = GetEnvOrDefault("DEFAULT_STARTING_STATE", "submitted"
 var DefaultTimeout = int64(GetEnvAsIntOrDefault("DEFAULT_TIMEOUT", "0"))
 var DefaultWorkingSuffix = "-working"
 var RequestIdHeader = GetEnvOrDefault("REQUEST_ID_HEADER", "X-Request-ID")
+var MaxPayloadBytes = loadMaxPayloadBytes()
+var MaxRPCFrameBytes = int(MaxPayloadBytes + RPCEnvelopeAllowance)
+
+func loadMaxPayloadBytes() int64 {
+	raw := GetEnvOrDefault("CORNDOGS_MAX_PAYLOAD_BYTES", strconv.FormatInt(DefaultMaxPayloadBytes, 10))
+	value, err := parseMaxPayloadBytes(raw)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+func parseMaxPayloadBytes(raw string) (int64, error) {
+	value, err := strconv.ParseInt(raw, 0, 64)
+	if err != nil {
+		return 0, fmt.Errorf("CORNDOGS_MAX_PAYLOAD_BYTES: %w", err)
+	}
+	if value < 1 || value > HardMaxPayloadBytes {
+		return 0, fmt.Errorf(
+			"CORNDOGS_MAX_PAYLOAD_BYTES must be in 1..%d, got %d",
+			HardMaxPayloadBytes,
+			value,
+		)
+	}
+	return value, nil
+}
 
 func GetEnvOrDefault(env, defaultValue string) string {
 	value := os.Getenv(env)

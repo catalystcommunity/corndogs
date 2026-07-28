@@ -8,7 +8,6 @@ import (
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/stretchr/testify/require"
-
 	// This import path is based on the name declaration in the go.mod,
 	// and the gen/proto/go output location in the buf.gen.yaml.
 )
@@ -27,8 +26,8 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	if nextTaskResponse.Task != nil {
-		panic(nextTaskResponse.Task.Uuid)
+	if nextTaskResponse.Delivery != nil {
+		panic(nextTaskResponse.Delivery.Task.Uuid)
 	}
 }
 
@@ -60,16 +59,16 @@ func TestBasicFlow(t *testing.T) {
 	}
 	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.NotEmpty(t, getNextTaskResponse.Task.SubmitTime, "submit_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.UpdateTime, "update_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.Uuid, "uuid should not be empty")
-	require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
-	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.SubmitTime, "submit_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.UpdateTime, "update_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.Uuid, "uuid should not be empty")
+	require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Delivery.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
+	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Delivery.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
 
 	updateTaskRequest := &api.UpdateTaskRequest{
-		Uuid:            getNextTaskResponse.Task.Uuid,
+		Uuid:            getNextTaskResponse.Delivery.Task.Uuid,
 		Queue:           "testQueue" + testID,
 		CurrentState:    "testSubmitted" + workingTaskSuffix,
 		AutoTargetState: "testSubmitted-completing",
@@ -92,16 +91,16 @@ func TestBasicFlow(t *testing.T) {
 	}
 	getNextTaskResponse, err = corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.NotEmpty(t, getNextTaskResponse.Task.SubmitTime, "submit_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.UpdateTime, "update_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.Uuid, "uuid should not be empty")
-	require.Equal(t, "testSubmitted-completing", getNextTaskResponse.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
-	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Task.AutoTargetState, "Task CurrentState does not have correct suffix added")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.SubmitTime, "submit_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.UpdateTime, "update_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.Uuid, "uuid should not be empty")
+	require.Equal(t, "testSubmitted-completing", getNextTaskResponse.Delivery.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
+	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Delivery.Task.AutoTargetState, "Task CurrentState does not have correct suffix added")
 
 	completeTaskRequest := &api.CompleteTaskRequest{
-		Uuid:         getNextTaskResponse.Task.Uuid,
+		Uuid:         getNextTaskResponse.Delivery.Task.Uuid,
 		Queue:        "testQueue" + testID,
 		CurrentState: "testSubmitted-updated" + workingTaskSuffix,
 	}
@@ -113,7 +112,6 @@ func TestBasicFlow(t *testing.T) {
 	require.NotEmpty(t, completeTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, completeTaskResponse.Task.Uuid, "uuid should not be empty")
 	require.Equal(t, "completed", completeTaskResponse.Task.CurrentState, "Task CurrentState does not have correct suffix added")
-	require.Empty(t, completeTaskResponse.Task.Payload, "Task Payload should be empty after completion")
 }
 
 func TestGetNextTaskOverrideState(t *testing.T) {
@@ -145,13 +143,13 @@ func TestGetNextTaskOverrideState(t *testing.T) {
 	}
 	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.NotEmpty(t, getNextTaskResponse.Task.SubmitTime, "submit_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.UpdateTime, "update_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.Uuid, "uuid should not be empty")
-	require.Equal(t, getNextTaskRequest.OverrideCurrentState, getNextTaskResponse.Task.CurrentState, "Task CurrentState is not the overridden")
-	require.Equal(t, getNextTaskRequest.OverrideAutoTargetState, getNextTaskResponse.Task.AutoTargetState, "Task AutoTargetState is not overridden")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.SubmitTime, "submit_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.UpdateTime, "update_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.Uuid, "uuid should not be empty")
+	require.Equal(t, getNextTaskRequest.OverrideCurrentState, getNextTaskResponse.Delivery.Task.CurrentState, "Task CurrentState is not the overridden")
+	require.Equal(t, getNextTaskRequest.OverrideAutoTargetState, getNextTaskResponse.Delivery.Task.AutoTargetState, "Task AutoTargetState is not overridden")
 }
 
 func TestGetNextTaskGroup(t *testing.T) {
@@ -192,8 +190,8 @@ func TestGetNextTaskGroup(t *testing.T) {
 			CurrentState: "testSubmitted",
 		})
 		require.Nil(t, err, fmt.Sprintf("GetNextTaskGroup iter %d error: %v", i, err))
-		require.NotNil(t, resp.Task, "Task in response was nil on iter %d", i)
-		order = append(order, string(resp.Task.Payload))
+		require.NotNil(t, resp.Delivery, "Task delivery in response was nil on iter %d", i)
+		order = append(order, string(resp.Delivery.Payload))
 	}
 	require.Equal(t, []string{"q1-hi", "q2-hi", "q3-lo"}, order, "priority-across-queues dequeue order")
 
@@ -203,7 +201,7 @@ func TestGetNextTaskGroup(t *testing.T) {
 		CurrentState: "testSubmitted",
 	})
 	require.Nil(t, err, fmt.Sprintf("drain check error: %v", err))
-	require.Nil(t, empty.Task, "group should be drained")
+	require.Nil(t, empty.Delivery, "group should be drained")
 
 	// The higher-priority out-of-group task was never claimed by the group request.
 	still, err := corndogsClient.GetNextTask(context.Background(), &api.GetNextTaskRequest{
@@ -211,8 +209,8 @@ func TestGetNextTaskGroup(t *testing.T) {
 		CurrentState: "testSubmitted",
 	})
 	require.Nil(t, err, fmt.Sprintf("out-of-group check error: %v", err))
-	require.NotNil(t, still.Task, "out-of-group task should still be available")
-	require.Equal(t, "nope", string(still.Task.Payload), "out-of-group task payload")
+	require.NotNil(t, still.Delivery, "out-of-group task should still be available")
+	require.Equal(t, "nope", string(still.Delivery.Payload), "out-of-group task payload")
 }
 
 func TestGetTaskStateByID(t *testing.T) {
@@ -258,7 +256,6 @@ func TestGetTaskStateByID(t *testing.T) {
 	require.Equal(t, getTaskStateByIDResponse.Task.Uuid, task.Uuid, "uuid is not equal")
 	require.Equal(t, getTaskStateByIDResponse.Task.CurrentState, task.CurrentState, "CurrentState is not equal")
 	require.Equal(t, getTaskStateByIDResponse.Task.AutoTargetState, task.AutoTargetState, "AutoTargetState is not equal")
-	require.Equal(t, getTaskStateByIDResponse.Task.Payload, task.Payload, "Payload is not equal")
 }
 
 func TestGetTaskStateByIDArchived(t *testing.T) {
@@ -300,9 +297,7 @@ func TestGetTaskStateByIDArchived(t *testing.T) {
 	require.Equal(t, getTaskStateByIDResponse.Task.Uuid, task.Uuid, "uuid is not equal")
 	require.Equal(t, getTaskStateByIDResponse.Task.CurrentState, task.CurrentState, "CurrentState is not equal")
 	require.Equal(t, getTaskStateByIDResponse.Task.AutoTargetState, task.AutoTargetState, "AutoTargetState is not equal")
-	require.Equal(t, getTaskStateByIDResponse.Task.Payload, task.Payload, "Payload is not equal")
 }
-
 
 func GetTestID() string {
 	return gofakeit.Breakfast() + gofakeit.Dessert()

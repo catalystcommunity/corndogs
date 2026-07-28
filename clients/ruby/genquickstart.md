@@ -88,11 +88,18 @@ require "corndogs"
 # library's StreamCarrier owns the framing; we own only the socket.
 Events = Csilgen::Transport::Events
 
+# The max-frame guard is a carrier setting, not a generated constant: raise it when a peer
+# accepts payloads larger than the 16 MiB default (the envelope adds framing and request
+# metadata around the payload, so the limit must exceed the largest payload), or lower it
+# to harden an exposed listener. Valid limits are 1..MAX_FRAME_LIMIT and are checked at
+# construction.
+MAX_FRAME = Csilgen::Transport::Conventions::MAX_FRAME_DEFAULT
+
 def open_tls_carrier(host, port)
   socket = TCPSocket.new(host, port)
   ssl = OpenSSL::SSL::SSLSocket.new(socket)
   ssl.connect
-  Csilgen::Transport::StreamCarrier.new(ssl)
+  Csilgen::Transport::StreamCarrier.new(ssl, max_frame: MAX_FRAME)
 end
 
 

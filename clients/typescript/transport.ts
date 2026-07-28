@@ -43,7 +43,7 @@ import {
 } from "./codec.gen.ts";
 
 const TAG_ENCODED_CBOR = 24; // RFC 8949 §3.4.5.1 — embedded encoded CBOR data item
-const MAX_FRAME = 256 << 20; // frame size guard
+const MAX_FRAME = 1025 * (1 << 20); // payload maximum plus envelope allowance
 const DEFAULT_CONNECT_TIMEOUT_MS = 5000;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 15000;
 const CONTROL_SERVICE = "CorndogsService";

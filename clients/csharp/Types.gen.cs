@@ -24,10 +24,16 @@ public sealed record Task
     public required long UpdateTime { get; init; }
     // CBOR key: timeout
     public required long Timeout { get; init; }
-    // CBOR key: payload
-    public required byte[] Payload { get; init; }
     // CBOR key: priority
     public required long Priority { get; init; }
+}
+
+public sealed record TaskDelivery
+{
+    // CBOR key: task
+    public required Task Task { get; init; }
+    // CBOR key: payload
+    public required byte[] Payload { get; init; }
 }
 
 public sealed record SubmitTaskRequest
@@ -82,8 +88,8 @@ public sealed record GetNextTaskRequest
 
 public sealed record GetNextTaskResponse
 {
-    // CBOR key: task
-    public Task? Task { get; init; }
+    // CBOR key: delivery
+    public TaskDelivery? Delivery { get; init; }
 }
 
 public sealed record GetNextTaskGroupRequest
@@ -102,8 +108,8 @@ public sealed record GetNextTaskGroupRequest
 
 public sealed record GetNextTaskGroupResponse
 {
-    // CBOR key: task
-    public Task? Task { get; init; }
+    // CBOR key: delivery
+    public TaskDelivery? Delivery { get; init; }
 }
 
 public sealed record CompleteTaskRequest
@@ -137,7 +143,7 @@ public sealed record UpdateTaskRequest
     // CBOR key: new_state
     public required string NewState { get; init; }
     // CBOR key: payload
-    public required byte[] Payload { get; init; }
+    public byte[]? Payload { get; init; }
     // CBOR key: priority
     public required long Priority { get; init; }
 }

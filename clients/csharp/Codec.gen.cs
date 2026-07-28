@@ -327,6 +327,7 @@ public static class Codec
     static CborValue ToCborValue(object value) => value switch
     {
         Task csilTyped => TaskToCborValue(csilTyped),
+        TaskDelivery csilTyped => TaskDeliveryToCborValue(csilTyped),
         SubmitTaskRequest csilTyped => SubmitTaskRequestToCborValue(csilTyped),
         SubmitTaskResponse csilTyped => SubmitTaskResponseToCborValue(csilTyped),
         GetTaskStateByIDRequest csilTyped => GetTaskStateByIDRequestToCborValue(csilTyped),
@@ -359,6 +360,7 @@ public static class Codec
     static object FromCborValue(System.Type csilType, CborValue value)
     {
         if (csilType == typeof(Task)) return TaskFromCborValue(value);
+        if (csilType == typeof(TaskDelivery)) return TaskDeliveryFromCborValue(value);
         if (csilType == typeof(SubmitTaskRequest)) return SubmitTaskRequestFromCborValue(value);
         if (csilType == typeof(SubmitTaskResponse)) return SubmitTaskResponseFromCborValue(value);
         if (csilType == typeof(GetTaskStateByIDRequest)) return GetTaskStateByIDRequestFromCborValue(value);
@@ -394,7 +396,6 @@ public static class Codec
         var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
         csilEntries.Add((new CborValue.Text("uuid"), new CborValue.Text(value.Uuid)));
         csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
-        csilEntries.Add((new CborValue.Text("payload"), new CborValue.Bytes(value.Payload)));
         csilEntries.Add((new CborValue.Text("timeout"), new CborValue.Int(value.Timeout)));
         csilEntries.Add((new CborValue.Text("priority"), new CborValue.Int(value.Priority)));
         csilEntries.Add((new CborValue.Text("submit_time"), new CborValue.Int(value.SubmitTime)));
@@ -414,8 +415,7 @@ public static class Codec
         var csilField4 = Cbor.AsI64(Cbor.Require(value, "submit_time"));
         var csilField5 = Cbor.AsI64(Cbor.Require(value, "update_time"));
         var csilField6 = Cbor.AsI64(Cbor.Require(value, "timeout"));
-        var csilField7 = Cbor.AsBytes(Cbor.Require(value, "payload"));
-        var csilField8 = Cbor.AsI64(Cbor.Require(value, "priority"));
+        var csilField7 = Cbor.AsI64(Cbor.Require(value, "priority"));
         return new Task
         {
             Uuid = csilField0,
@@ -425,8 +425,28 @@ public static class Codec
             SubmitTime = csilField4,
             UpdateTime = csilField5,
             Timeout = csilField6,
-            Payload = csilField7,
-            Priority = csilField8,
+            Priority = csilField7,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a TaskDelivery.</summary>
+    public static CborValue TaskDeliveryToCborValue(TaskDelivery value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("task"), TaskToCborValue(value.Task)));
+        csilEntries.Add((new CborValue.Text("payload"), new CborValue.Bytes(value.Payload)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a TaskDelivery from a decoded CBOR value tree.</summary>
+    public static TaskDelivery TaskDeliveryFromCborValue(CborValue value)
+    {
+        var csilField0 = TaskFromCborValue(Cbor.Require(value, "task"));
+        var csilField1 = Cbor.AsBytes(Cbor.Require(value, "payload"));
+        return new TaskDelivery
+        {
+            Task = csilField0,
+            Payload = csilField1,
         };
     }
 
@@ -560,9 +580,9 @@ public static class Codec
     public static CborValue GetNextTaskResponseToCborValue(GetNextTaskResponse value)
     {
         var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
-        if (value.Task is { } csilV0)
+        if (value.Delivery is { } csilV0)
         {
-            csilEntries.Add((new CborValue.Text("task"), TaskToCborValue(csilV0)));
+            csilEntries.Add((new CborValue.Text("delivery"), TaskDeliveryToCborValue(csilV0)));
         }
         return new CborValue.Map(csilEntries);
     }
@@ -570,10 +590,10 @@ public static class Codec
     /// <summary>Reconstruct a GetNextTaskResponse from a decoded CBOR value tree.</summary>
     public static GetNextTaskResponse GetNextTaskResponseFromCborValue(CborValue value)
     {
-        Task? csilField0 = Cbor.MapGet(value, "task") is { } csilRaw0 ? TaskFromCborValue(csilRaw0) : null;
+        TaskDelivery? csilField0 = Cbor.MapGet(value, "delivery") is { } csilRaw0 ? TaskDeliveryFromCborValue(csilRaw0) : null;
         return new GetNextTaskResponse
         {
-            Task = csilField0,
+            Delivery = csilField0,
         };
     }
 
@@ -611,9 +631,9 @@ public static class Codec
     public static CborValue GetNextTaskGroupResponseToCborValue(GetNextTaskGroupResponse value)
     {
         var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
-        if (value.Task is { } csilV0)
+        if (value.Delivery is { } csilV0)
         {
-            csilEntries.Add((new CborValue.Text("task"), TaskToCborValue(csilV0)));
+            csilEntries.Add((new CborValue.Text("delivery"), TaskDeliveryToCborValue(csilV0)));
         }
         return new CborValue.Map(csilEntries);
     }
@@ -621,10 +641,10 @@ public static class Codec
     /// <summary>Reconstruct a GetNextTaskGroupResponse from a decoded CBOR value tree.</summary>
     public static GetNextTaskGroupResponse GetNextTaskGroupResponseFromCborValue(CborValue value)
     {
-        Task? csilField0 = Cbor.MapGet(value, "task") is { } csilRaw0 ? TaskFromCborValue(csilRaw0) : null;
+        TaskDelivery? csilField0 = Cbor.MapGet(value, "delivery") is { } csilRaw0 ? TaskDeliveryFromCborValue(csilRaw0) : null;
         return new GetNextTaskGroupResponse
         {
-            Task = csilField0,
+            Delivery = csilField0,
         };
     }
 
@@ -679,7 +699,10 @@ public static class Codec
         var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
         csilEntries.Add((new CborValue.Text("uuid"), new CborValue.Text(value.Uuid)));
         csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
-        csilEntries.Add((new CborValue.Text("payload"), new CborValue.Bytes(value.Payload)));
+        if (value.Payload is { } csilV2)
+        {
+            csilEntries.Add((new CborValue.Text("payload"), new CborValue.Bytes(csilV2)));
+        }
         csilEntries.Add((new CborValue.Text("timeout"), new CborValue.Int(value.Timeout)));
         csilEntries.Add((new CborValue.Text("priority"), new CborValue.Int(value.Priority)));
         csilEntries.Add((new CborValue.Text("new_state"), new CborValue.Text(value.NewState)));
@@ -697,7 +720,7 @@ public static class Codec
         var csilField3 = Cbor.AsText(Cbor.Require(value, "auto_target_state"));
         var csilField4 = Cbor.AsI64(Cbor.Require(value, "timeout"));
         var csilField5 = Cbor.AsText(Cbor.Require(value, "new_state"));
-        var csilField6 = Cbor.AsBytes(Cbor.Require(value, "payload"));
+        byte[]? csilField6 = Cbor.MapGet(value, "payload") is { } csilRaw6 ? Cbor.AsBytes(csilRaw6) : null;
         var csilField7 = Cbor.AsI64(Cbor.Require(value, "priority"));
         return new UpdateTaskRequest
         {

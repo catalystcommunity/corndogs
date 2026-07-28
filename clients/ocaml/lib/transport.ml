@@ -25,7 +25,7 @@
 module Cbor = Csil_cbor
 
 let tag_encoded_cbor = 24 (* RFC 8949 §3.4.5.1 — embedded encoded CBOR data item *)
-let max_frame = 256 lsl 20 (* frame size guard *)
+let max_frame = 1025 lsl 20 (* payload hard maximum plus RPC envelope allowance *)
 let default_connect_timeout = 5.0 (* seconds *)
 let default_heartbeat_interval = 15.0 (* seconds *)
 let control_service = "CorndogsService"

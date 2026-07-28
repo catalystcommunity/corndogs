@@ -304,7 +304,6 @@ fun Task.toCborValue(): CborValue {
     val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
     csilEntries.add(CborValue.CText("uuid") to CborValue.CText(this.uuid))
     csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
-    csilEntries.add(CborValue.CText("payload") to CborValue.CBytes(this.payload))
     csilEntries.add(CborValue.CText("timeout") to CborValue.CInt(this.timeout))
     csilEntries.add(CborValue.CText("priority") to CborValue.CInt(this.priority))
     csilEntries.add(CborValue.CText("submit_time") to CborValue.CInt(this.submitTime))
@@ -326,13 +325,33 @@ fun taskFromCborValue(cbor: CborValue): Task {
     val submitTime = CsilCbor.asLong(CsilCbor.require(cbor, "submit_time"))
     val updateTime = CsilCbor.asLong(CsilCbor.require(cbor, "update_time"))
     val timeout = CsilCbor.asLong(CsilCbor.require(cbor, "timeout"))
-    val payload = CsilCbor.asBytes(CsilCbor.require(cbor, "payload"))
     val priority = CsilCbor.asLong(CsilCbor.require(cbor, "priority"))
-    return Task(uuid = uuid, queue = queue, currentState = currentState, autoTargetState = autoTargetState, submitTime = submitTime, updateTime = updateTime, timeout = timeout, payload = payload, priority = priority)
+    return Task(uuid = uuid, queue = queue, currentState = currentState, autoTargetState = autoTargetState, submitTime = submitTime, updateTime = updateTime, timeout = timeout, priority = priority)
 }
 
 /** Decode CSIL CBOR bytes into a Task. */
 fun taskFromCbor(bytes: ByteArray): Task = taskFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a TaskDelivery (deep, canonical key order). */
+fun TaskDelivery.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("task") to this.task.toCborValue())
+    csilEntries.add(CborValue.CText("payload") to CborValue.CBytes(this.payload))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a TaskDelivery to canonical CSIL CBOR bytes. */
+fun TaskDelivery.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a TaskDelivery from a decoded CBOR value tree. */
+fun taskDeliveryFromCborValue(cbor: CborValue): TaskDelivery {
+    val task = taskFromCborValue(CsilCbor.require(cbor, "task"))
+    val payload = CsilCbor.asBytes(CsilCbor.require(cbor, "payload"))
+    return TaskDelivery(task = task, payload = payload)
+}
+
+/** Decode CSIL CBOR bytes into a TaskDelivery. */
+fun taskDeliveryFromCbor(bytes: ByteArray): TaskDelivery = taskDeliveryFromCborValue(CsilCbor.decode(bytes))
 
 /** The CBOR value tree for a SubmitTaskRequest (deep, canonical key order). */
 fun SubmitTaskRequest.toCborValue(): CborValue {
@@ -452,7 +471,7 @@ fun getNextTaskRequestFromCbor(bytes: ByteArray): GetNextTaskRequest = getNextTa
 /** The CBOR value tree for a GetNextTaskResponse (deep, canonical key order). */
 fun GetNextTaskResponse.toCborValue(): CborValue {
     val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
-    this.task?.let { csilV -> csilEntries.add(CborValue.CText("task") to csilV.toCborValue()) }
+    this.delivery?.let { csilV -> csilEntries.add(CborValue.CText("delivery") to csilV.toCborValue()) }
     return CborValue.CMap(csilEntries)
 }
 
@@ -461,8 +480,8 @@ fun GetNextTaskResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue()
 
 /** Reconstruct a GetNextTaskResponse from a decoded CBOR value tree. */
 fun getNextTaskResponseFromCborValue(cbor: CborValue): GetNextTaskResponse {
-    val task = CsilCbor.mapGet(cbor, "task")?.let { csilV -> taskFromCborValue(csilV) }
-    return GetNextTaskResponse(task = task)
+    val delivery = CsilCbor.mapGet(cbor, "delivery")?.let { csilV -> taskDeliveryFromCborValue(csilV) }
+    return GetNextTaskResponse(delivery = delivery)
 }
 
 /** Decode CSIL CBOR bytes into a GetNextTaskResponse. */
@@ -498,7 +517,7 @@ fun getNextTaskGroupRequestFromCbor(bytes: ByteArray): GetNextTaskGroupRequest =
 /** The CBOR value tree for a GetNextTaskGroupResponse (deep, canonical key order). */
 fun GetNextTaskGroupResponse.toCborValue(): CborValue {
     val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
-    this.task?.let { csilV -> csilEntries.add(CborValue.CText("task") to csilV.toCborValue()) }
+    this.delivery?.let { csilV -> csilEntries.add(CborValue.CText("delivery") to csilV.toCborValue()) }
     return CborValue.CMap(csilEntries)
 }
 
@@ -507,8 +526,8 @@ fun GetNextTaskGroupResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborVa
 
 /** Reconstruct a GetNextTaskGroupResponse from a decoded CBOR value tree. */
 fun getNextTaskGroupResponseFromCborValue(cbor: CborValue): GetNextTaskGroupResponse {
-    val task = CsilCbor.mapGet(cbor, "task")?.let { csilV -> taskFromCborValue(csilV) }
-    return GetNextTaskGroupResponse(task = task)
+    val delivery = CsilCbor.mapGet(cbor, "delivery")?.let { csilV -> taskDeliveryFromCborValue(csilV) }
+    return GetNextTaskGroupResponse(delivery = delivery)
 }
 
 /** Decode CSIL CBOR bytes into a GetNextTaskGroupResponse. */
@@ -561,7 +580,7 @@ fun UpdateTaskRequest.toCborValue(): CborValue {
     val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
     csilEntries.add(CborValue.CText("uuid") to CborValue.CText(this.uuid))
     csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
-    csilEntries.add(CborValue.CText("payload") to CborValue.CBytes(this.payload))
+    this.payload?.let { csilV -> csilEntries.add(CborValue.CText("payload") to CborValue.CBytes(csilV)) }
     csilEntries.add(CborValue.CText("timeout") to CborValue.CInt(this.timeout))
     csilEntries.add(CborValue.CText("priority") to CborValue.CInt(this.priority))
     csilEntries.add(CborValue.CText("new_state") to CborValue.CText(this.newState))
@@ -581,7 +600,7 @@ fun updateTaskRequestFromCborValue(cbor: CborValue): UpdateTaskRequest {
     val autoTargetState = CsilCbor.asText(CsilCbor.require(cbor, "auto_target_state"))
     val timeout = CsilCbor.asLong(CsilCbor.require(cbor, "timeout"))
     val newState = CsilCbor.asText(CsilCbor.require(cbor, "new_state"))
-    val payload = CsilCbor.asBytes(CsilCbor.require(cbor, "payload"))
+    val payload = CsilCbor.mapGet(cbor, "payload")?.let { csilV -> CsilCbor.asBytes(csilV) }
     val priority = CsilCbor.asLong(CsilCbor.require(cbor, "priority"))
     return UpdateTaskRequest(uuid = uuid, queue = queue, currentState = currentState, autoTargetState = autoTargetState, timeout = timeout, newState = newState, payload = payload, priority = priority)
 }
@@ -894,6 +913,7 @@ fun <T> encode(value: T): ByteArray = CsilCbor.encode(csilToCborValue(value))
 private fun csilToCborValue(value: Any?): CborValue = when (value) {
     null -> CborValue.CNull
     is Task -> value.toCborValue()
+    is TaskDelivery -> value.toCborValue()
     is SubmitTaskRequest -> value.toCborValue()
     is SubmitTaskResponse -> value.toCborValue()
     is GetTaskStateByIDRequest -> value.toCborValue()
@@ -929,6 +949,7 @@ inline fun <reified T> decode(bytes: ByteArray): T =
 
 fun csilFromCborValue(type: kotlin.reflect.KClass<*>, cbor: CborValue): Any = when (type) {
     Task::class -> taskFromCborValue(cbor)
+    TaskDelivery::class -> taskDeliveryFromCborValue(cbor)
     SubmitTaskRequest::class -> submitTaskRequestFromCborValue(cbor)
     SubmitTaskResponse::class -> submitTaskResponseFromCborValue(cbor)
     GetTaskStateByIDRequest::class -> getTaskStateByIDRequestFromCborValue(cbor)

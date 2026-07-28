@@ -16,7 +16,6 @@ defmodule Csilgen.Generated.Task do
     :submit_time,
     :update_time,
     :timeout,
-    :payload,
     :priority
   ]
   defstruct [
@@ -27,7 +26,6 @@ defmodule Csilgen.Generated.Task do
     :submit_time,
     :update_time,
     :timeout,
-    :payload,
     :priority
   ]
 
@@ -39,7 +37,6 @@ defmodule Csilgen.Generated.Task do
           submit_time: integer(),
           update_time: integer(),
           timeout: integer(),
-          payload: binary(),
           priority: integer()
         }
 
@@ -51,7 +48,6 @@ defmodule Csilgen.Generated.Task do
     submit_time: "submit_time",
     update_time: "update_time",
     timeout: "timeout",
-    payload: "payload",
     priority: "priority"
   ]
   @doc "Maps struct field atoms to their verbatim CBOR wire keys."
@@ -66,7 +62,6 @@ defmodule Csilgen.Generated.Task do
        [
          {{:text, "uuid"}, {:text, v.uuid}},
          {{:text, "queue"}, {:text, v.queue}},
-         {{:text, "payload"}, {:bytes, v.payload}},
          {{:text, "timeout"}, {:int, v.timeout}},
          {{:text, "priority"}, {:int, v.priority}},
          {{:text, "submit_time"}, {:int, v.submit_time}},
@@ -86,7 +81,6 @@ defmodule Csilgen.Generated.Task do
     %__MODULE__{
       uuid: Csilgen.Generated.Cbor.to_text(Map.fetch!(csil_fields, {:text, "uuid"})),
       queue: Csilgen.Generated.Cbor.to_text(Map.fetch!(csil_fields, {:text, "queue"})),
-      payload: Csilgen.Generated.Cbor.to_bytes(Map.fetch!(csil_fields, {:text, "payload"})),
       timeout: Csilgen.Generated.Cbor.to_int(Map.fetch!(csil_fields, {:text, "timeout"})),
       priority: Csilgen.Generated.Cbor.to_int(Map.fetch!(csil_fields, {:text, "priority"})),
       submit_time: Csilgen.Generated.Cbor.to_int(Map.fetch!(csil_fields, {:text, "submit_time"})),
@@ -95,6 +89,55 @@ defmodule Csilgen.Generated.Task do
         Csilgen.Generated.Cbor.to_text(Map.fetch!(csil_fields, {:text, "current_state"})),
       auto_target_state:
         Csilgen.Generated.Cbor.to_text(Map.fetch!(csil_fields, {:text, "auto_target_state"}))
+    }
+  end
+
+  @doc "Encodes this struct to canonical CBOR bytes."
+  @spec to_cbor(t()) :: binary()
+  def to_cbor(v), do: Csilgen.Generated.Cbor.encode(to_cbor_value(v))
+
+  @doc "Decodes canonical CBOR bytes into this struct."
+  @spec from_cbor(binary()) :: t()
+  def from_cbor(bytes), do: from_cbor_value(Csilgen.Generated.Cbor.decode(bytes))
+end
+
+defmodule Csilgen.Generated.TaskDelivery do
+  @moduledoc "Generated struct for the TaskDelivery type."
+
+  @enforce_keys [:task, :payload]
+  defstruct [:task, :payload]
+
+  @type t :: %__MODULE__{
+          task: Csilgen.Generated.Task.t(),
+          payload: binary()
+        }
+
+  @wire_keys [task: "task", payload: "payload"]
+  @doc "Maps struct field atoms to their verbatim CBOR wire keys."
+  @spec wire_keys() :: keyword()
+  def wire_keys, do: @wire_keys
+
+  @doc "Builds the canonical CBOR value tree for this struct."
+  @spec to_cbor_value(t()) :: Csilgen.Generated.Cbor.value()
+  def to_cbor_value(%__MODULE__{} = v) do
+    {:map,
+     Enum.reject(
+       [
+         {{:text, "task"}, Csilgen.Generated.Task.to_cbor_value(v.task)},
+         {{:text, "payload"}, {:bytes, v.payload}}
+       ],
+       &is_nil/1
+     )}
+  end
+
+  @doc "Reconstructs this struct from a decoded CBOR value tree."
+  @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:map, csil_kvs}) do
+    csil_fields = Map.new(csil_kvs)
+
+    %__MODULE__{
+      task: Csilgen.Generated.Task.from_cbor_value(Map.fetch!(csil_fields, {:text, "task"})),
+      payload: Csilgen.Generated.Cbor.to_bytes(Map.fetch!(csil_fields, {:text, "payload"}))
     }
   end
 
@@ -415,13 +458,13 @@ end
 defmodule Csilgen.Generated.GetNextTaskResponse do
   @moduledoc "Generated struct for the GetNextTaskResponse type."
 
-  defstruct [:task]
+  defstruct [:delivery]
 
   @type t :: %__MODULE__{
-          task: Csilgen.Generated.Task.t() | nil
+          delivery: Csilgen.Generated.TaskDelivery.t() | nil
         }
 
-  @wire_keys [task: "task"]
+  @wire_keys [delivery: "delivery"]
   @doc "Maps struct field atoms to their verbatim CBOR wire keys."
   @spec wire_keys() :: keyword()
   def wire_keys, do: @wire_keys
@@ -432,9 +475,9 @@ defmodule Csilgen.Generated.GetNextTaskResponse do
     {:map,
      Enum.reject(
        [
-         if(is_nil(v.task),
+         if(is_nil(v.delivery),
            do: nil,
-           else: {{:text, "task"}, Csilgen.Generated.Task.to_cbor_value(v.task)}
+           else: {{:text, "delivery"}, Csilgen.Generated.TaskDelivery.to_cbor_value(v.delivery)}
          )
        ],
        &is_nil/1
@@ -447,10 +490,10 @@ defmodule Csilgen.Generated.GetNextTaskResponse do
     csil_fields = Map.new(csil_kvs)
 
     %__MODULE__{
-      task:
-        case Map.get(csil_fields, {:text, "task"}) do
+      delivery:
+        case Map.get(csil_fields, {:text, "delivery"}) do
           nil -> nil
-          csil_v -> Csilgen.Generated.Task.from_cbor_value(csil_v)
+          csil_v -> Csilgen.Generated.TaskDelivery.from_cbor_value(csil_v)
         end
     }
   end
@@ -553,13 +596,13 @@ end
 defmodule Csilgen.Generated.GetNextTaskGroupResponse do
   @moduledoc "Generated struct for the GetNextTaskGroupResponse type."
 
-  defstruct [:task]
+  defstruct [:delivery]
 
   @type t :: %__MODULE__{
-          task: Csilgen.Generated.Task.t() | nil
+          delivery: Csilgen.Generated.TaskDelivery.t() | nil
         }
 
-  @wire_keys [task: "task"]
+  @wire_keys [delivery: "delivery"]
   @doc "Maps struct field atoms to their verbatim CBOR wire keys."
   @spec wire_keys() :: keyword()
   def wire_keys, do: @wire_keys
@@ -570,9 +613,9 @@ defmodule Csilgen.Generated.GetNextTaskGroupResponse do
     {:map,
      Enum.reject(
        [
-         if(is_nil(v.task),
+         if(is_nil(v.delivery),
            do: nil,
-           else: {{:text, "task"}, Csilgen.Generated.Task.to_cbor_value(v.task)}
+           else: {{:text, "delivery"}, Csilgen.Generated.TaskDelivery.to_cbor_value(v.delivery)}
          )
        ],
        &is_nil/1
@@ -585,10 +628,10 @@ defmodule Csilgen.Generated.GetNextTaskGroupResponse do
     csil_fields = Map.new(csil_kvs)
 
     %__MODULE__{
-      task:
-        case Map.get(csil_fields, {:text, "task"}) do
+      delivery:
+        case Map.get(csil_fields, {:text, "delivery"}) do
           nil -> nil
-          csil_v -> Csilgen.Generated.Task.from_cbor_value(csil_v)
+          csil_v -> Csilgen.Generated.TaskDelivery.from_cbor_value(csil_v)
         end
     }
   end
@@ -717,7 +760,6 @@ defmodule Csilgen.Generated.UpdateTaskRequest do
     :auto_target_state,
     :timeout,
     :new_state,
-    :payload,
     :priority
   ]
   defstruct [
@@ -738,7 +780,7 @@ defmodule Csilgen.Generated.UpdateTaskRequest do
           auto_target_state: String.t(),
           timeout: integer(),
           new_state: String.t(),
-          payload: binary(),
+          payload: binary() | nil,
           priority: integer()
         }
 
@@ -764,7 +806,7 @@ defmodule Csilgen.Generated.UpdateTaskRequest do
        [
          {{:text, "uuid"}, {:text, v.uuid}},
          {{:text, "queue"}, {:text, v.queue}},
-         {{:text, "payload"}, {:bytes, v.payload}},
+         if(is_nil(v.payload), do: nil, else: {{:text, "payload"}, {:bytes, v.payload}}),
          {{:text, "timeout"}, {:int, v.timeout}},
          {{:text, "priority"}, {:int, v.priority}},
          {{:text, "new_state"}, {:text, v.new_state}},
@@ -783,7 +825,11 @@ defmodule Csilgen.Generated.UpdateTaskRequest do
     %__MODULE__{
       uuid: Csilgen.Generated.Cbor.to_text(Map.fetch!(csil_fields, {:text, "uuid"})),
       queue: Csilgen.Generated.Cbor.to_text(Map.fetch!(csil_fields, {:text, "queue"})),
-      payload: Csilgen.Generated.Cbor.to_bytes(Map.fetch!(csil_fields, {:text, "payload"})),
+      payload:
+        case Map.get(csil_fields, {:text, "payload"}) do
+          nil -> nil
+          csil_v -> Csilgen.Generated.Cbor.to_bytes(csil_v)
+        end,
       timeout: Csilgen.Generated.Cbor.to_int(Map.fetch!(csil_fields, {:text, "timeout"})),
       priority: Csilgen.Generated.Cbor.to_int(Map.fetch!(csil_fields, {:text, "priority"})),
       new_state: Csilgen.Generated.Cbor.to_text(Map.fetch!(csil_fields, {:text, "new_state"})),

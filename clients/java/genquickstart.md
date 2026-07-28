@@ -111,6 +111,7 @@ one example — a WebSocket/WebTransport/QUIC carrier drops in unchanged.
 package csilgen.generated;
 
 import community.catalyst.csilgen.transport.Carriers;
+import community.catalyst.csilgen.transport.Conventions;
 import community.catalyst.csilgen.transport.Events;
 import community.catalyst.csilgen.transport.FrameCarrier;
 import java.io.IOException;
@@ -119,14 +120,22 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 public final class EventsExample {
+    // The carrier's max-frame guard; see the comment at the carrier construction below.
+    static final int MAX_FRAME = Conventions.MAX_FRAME_DEFAULT;
+
     public static void main(String[] args) throws IOException {
         // This package declares no record `<->`/`<-` channel operations, so there is no
         // generated router to dispatch typed events into; the handshake + heartbeat
         // below still apply to any connection.
         // One example carrier: a TLS byte stream framed with CSIL's 4-byte length prefix.
+        // The max-frame guard is a carrier setting, not a generated constant: raise MAX_FRAME
+        // when a peer accepts payloads larger than the 16 MiB default (the envelope adds
+        // framing and request metadata around the payload, so the limit must exceed the
+        // largest payload), or lower it to harden an exposed listener. Valid limits are
+        // 1..=Conventions.MAX_FRAME_LIMIT and are checked at construction.
         SSLSocket socket = (SSLSocket) SSLSocketFactory.getDefault().createSocket("localhost", 7443);
         FrameCarrier carrier =
-            new Carriers.StreamCarrier(socket.getInputStream(), socket.getOutputStream());
+            new Carriers.StreamCarrier(socket.getInputStream(), socket.getOutputStream(), MAX_FRAME);
 
         // $hello / $hello-ack handshake (control plane).
         carrier.sendFrame(new Events.Hello(List.of(1L), List.of("verbose"), null, null).encode());

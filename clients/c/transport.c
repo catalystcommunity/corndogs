@@ -32,7 +32,7 @@
 #include "codec.gen.h"
 
 #define CORNDOGS_TAG_ENCODED_CBOR 24u    /* RFC 8949 tag 24: embedded encoded CBOR */
-#define CORNDOGS_MAX_FRAME (256u << 20)  /* frame size guard */
+#define CORNDOGS_MAX_FRAME (1025u << 20)  /* payload maximum plus envelope allowance */
 #define CORNDOGS_DEFAULT_DIAL_TIMEOUT 5.0
 #define CORNDOGS_DEFAULT_HB_INTERVAL 15.0
 #define CORNDOGS_CONTROL_SERVICE "CorndogsService"

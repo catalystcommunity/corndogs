@@ -85,6 +85,8 @@ affinity: {}
 appconfig:
   loglevel: "error"
   prometheusEnabled: false
+  # Maximum payload size in bytes. Valid values are 1 through 1073741823.
+  maxPayloadBytes: "16777216"
 
 # timeoutCron optionally creates a cronjob to send CleanUpTimedOut requests using the cli
 timeoutCron:

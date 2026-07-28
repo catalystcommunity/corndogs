@@ -39,7 +39,7 @@ import 'client.async.gen.dart';
 import 'types.gen.dart';
 
 const int _tagEncodedCbor = 24; // RFC 8949 §3.4.5.1 — embedded encoded CBOR data item
-const int _maxFrame = 256 << 20; // frame size guard
+const int _maxFrame = 1025 << 20; // payload maximum plus envelope allowance
 const Duration _defaultConnectTimeout = Duration(seconds: 5);
 const Duration _defaultHeartbeatInterval = Duration(seconds: 15);
 const String _controlService = 'CorndogsService';

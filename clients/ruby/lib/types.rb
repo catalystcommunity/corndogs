@@ -4,7 +4,8 @@
 
 # StringInt64Map is an alias for Hash<String, Integer>.
 
-# A task as returned by the service. Response-only shape.
+# Task metadata as returned by the service. Payload bytes are returned only
+# when a worker claims a task.
 # uuid [String]
 # queue [String]
 # current_state [String]
@@ -12,9 +13,13 @@
 # submit_time [Integer]
 # update_time [Integer]
 # timeout [Integer]
-# payload [String]
 # priority [Integer]
-Task = Data.define(:uuid, :queue, :current_state, :auto_target_state, :submit_time, :update_time, :timeout, :payload, :priority)
+Task = Data.define(:uuid, :queue, :current_state, :auto_target_state, :submit_time, :update_time, :timeout, :priority)
+
+# A claimed task and its opaque payload bytes.
+# task [Task]
+# payload [String]
+TaskDelivery = Data.define(:task, :payload)
 
 # queue [String]
 # current_state [String]
@@ -49,9 +54,9 @@ end
 # override_auto_target_state [String]
 GetNextTaskRequest = Data.define(:queue, :current_state, :override_timeout, :override_current_state, :override_auto_target_state)
 
-# task [Task]
-GetNextTaskResponse = Data.define(:task) do
-  def initialize(task: nil)
+# delivery [TaskDelivery]
+GetNextTaskResponse = Data.define(:delivery) do
+  def initialize(delivery: nil)
     super
   end
 end
@@ -68,9 +73,9 @@ end
 # override_auto_target_state [String]
 GetNextTaskGroupRequest = Data.define(:queues, :current_state, :override_timeout, :override_current_state, :override_auto_target_state)
 
-# task [Task]
-GetNextTaskGroupResponse = Data.define(:task) do
-  def initialize(task: nil)
+# delivery [TaskDelivery]
+GetNextTaskGroupResponse = Data.define(:delivery) do
+  def initialize(delivery: nil)
     super
   end
 end
@@ -95,7 +100,11 @@ end
 # new_state [String]
 # payload [String]
 # priority [Integer]
-UpdateTaskRequest = Data.define(:uuid, :queue, :current_state, :auto_target_state, :timeout, :new_state, :payload, :priority)
+UpdateTaskRequest = Data.define(:uuid, :queue, :current_state, :auto_target_state, :timeout, :new_state, :payload, :priority) do
+  def initialize(uuid:, queue:, current_state:, auto_target_state:, timeout:, new_state:, priority:, payload: nil)
+    super
+  end
+end
 
 # task [Task]
 UpdateTaskResponse = Data.define(:task) do

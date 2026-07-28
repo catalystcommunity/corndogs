@@ -162,7 +162,6 @@ class Task
     csil_map = {}
     csil_map["uuid"] = uuid
     csil_map["queue"] = queue
-    csil_map["payload"] = (payload).b
     csil_map["timeout"] = timeout
     csil_map["priority"] = priority
     csil_map["submit_time"] = submit_time
@@ -185,8 +184,33 @@ class Task
       submit_time: node["submit_time"],
       update_time: node["update_time"],
       timeout: node["timeout"],
-      payload: node["payload"],
       priority: node["priority"]
+    )
+  end
+end
+
+# CBOR codec for TaskDelivery: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class TaskDelivery
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["task"] = (task).csil_to_tree
+    csil_map["payload"] = (payload).b
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      task: Task.csil_from_tree(node["task"]),
+      payload: node["payload"]
     )
   end
 end
@@ -340,7 +364,7 @@ class GetNextTaskResponse
 
   def csil_to_tree
     csil_map = {}
-    csil_map["task"] = (task).csil_to_tree unless task.nil?
+    csil_map["delivery"] = (delivery).csil_to_tree unless delivery.nil?
     csil_map
   end
 
@@ -350,7 +374,7 @@ class GetNextTaskResponse
 
   def self.csil_from_tree(node)
     new(
-      task: (node.key?("task") ? Task.csil_from_tree(node["task"]) : nil)
+      delivery: (node.key?("delivery") ? TaskDelivery.csil_from_tree(node["delivery"]) : nil)
     )
   end
 end
@@ -396,7 +420,7 @@ class GetNextTaskGroupResponse
 
   def csil_to_tree
     csil_map = {}
-    csil_map["task"] = (task).csil_to_tree unless task.nil?
+    csil_map["delivery"] = (delivery).csil_to_tree unless delivery.nil?
     csil_map
   end
 
@@ -406,7 +430,7 @@ class GetNextTaskGroupResponse
 
   def self.csil_from_tree(node)
     new(
-      task: (node.key?("task") ? Task.csil_from_tree(node["task"]) : nil)
+      delivery: (node.key?("delivery") ? TaskDelivery.csil_from_tree(node["delivery"]) : nil)
     )
   end
 end
@@ -474,7 +498,7 @@ class UpdateTaskRequest
     csil_map = {}
     csil_map["uuid"] = uuid
     csil_map["queue"] = queue
-    csil_map["payload"] = (payload).b
+    csil_map["payload"] = (payload).b unless payload.nil?
     csil_map["timeout"] = timeout
     csil_map["priority"] = priority
     csil_map["new_state"] = new_state
@@ -495,7 +519,7 @@ class UpdateTaskRequest
       auto_target_state: node["auto_target_state"],
       timeout: node["timeout"],
       new_state: node["new_state"],
-      payload: node["payload"],
+      payload: (node.key?("payload") ? node["payload"] : nil),
       priority: node["priority"]
     )
   end

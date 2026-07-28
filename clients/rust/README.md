@@ -29,7 +29,7 @@ fn main() {
         queue: "emails".into(), current_state: "submitted".into(),
         override_timeout: 0, override_current_state: String::new(), override_auto_target_state: String::new(),
     }).expect("get_next_task");
-    let _task = got.task;
+    let _delivery = got.delivery;
 }
 ```
 

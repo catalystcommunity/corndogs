@@ -24,10 +24,10 @@ client.submit_task(SubmitTaskRequest(
     queue="emails", current_state="submitted", auto_target_state="sending",
     timeout=-1, payload=b"...", priority=0,
 ))
-task = client.get_next_task(GetNextTaskRequest(
+delivery = client.get_next_task(GetNextTaskRequest(
     queue="emails", current_state="submitted",
     override_timeout=0, override_current_state="", override_auto_target_state="",
-)).task
+)).delivery
 ```
 
 Heartbeat, two ways:

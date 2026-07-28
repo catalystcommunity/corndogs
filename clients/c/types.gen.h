@@ -15,6 +15,7 @@ typedef struct CsilBytes {
 /* Forward declarations (resolve mutual and out-of-order references). */
 typedef struct StringInt64Map StringInt64Map;
 typedef struct Task Task;
+typedef struct TaskDelivery TaskDelivery;
 typedef struct SubmitTaskRequest SubmitTaskRequest;
 typedef struct SubmitTaskResponse SubmitTaskResponse;
 typedef struct GetTaskStateByIDRequest GetTaskStateByIDRequest;
@@ -59,9 +60,14 @@ typedef struct Task {
     int64_t submit_time;
     int64_t update_time;
     int64_t timeout;
-    CsilBytes payload;
     int64_t priority;
 } Task;
+
+/* TaskDelivery is a structured data type. */
+typedef struct TaskDelivery {
+    Task task;
+    CsilBytes payload;
+} TaskDelivery;
 
 /* SubmitTaskRequest is a structured data type. */
 typedef struct SubmitTaskRequest {
@@ -100,7 +106,7 @@ typedef struct GetNextTaskRequest {
 
 /* GetNextTaskResponse is a structured data type. */
 typedef struct GetNextTaskResponse {
-    Task *task;
+    TaskDelivery *delivery;
 } GetNextTaskResponse;
 
 /* GetNextTaskGroupRequest is a structured data type. */
@@ -115,7 +121,7 @@ typedef struct GetNextTaskGroupRequest {
 
 /* GetNextTaskGroupResponse is a structured data type. */
 typedef struct GetNextTaskGroupResponse {
-    Task *task;
+    TaskDelivery *delivery;
 } GetNextTaskGroupResponse;
 
 /* CompleteTaskRequest is a structured data type. */
@@ -138,7 +144,7 @@ typedef struct UpdateTaskRequest {
     char *auto_target_state;
     int64_t timeout;
     char *new_state;
-    CsilBytes payload;
+    CsilBytes *payload;
     int64_t priority;
 } UpdateTaskRequest;
 

@@ -577,6 +577,8 @@ static inline int csilc_enc_StringInt64Map(csilc_buf *b, const StringInt64Map *v
 static inline int csilc_dec_StringInt64Map(const csilc_value *m, CsilCodecArena *a, StringInt64Map *out);
 static inline int csilc_enc_Task(csilc_buf *b, const Task *v);
 static inline int csilc_dec_Task(const csilc_value *m, CsilCodecArena *a, Task *out);
+static inline int csilc_enc_TaskDelivery(csilc_buf *b, const TaskDelivery *v);
+static inline int csilc_dec_TaskDelivery(const csilc_value *m, CsilCodecArena *a, TaskDelivery *out);
 static inline int csilc_enc_SubmitTaskRequest(csilc_buf *b, const SubmitTaskRequest *v);
 static inline int csilc_dec_SubmitTaskRequest(const csilc_value *m, CsilCodecArena *a, SubmitTaskRequest *out);
 static inline int csilc_enc_SubmitTaskResponse(csilc_buf *b, const SubmitTaskResponse *v);
@@ -662,14 +664,12 @@ static inline int csilc_dec_StringInt64Map(const csilc_value *m, CsilCodecArena 
 
 /* csilc_enc_Task writes Task as a canonical CBOR map. */
 static inline int csilc_enc_Task(csilc_buf *b, const Task *v) {
-    size_t csilc_n = 9;
+    size_t csilc_n = 8;
     if (csilc_w_map_head(b, csilc_n)) return -1;
     if (csilc_w_text(b, "uuid", 4)) return -1;
     if (csilc_w_text(b, (v->uuid), (v->uuid) ? strlen(v->uuid) : 0)) return -1;
     if (csilc_w_text(b, "queue", 5)) return -1;
     if (csilc_w_text(b, (v->queue), (v->queue) ? strlen(v->queue) : 0)) return -1;
-    if (csilc_w_text(b, "payload", 7)) return -1;
-    if (csilc_w_bytes(b, (v->payload).data, (v->payload).len)) return -1;
     if (csilc_w_text(b, "timeout", 7)) return -1;
     if (csilc_w_int(b, (int64_t)(v->timeout))) return -1;
     if (csilc_w_text(b, "priority", 8)) return -1;
@@ -694,8 +694,6 @@ static inline int csilc_dec_Task(const csilc_value *m, CsilCodecArena *a, Task *
     if (!csilc_get_text(csilc_f, &(out->uuid))) return -1;
     csilc_f = csilc_map_get(m, "queue");
     if (!csilc_get_text(csilc_f, &(out->queue))) return -1;
-    csilc_f = csilc_map_get(m, "payload");
-    if (!csilc_get_bytes(csilc_f, &(out->payload).data, &(out->payload).len)) return -1;
     csilc_f = csilc_map_get(m, "timeout");
     if (!csilc_as_i64(csilc_f, &(out->timeout))) return -1;
     csilc_f = csilc_map_get(m, "priority");
@@ -708,6 +706,29 @@ static inline int csilc_dec_Task(const csilc_value *m, CsilCodecArena *a, Task *
     if (!csilc_get_text(csilc_f, &(out->current_state))) return -1;
     csilc_f = csilc_map_get(m, "auto_target_state");
     if (!csilc_get_text(csilc_f, &(out->auto_target_state))) return -1;
+    return 0;
+}
+
+/* csilc_enc_TaskDelivery writes TaskDelivery as a canonical CBOR map. */
+static inline int csilc_enc_TaskDelivery(csilc_buf *b, const TaskDelivery *v) {
+    size_t csilc_n = 2;
+    if (csilc_w_map_head(b, csilc_n)) return -1;
+    if (csilc_w_text(b, "task", 4)) return -1;
+    if (csilc_enc_Task(b, &(v->task))) return -1;
+    if (csilc_w_text(b, "payload", 7)) return -1;
+    if (csilc_w_bytes(b, (v->payload).data, (v->payload).len)) return -1;
+    return 0;
+}
+
+/* csilc_dec_TaskDelivery reads TaskDelivery from a decoded CBOR map (arena-borrowed). */
+static inline int csilc_dec_TaskDelivery(const csilc_value *m, CsilCodecArena *a, TaskDelivery *out) {
+    (void)a;
+    const csilc_value *csilc_f;
+    if (!m || m->kind != CSILC_MAP) return -1;
+    csilc_f = csilc_map_get(m, "task");
+    if (csilc_dec_Task(csilc_f, a, &(out->task))) return -1;
+    csilc_f = csilc_map_get(m, "payload");
+    if (!csilc_get_bytes(csilc_f, &(out->payload).data, &(out->payload).len)) return -1;
     return 0;
 }
 
@@ -867,11 +888,11 @@ static inline int csilc_dec_GetNextTaskRequest(const csilc_value *m, CsilCodecAr
 /* csilc_enc_GetNextTaskResponse writes GetNextTaskResponse as a canonical CBOR map. */
 static inline int csilc_enc_GetNextTaskResponse(csilc_buf *b, const GetNextTaskResponse *v) {
     size_t csilc_n = 0;
-    if (v->task) csilc_n++;
+    if (v->delivery) csilc_n++;
     if (csilc_w_map_head(b, csilc_n)) return -1;
-    if (v->task) {
-        if (csilc_w_text(b, "task", 4)) return -1;
-        if (csilc_enc_Task(b, &((*v->task)))) return -1;
+    if (v->delivery) {
+        if (csilc_w_text(b, "delivery", 8)) return -1;
+        if (csilc_enc_TaskDelivery(b, &((*v->delivery)))) return -1;
     }
     return 0;
 }
@@ -881,13 +902,13 @@ static inline int csilc_dec_GetNextTaskResponse(const csilc_value *m, CsilCodecA
     (void)a;
     const csilc_value *csilc_f;
     if (!m || m->kind != CSILC_MAP) return -1;
-    csilc_f = csilc_map_get(m, "task");
-    out->task = NULL;
+    csilc_f = csilc_map_get(m, "delivery");
+    out->delivery = NULL;
     if (csilc_f) {
-        Task *csilc_p = (Task *)csilc_arena_alloc(a, sizeof(Task));
+        TaskDelivery *csilc_p = (TaskDelivery *)csilc_arena_alloc(a, sizeof(TaskDelivery));
         if (!csilc_p) return -1;
-        if (csilc_dec_Task(csilc_f, a, &((*csilc_p)))) return -1;
-        out->task = csilc_p;
+        if (csilc_dec_TaskDelivery(csilc_f, a, &((*csilc_p)))) return -1;
+        out->delivery = csilc_p;
     }
     return 0;
 }
@@ -942,11 +963,11 @@ static inline int csilc_dec_GetNextTaskGroupRequest(const csilc_value *m, CsilCo
 /* csilc_enc_GetNextTaskGroupResponse writes GetNextTaskGroupResponse as a canonical CBOR map. */
 static inline int csilc_enc_GetNextTaskGroupResponse(csilc_buf *b, const GetNextTaskGroupResponse *v) {
     size_t csilc_n = 0;
-    if (v->task) csilc_n++;
+    if (v->delivery) csilc_n++;
     if (csilc_w_map_head(b, csilc_n)) return -1;
-    if (v->task) {
-        if (csilc_w_text(b, "task", 4)) return -1;
-        if (csilc_enc_Task(b, &((*v->task)))) return -1;
+    if (v->delivery) {
+        if (csilc_w_text(b, "delivery", 8)) return -1;
+        if (csilc_enc_TaskDelivery(b, &((*v->delivery)))) return -1;
     }
     return 0;
 }
@@ -956,13 +977,13 @@ static inline int csilc_dec_GetNextTaskGroupResponse(const csilc_value *m, CsilC
     (void)a;
     const csilc_value *csilc_f;
     if (!m || m->kind != CSILC_MAP) return -1;
-    csilc_f = csilc_map_get(m, "task");
-    out->task = NULL;
+    csilc_f = csilc_map_get(m, "delivery");
+    out->delivery = NULL;
     if (csilc_f) {
-        Task *csilc_p = (Task *)csilc_arena_alloc(a, sizeof(Task));
+        TaskDelivery *csilc_p = (TaskDelivery *)csilc_arena_alloc(a, sizeof(TaskDelivery));
         if (!csilc_p) return -1;
-        if (csilc_dec_Task(csilc_f, a, &((*csilc_p)))) return -1;
-        out->task = csilc_p;
+        if (csilc_dec_TaskDelivery(csilc_f, a, &((*csilc_p)))) return -1;
+        out->delivery = csilc_p;
     }
     return 0;
 }
@@ -1024,14 +1045,17 @@ static inline int csilc_dec_CompleteTaskResponse(const csilc_value *m, CsilCodec
 
 /* csilc_enc_UpdateTaskRequest writes UpdateTaskRequest as a canonical CBOR map. */
 static inline int csilc_enc_UpdateTaskRequest(csilc_buf *b, const UpdateTaskRequest *v) {
-    size_t csilc_n = 8;
+    size_t csilc_n = 7;
+    if (v->payload) csilc_n++;
     if (csilc_w_map_head(b, csilc_n)) return -1;
     if (csilc_w_text(b, "uuid", 4)) return -1;
     if (csilc_w_text(b, (v->uuid), (v->uuid) ? strlen(v->uuid) : 0)) return -1;
     if (csilc_w_text(b, "queue", 5)) return -1;
     if (csilc_w_text(b, (v->queue), (v->queue) ? strlen(v->queue) : 0)) return -1;
-    if (csilc_w_text(b, "payload", 7)) return -1;
-    if (csilc_w_bytes(b, (v->payload).data, (v->payload).len)) return -1;
+    if (v->payload) {
+        if (csilc_w_text(b, "payload", 7)) return -1;
+        if (csilc_w_bytes(b, ((*v->payload)).data, ((*v->payload)).len)) return -1;
+    }
     if (csilc_w_text(b, "timeout", 7)) return -1;
     if (csilc_w_int(b, (int64_t)(v->timeout))) return -1;
     if (csilc_w_text(b, "priority", 8)) return -1;
@@ -1055,7 +1079,13 @@ static inline int csilc_dec_UpdateTaskRequest(const csilc_value *m, CsilCodecAre
     csilc_f = csilc_map_get(m, "queue");
     if (!csilc_get_text(csilc_f, &(out->queue))) return -1;
     csilc_f = csilc_map_get(m, "payload");
-    if (!csilc_get_bytes(csilc_f, &(out->payload).data, &(out->payload).len)) return -1;
+    out->payload = NULL;
+    if (csilc_f) {
+        CsilBytes *csilc_p = (CsilBytes *)csilc_arena_alloc(a, sizeof(CsilBytes));
+        if (!csilc_p) return -1;
+        if (!csilc_get_bytes(csilc_f, &((*csilc_p)).data, &((*csilc_p)).len)) return -1;
+        out->payload = csilc_p;
+    }
     csilc_f = csilc_map_get(m, "timeout");
     if (!csilc_as_i64(csilc_f, &(out->timeout))) return -1;
     csilc_f = csilc_map_get(m, "priority");
@@ -1485,6 +1515,29 @@ static inline int csil_decode_Task(const uint8_t *in, size_t len, Task *out, Csi
     const csilc_value *root;
     if (csilc_decode(in, len, &a, &root)) return -1;
     if (csilc_dec_Task(root, a, out)) { csil_codec_arena_free(a); return -1; }
+    *owner = a;
+    return 0;
+}
+
+/* Encode a TaskDelivery to CBOR. On success *out is a malloc'd buffer of
+ * *out_len bytes the caller frees with free(); returns non-zero on failure. */
+static inline int csil_encode_TaskDelivery(const TaskDelivery *v, uint8_t **out, size_t *out_len) {
+    csilc_buf b;
+    csilc_buf_init(&b);
+    if (csilc_enc_TaskDelivery(&b, v)) { csilc_buf_dispose(&b); return -1; }
+    *out = b.data;
+    *out_len = b.len;
+    return 0;
+}
+
+/* Decode CBOR into a TaskDelivery. On success *owner holds the backing
+ * storage (every string/bytes/array inside *out borrows from it); free it
+ * once with csil_codec_arena_free when done. Returns non-zero on failure. */
+static inline int csil_decode_TaskDelivery(const uint8_t *in, size_t len, TaskDelivery *out, CsilCodecArena **owner) {
+    CsilCodecArena *a;
+    const csilc_value *root;
+    if (csilc_decode(in, len, &a, &root)) return -1;
+    if (csilc_dec_TaskDelivery(root, a, out)) { csil_codec_arena_free(a); return -1; }
     *owner = a;
     return 0;
 }

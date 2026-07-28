@@ -2,7 +2,7 @@ package filestore
 
 import api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 
-// toAPITask converts an internal Task to the generated CSIL api.Task.
+// toAPITask converts internal metadata to the generated CSIL Task.
 func toAPITask(t *Task) *api.Task {
 	return &api.Task{
 		Uuid:            t.UUID,
@@ -13,12 +13,16 @@ func toAPITask(t *Task) *api.Task {
 		UpdateTime:      t.UpdateTime,
 		Timeout:         t.Timeout,
 		Priority:        t.Priority,
-		Payload:         t.Payload,
 	}
 }
 
-// archivedToAPITask converts an archived record to api.Task. Payload is always
-// nil for archived tasks (it is dropped on archive).
+// toAPIDelivery combines task metadata with the opaque payload for a claim
+// response. No other response returns payload bytes.
+func toAPIDelivery(t *Task, payload []byte) *api.TaskDelivery {
+	return &api.TaskDelivery{Task: *toAPITask(t), Payload: payload}
+}
+
+// archivedToAPITask converts an archived record to API task metadata.
 func archivedToAPITask(a *ArchivedTask) *api.Task {
 	return &api.Task{
 		Uuid:            a.UUID,

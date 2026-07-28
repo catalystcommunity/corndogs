@@ -9,7 +9,6 @@ import (
 
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
-	"github.com/CatalystCommunity/corndogs/corndogs/server/conversions"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/logging"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store/postgresstore/models"
 	"github.com/google/uuid"
@@ -17,7 +16,19 @@ import (
 	"github.com/rs/zerolog/log"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+var taskMetadataColumns = []string{
+	"uuid",
+	"queue",
+	"current_state",
+	"auto_target_state",
+	"submit_time",
+	"update_time",
+	"timeout",
+	"priority",
+}
 
 // global db
 var DB *gorm.DB
@@ -83,8 +94,8 @@ func (s PostgresStore) SubmitTask(ctx context.Context, req *api.SubmitTaskReques
 			log.Err(result.Error)
 			return result.Error
 		}
-		// marshall result to response
-		return conversions.CopyStruct(model, taskProto)
+		taskProto = taskToAPI(&model)
+		return nil
 	})
 
 	return &api.SubmitTaskResponse{Task: taskProto}, err
@@ -94,7 +105,7 @@ func (s PostgresStore) MustGetTaskStateByID(ctx context.Context, req *api.GetTas
 	taskProto := &api.Task{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := models.Task{UUID: req.Uuid}
-		result := tx.First(&model)
+		result := tx.Select(taskMetadataColumns).First(&model)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				archived_model := models.ArchivedTask{UUID: req.Uuid}
@@ -109,14 +120,15 @@ func (s PostgresStore) MustGetTaskStateByID(ctx context.Context, req *api.GetTas
 						return archived_result.Error
 					}
 				}
-				return conversions.CopyStruct(archived_model, taskProto)
+				taskProto = archivedTaskToAPI(&archived_model)
+				return nil
 			} else {
 				log.Err(result.Error)
 				return result.Error
 			}
 		}
-		// marshall result to response
-		return conversions.CopyStruct(model, taskProto)
+		taskProto = taskToAPI(&model)
+		return nil
 	},
 	)
 	if err != nil {
@@ -132,61 +144,26 @@ func (s PostgresStore) MustGetTaskStateByID(ctx context.Context, req *api.GetTas
 // respected across the whole group (highest priority first, then oldest), and
 // FOR UPDATE SKIP LOCKED still guarantees exactly one worker claims each task.
 func (s PostgresStore) GetNextTaskGroup(ctx context.Context, req *api.GetNextTaskGroupRequest) (*api.GetNextTaskGroupResponse, error) {
-	taskProto := &api.Task{}
+	var delivery *api.TaskDelivery
 	if len(req.Queues) == 0 {
-		return &api.GetNextTaskGroupResponse{Task: nil}, nil
+		return &api.GetNextTaskGroupResponse{}, nil
 	}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := models.Task{}
-		var nextUuid string
-		result := tx.Raw(
-			`UPDATE tasks SET current_state = current_state || ?
-				 WHERE uuid = (
-					 SELECT uuid FROM tasks
-					 WHERE queue IN ? AND current_state = ?
-                     ORDER BY priority DESC, update_time ASC
-					 FOR UPDATE SKIP LOCKED
-					 LIMIT 1)
-				 RETURNING uuid`,
-			config.DefaultWorkingSuffix,
-			req.Queues,
-			req.CurrentState,
-		)
+		result := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("queue IN ? AND current_state = ?", req.Queues, req.CurrentState).
+			Order("priority DESC, update_time ASC").
+			Limit(1).
+			Find(&model)
 		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
-				taskProto = nil
-				return nil
-			}
-			log.Err(result.Error)
 			return result.Error
 		}
-		result.Scan(&nextUuid)
-		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
-				taskProto = nil
-				return nil
-			}
-			log.Err(result.Error)
-			return result.Error
-		}
-		if nextUuid == "" {
-			taskProto = nil
+		if result.RowsAffected == 0 {
 			return nil
 		}
-		model.UUID = nextUuid
-		result = tx.First(&model)
-		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
-				taskProto = nil
-				return nil
-			}
-			log.Err(result.Error)
-			return result.Error
-		}
-		// swap states so if a timeout occurs we set them back to what they were
+
 		model.CurrentState = model.AutoTargetState
 		model.AutoTargetState = req.CurrentState
-
 		if req.OverrideCurrentState != "" {
 			model.CurrentState = req.OverrideCurrentState
 		}
@@ -198,86 +175,44 @@ func (s PostgresStore) GetNextTaskGroup(ctx context.Context, req *api.GetNextTas
 		} else if req.OverrideTimeout != 0 {
 			model.Timeout = req.OverrideTimeout
 		}
-
-		result = tx.Save(model)
+		model.UpdateTime = time.Now().UnixNano()
+		result = tx.Model(&models.Task{}).Where("uuid = ?", model.UUID).Updates(map[string]interface{}{
+			"current_state":     model.CurrentState,
+			"auto_target_state": model.AutoTargetState,
+			"timeout":           model.Timeout,
+			"update_time":       model.UpdateTime,
+		})
 		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
-				taskProto = nil
-				return nil
-			}
-			log.Err(result.Error)
 			return result.Error
 		}
-		return conversions.CopyStruct(model, taskProto)
+		delivery = taskDeliveryToAPI(&model)
+		return nil
 	})
 	if err != nil {
 		log.Err(err)
 		panic(err)
 	}
-	return &api.GetNextTaskGroupResponse{Task: taskProto}, err
+	return &api.GetNextTaskGroupResponse{Delivery: delivery}, err
 }
 
 func (s PostgresStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequest) (*api.GetNextTaskResponse, error) {
-	// TODO: This may be something that can be simplified, determine that and do so or explain why it can't
-	taskProto := &api.Task{}
+	var delivery *api.TaskDelivery
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := models.Task{}
-		var nextUuid string
-		result := tx.Raw(
-			`UPDATE tasks SET current_state = current_state || ?
-				 WHERE uuid = (
-					 SELECT uuid FROM tasks
-					 WHERE queue = ? AND current_state = ?
-                     ORDER BY priority DESC, update_time ASC
-					 FOR UPDATE SKIP LOCKED
-					 LIMIT 1)
-				 RETURNING uuid`,
-			config.DefaultWorkingSuffix,
-			req.Queue,
-			req.CurrentState,
-		)
+		result := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("queue = ? AND current_state = ?", req.Queue, req.CurrentState).
+			Order("priority DESC, update_time ASC").
+			Limit(1).
+			Find(&model)
 		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
-				// not found return nil
-				taskProto = nil
-				return nil
-			} else {
-				log.Err(result.Error)
-				return result.Error
-			}
+			return result.Error
 		}
-		result.Scan(&nextUuid)
-		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
-				// not found return nil
-				taskProto = nil
-				return nil
-			} else {
-				log.Err(result.Error)
-				return result.Error
-			}
-		}
-		if nextUuid == "" {
-			// not found return nil
-			taskProto = nil
+		if result.RowsAffected == 0 {
 			return nil
 		}
-		model.UUID = nextUuid
-		result = tx.First(&model)
-		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
-				// not found return nil
-				taskProto = nil
-				return nil
-			} else {
-				log.Err(result.Error)
-				return result.Error
-			}
-		}
-		// swap states so if a timeout occurs we set them back to what they were
+
 		model.CurrentState = model.AutoTargetState
 		model.AutoTargetState = req.CurrentState
-
 		if req.OverrideCurrentState != "" {
 			model.CurrentState = req.OverrideCurrentState
 		}
@@ -289,37 +224,33 @@ func (s PostgresStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequ
 		} else if req.OverrideTimeout != 0 {
 			model.Timeout = req.OverrideTimeout
 		}
-
-		result = tx.Save(model)
+		model.UpdateTime = time.Now().UnixNano()
+		result = tx.Model(&models.Task{}).Where("uuid = ?", model.UUID).Updates(map[string]interface{}{
+			"current_state":     model.CurrentState,
+			"auto_target_state": model.AutoTargetState,
+			"timeout":           model.Timeout,
+			"update_time":       model.UpdateTime,
+		})
 		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) || result.RowsAffected == 0 {
-				// not found return nil
-				taskProto = nil
-				return nil
-			} else {
-				log.Err(result.Error)
-				return result.Error
-			}
+			return result.Error
 		}
-		// marshall result to response
-		return conversions.CopyStruct(model, taskProto)
+		delivery = taskDeliveryToAPI(&model)
+		return nil
 	})
 	if err != nil {
 		log.Err(err)
 		panic(err)
 	}
-	return &api.GetNextTaskResponse{Task: taskProto}, err
+	return &api.GetNextTaskResponse{Delivery: delivery}, err
 }
 
 func (s PostgresStore) UpdateTask(ctx context.Context, req *api.UpdateTaskRequest) (*api.UpdateTaskResponse, error) {
 	taskProto := &api.Task{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		model := models.Task{
-			UUID:         req.Uuid,
-			Queue:        req.Queue,
-			CurrentState: req.CurrentState,
-		}
-		result := tx.First(&model)
+		model := models.Task{}
+		result := tx.Select(taskMetadataColumns).
+			Where("uuid = ? AND queue = ? AND current_state = ?", req.Uuid, req.Queue, req.CurrentState).
+			First(&model)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				// not found return nil
@@ -334,10 +265,18 @@ func (s PostgresStore) UpdateTask(ctx context.Context, req *api.UpdateTaskReques
 		model.AutoTargetState = req.AutoTargetState
 		model.Timeout = req.Timeout
 		model.Priority = req.Priority
-		if len(req.Payload) > 0 {
-			model.Payload = req.Payload
+		model.UpdateTime = time.Now().UnixNano()
+		updates := map[string]interface{}{
+			"current_state":     model.CurrentState,
+			"auto_target_state": model.AutoTargetState,
+			"timeout":           model.Timeout,
+			"priority":          model.Priority,
+			"update_time":       model.UpdateTime,
 		}
-		result = tx.Save(&model)
+		if req.Payload != nil {
+			updates["payload"] = *req.Payload
+		}
+		result = tx.Model(&models.Task{}).Where("uuid = ?", model.UUID).Updates(updates)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				// not found return nil
@@ -348,8 +287,8 @@ func (s PostgresStore) UpdateTask(ctx context.Context, req *api.UpdateTaskReques
 				return result.Error
 			}
 		}
-		// marshall result to response
-		return conversions.CopyStruct(model, taskProto)
+		taskProto = taskToAPI(&model)
+		return nil
 	})
 	if err != nil {
 		log.Err(err)
@@ -364,12 +303,10 @@ func (s PostgresStore) CompleteTask(ctx context.Context, req *api.CompleteTaskRe
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Queue and CurrentState are required to validate you know the current state
 		// and not accidentally pass something someone else is working on
-		model := models.Task{
-			UUID:         req.Uuid,
-			Queue:        req.Queue,
-			CurrentState: req.CurrentState,
-		}
-		result := tx.First(&model)
+		model := models.Task{}
+		result := tx.Select(taskMetadataColumns).
+			Where("uuid = ? AND queue = ? AND current_state = ?", req.Uuid, req.Queue, req.CurrentState).
+			First(&model)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				// not found return nil
@@ -391,8 +328,8 @@ func (s PostgresStore) CompleteTask(ctx context.Context, req *api.CompleteTaskRe
 		if result.Error != nil {
 			return result.Error
 		}
-		// marshall result to response
-		return conversions.CopyStruct(archiveModel, taskProto)
+		taskProto = archivedTaskToAPI(&archiveModel)
+		return nil
 	})
 	if err != nil {
 		log.Err(err)
@@ -406,12 +343,10 @@ func (s PostgresStore) CancelTask(ctx context.Context, req *api.CancelTaskReques
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Queue and CurrentState are required to validate you know the current state
 		// and not accidentally pass something someone else is working on
-		model := models.Task{
-			UUID:         req.Uuid,
-			Queue:        req.Queue,
-			CurrentState: req.CurrentState,
-		}
-		result := tx.First(&model)
+		model := models.Task{}
+		result := tx.Select(taskMetadataColumns).
+			Where("uuid = ? AND queue = ? AND current_state = ?", req.Uuid, req.Queue, req.CurrentState).
+			First(&model)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				// not found return nil
@@ -435,8 +370,8 @@ func (s PostgresStore) CancelTask(ctx context.Context, req *api.CancelTaskReques
 			log.Err(result.Error)
 			return result.Error
 		}
-		// marshall result to response
-		return conversions.CopyStruct(archiveModel, taskProto)
+		taskProto = archivedTaskToAPI(&archiveModel)
+		return nil
 	})
 	if err != nil {
 		log.Err(err)

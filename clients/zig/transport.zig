@@ -39,7 +39,7 @@ const TAG_ENCODED_CBOR: u64 = 24;
 const CONTROL_SERVICE = "CorndogsService";
 const OP_PING = "$ping";
 /// Frame size guard: refuse to send/receive a frame bigger than this.
-const MAX_FRAME: usize = 256 << 20;
+const MAX_FRAME: usize = 1025 << 20;
 const DEFAULT_HEARTBEAT_INTERVAL_NS: u64 = 15 * std.time.ns_per_s;
 
 /// A service-level error surfaced by the server (the "ServiceError" envelope
