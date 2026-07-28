@@ -16,10 +16,9 @@ public struct Task: Equatable, Sendable {
     /// wire key: update_time
     public let updateTime: Int64
     public let timeout: Int64
-    public let payload: [UInt8]
     public let priority: Int64
 
-    public init(uuid: String, queue: String, currentState: String, autoTargetState: String, submitTime: Int64, updateTime: Int64, timeout: Int64, payload: [UInt8], priority: Int64) {
+    public init(uuid: String, queue: String, currentState: String, autoTargetState: String, submitTime: Int64, updateTime: Int64, timeout: Int64, priority: Int64) {
         self.uuid = uuid
         self.queue = queue
         self.currentState = currentState
@@ -27,7 +26,6 @@ public struct Task: Equatable, Sendable {
         self.submitTime = submitTime
         self.updateTime = updateTime
         self.timeout = timeout
-        self.payload = payload
         self.priority = priority
     }
 
@@ -40,8 +38,24 @@ public struct Task: Equatable, Sendable {
         "submitTime": "submit_time",
         "updateTime": "update_time",
         "timeout": "timeout",
-        "payload": "payload",
         "priority": "priority"
+    ]
+}
+
+/// TaskDelivery is a generated CSIL record type.
+public struct TaskDelivery: Equatable, Sendable {
+    public let task: Task
+    public let payload: [UInt8]
+
+    public init(task: Task, payload: [UInt8]) {
+        self.task = task
+        self.payload = payload
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "task": "task",
+        "payload": "payload"
     ]
 }
 
@@ -153,15 +167,15 @@ public struct GetNextTaskRequest: Equatable, Sendable {
 
 /// GetNextTaskResponse is a generated CSIL record type.
 public struct GetNextTaskResponse: Equatable, Sendable {
-    public let task: Task?
+    public let delivery: TaskDelivery?
 
-    public init(task: Task? = nil) {
-        self.task = task
+    public init(delivery: TaskDelivery? = nil) {
+        self.delivery = delivery
     }
 
     /// CBOR wire keys (verbatim) keyed by Swift property name.
     public static let wireKeys: [String: String] = [
-        "task": "task"
+        "delivery": "delivery"
     ]
 }
 
@@ -197,15 +211,15 @@ public struct GetNextTaskGroupRequest: Equatable, Sendable {
 
 /// GetNextTaskGroupResponse is a generated CSIL record type.
 public struct GetNextTaskGroupResponse: Equatable, Sendable {
-    public let task: Task?
+    public let delivery: TaskDelivery?
 
-    public init(task: Task? = nil) {
-        self.task = task
+    public init(delivery: TaskDelivery? = nil) {
+        self.delivery = delivery
     }
 
     /// CBOR wire keys (verbatim) keyed by Swift property name.
     public static let wireKeys: [String: String] = [
-        "task": "task"
+        "delivery": "delivery"
     ]
 }
 
@@ -255,10 +269,10 @@ public struct UpdateTaskRequest: Equatable, Sendable {
     public let timeout: Int64
     /// wire key: new_state
     public let newState: String
-    public let payload: [UInt8]
+    public let payload: [UInt8]?
     public let priority: Int64
 
-    public init(uuid: String, queue: String, currentState: String, autoTargetState: String, timeout: Int64, newState: String, payload: [UInt8], priority: Int64) {
+    public init(uuid: String, queue: String, currentState: String, autoTargetState: String, timeout: Int64, newState: String, payload: [UInt8]? = nil, priority: Int64) {
         self.uuid = uuid
         self.queue = queue
         self.currentState = currentState

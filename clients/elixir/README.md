@@ -40,7 +40,7 @@ resp =
     override_auto_target_state: ""
   })
 
-task = resp.task
+delivery = resp.delivery
 ```
 
 `Corndogs.Transport` is the carrier: it owns the CSIL-RPC envelope, the 4-byte

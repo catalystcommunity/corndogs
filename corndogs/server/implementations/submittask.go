@@ -3,13 +3,16 @@ package implementations
 import (
 	"context"
 
-	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/metrics"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
 )
 
 func (s *V1Alpha1Server) SubmitTask(ctx context.Context, req api.SubmitTaskRequest) (api.SubmitTaskResponse, error) {
+	if err := validatePayload(req.Payload); err != nil {
+		return api.SubmitTaskResponse{}, err
+	}
 	if req.Queue == "" {
 		req.Queue = config.DefaultQueue
 	}

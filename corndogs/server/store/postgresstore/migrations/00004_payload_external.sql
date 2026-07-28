@@ -1,0 +1,5 @@
+-- +goose Up
+ALTER TABLE tasks ALTER COLUMN payload SET STORAGE EXTERNAL;
+
+-- +goose Down
+ALTER TABLE tasks ALTER COLUMN payload SET STORAGE EXTENDED;

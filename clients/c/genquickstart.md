@@ -214,9 +214,15 @@ static int tls_write(void *self, const uint8_t *buf, size_t len) {
     return SSL_write((SSL *)self, buf, (int)len) == (int)len ? 0 : -1;
 }
 
+/* The max-frame guard is a carrier setting an
+   operator can raise or lower; valid limits are 1..CSIL_MAX_FRAME_LIMIT, and an invalid one
+   yields a carrier with NULL send_frame/recv_frame, checked below. */
+#define MAX_FRAME CSIL_MAX_FRAME_DEFAULT
+
 static int session(SSL *ssl) {
     csil_stream stream = { .read = tls_read, .write = tls_write, .userdata = ssl };
-    csil_frame_carrier carrier = csil_stream_carrier(&stream, 0);
+    csil_frame_carrier carrier = csil_stream_carrier(&stream, MAX_FRAME);
+    if (!carrier.send_frame) { return -1; } /* invalid max-frame limit */
 
     // $hello / $hello-ack handshake (control plane).
     const uint64_t versions[] = { CSIL_VERSION };

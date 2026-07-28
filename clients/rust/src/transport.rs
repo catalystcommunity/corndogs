@@ -58,7 +58,7 @@ use crate::CsilCborValue;
 const TAG_ENCODED_CBOR: u64 = 24; // RFC 8949 §3.4.5.1 — embedded encoded CBOR data item
 const CONTROL_SERVICE: &str = "CorndogsService";
 const OP_PING: &str = "$ping"; // control-plane heartbeat op (never collides with an app op)
-const MAX_FRAME: usize = 256 << 20; // frame size guard
+const MAX_FRAME: usize = 1025 << 20; // payload hard maximum plus RPC envelope allowance
 const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 struct ConnState {

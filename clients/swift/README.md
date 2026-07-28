@@ -32,7 +32,7 @@ _ = try client.submitTask(SubmitTaskRequest(
 let next = try client.getNextTask(GetNextTaskRequest(
     queue: "emails", currentState: "submitted",
     overrideTimeout: 0, overrideCurrentState: "", overrideAutoTargetState: ""))
-if let task = next.task { print(task) }
+if let delivery = next.delivery { print(delivery) }
 ```
 
 Heartbeat, three ways:

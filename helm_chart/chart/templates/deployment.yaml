@@ -51,6 +51,8 @@ spec:
               value: {{ .Values.appconfig.loglevel }}
             - name: PROMETHEUS_ENABLED
               value: {{ .Values.appconfig.prometheusEnabled | quote }}
+            - name: CORNDOGS_MAX_PAYLOAD_BYTES
+              value: {{ .Values.appconfig.maxPayloadBytes | quote }}
             - name: STORAGE_BACKEND
               value: {{ .Values.storage.backend | quote }}
             {{- if eq .Values.storage.backend "file" }}

@@ -38,14 +38,14 @@ func TestE2ECSILRPC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetNextTask: %v", err)
 	}
-	if got.Task == nil {
-		t.Fatalf("GetNextTask returned nil task")
+	if got.Delivery == nil {
+		t.Fatalf("GetNextTask returned nil delivery")
 	}
-	if got.Task.Uuid != sub.Task.Uuid {
-		t.Fatalf("claimed uuid %q != submitted %q", got.Task.Uuid, sub.Task.Uuid)
+	if got.Delivery.Task.Uuid != sub.Task.Uuid {
+		t.Fatalf("claimed uuid %q != submitted %q", got.Delivery.Task.Uuid, sub.Task.Uuid)
 	}
-	if string(got.Task.Payload) != "hello-csil-rpc" {
-		t.Fatalf("payload round-trip failed: %q", got.Task.Payload)
+	if string(got.Delivery.Payload) != "hello-csil-rpc" {
+		t.Fatalf("payload round-trip failed: %q", got.Delivery.Payload)
 	}
-	t.Logf("E2E OK: submitted + claimed %s over CSIL-RPC", got.Task.Uuid)
+	t.Logf("E2E OK: submitted + claimed %s over CSIL-RPC", got.Delivery.Task.Uuid)
 }

@@ -338,13 +338,11 @@ fn as_decimal(v: Value) CodecError!Decimal {
 }
 
 fn enc_Task(out: *std.ArrayList(u8), v: *const types.Task) CodecError!void {
-    try w_map_head(out, 9);
+    try w_map_head(out, 8);
     try w_text(out, "uuid");
     try w_text(out, v.uuid);
     try w_text(out, "queue");
     try w_text(out, v.queue);
-    try w_text(out, "payload");
-    try w_bytes(out, v.payload);
     try w_text(out, "timeout");
     try w_int(out, v.timeout);
     try w_text(out, "priority");
@@ -371,10 +369,6 @@ fn dec_Task(alloc: std.mem.Allocator, m: Value, out: *types.Task) CodecError!voi
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "payload");
-        out.payload = try as_bytes(csil_fv);
-    }
-    {
         const csil_fv = try req(m, "timeout");
         out.timeout = try as_i64(csil_fv);
     }
@@ -397,6 +391,26 @@ fn dec_Task(alloc: std.mem.Allocator, m: Value, out: *types.Task) CodecError!voi
     {
         const csil_fv = try req(m, "auto_target_state");
         out.auto_target_state = try as_text(csil_fv);
+    }
+}
+
+fn enc_TaskDelivery(out: *std.ArrayList(u8), v: *const types.TaskDelivery) CodecError!void {
+    try w_map_head(out, 2);
+    try w_text(out, "task");
+    try enc_Task(out, &(v.task));
+    try w_text(out, "payload");
+    try w_bytes(out, v.payload);
+}
+
+fn dec_TaskDelivery(alloc: std.mem.Allocator, m: Value, out: *types.TaskDelivery) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "task");
+        try dec_Task(alloc, csil_fv, &(out.task));
+    }
+    {
+        const csil_fv = try req(m, "payload");
+        out.payload = try as_bytes(csil_fv);
     }
 }
 
@@ -553,23 +567,23 @@ fn dec_GetNextTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.GetNex
 
 fn enc_GetNextTaskResponse(out: *std.ArrayList(u8), v: *const types.GetNextTaskResponse) CodecError!void {
     var csil_n: usize = 0;
-    if (v.task != null) csil_n += 1;
+    if (v.delivery != null) csil_n += 1;
     try w_map_head(out, csil_n);
-    if (v.task) |csil_x| {
-        try w_text(out, "task");
-        try enc_Task(out, &(csil_x));
+    if (v.delivery) |csil_x| {
+        try w_text(out, "delivery");
+        try enc_TaskDelivery(out, &(csil_x));
     }
 }
 
 fn dec_GetNextTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetNextTaskResponse) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        if (mget(m, "task")) |csil_fv| {
-            var csil_tmp: types.Task = undefined;
-            try dec_Task(alloc, csil_fv, &csil_tmp);
-            out.task = csil_tmp;
+        if (mget(m, "delivery")) |csil_fv| {
+            var csil_tmp: types.TaskDelivery = undefined;
+            try dec_TaskDelivery(alloc, csil_fv, &csil_tmp);
+            out.delivery = csil_tmp;
         } else {
-            out.task = null;
+            out.delivery = null;
         }
     }
 }
@@ -621,23 +635,23 @@ fn dec_GetNextTaskGroupRequest(alloc: std.mem.Allocator, m: Value, out: *types.G
 
 fn enc_GetNextTaskGroupResponse(out: *std.ArrayList(u8), v: *const types.GetNextTaskGroupResponse) CodecError!void {
     var csil_n: usize = 0;
-    if (v.task != null) csil_n += 1;
+    if (v.delivery != null) csil_n += 1;
     try w_map_head(out, csil_n);
-    if (v.task) |csil_x| {
-        try w_text(out, "task");
-        try enc_Task(out, &(csil_x));
+    if (v.delivery) |csil_x| {
+        try w_text(out, "delivery");
+        try enc_TaskDelivery(out, &(csil_x));
     }
 }
 
 fn dec_GetNextTaskGroupResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetNextTaskGroupResponse) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        if (mget(m, "task")) |csil_fv| {
-            var csil_tmp: types.Task = undefined;
-            try dec_Task(alloc, csil_fv, &csil_tmp);
-            out.task = csil_tmp;
+        if (mget(m, "delivery")) |csil_fv| {
+            var csil_tmp: types.TaskDelivery = undefined;
+            try dec_TaskDelivery(alloc, csil_fv, &csil_tmp);
+            out.delivery = csil_tmp;
         } else {
-            out.task = null;
+            out.delivery = null;
         }
     }
 }
@@ -693,13 +707,17 @@ fn dec_CompleteTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.Comp
 }
 
 fn enc_UpdateTaskRequest(out: *std.ArrayList(u8), v: *const types.UpdateTaskRequest) CodecError!void {
-    try w_map_head(out, 8);
+    var csil_n: usize = 7;
+    if (v.payload != null) csil_n += 1;
+    try w_map_head(out, csil_n);
     try w_text(out, "uuid");
     try w_text(out, v.uuid);
     try w_text(out, "queue");
     try w_text(out, v.queue);
-    try w_text(out, "payload");
-    try w_bytes(out, v.payload);
+    if (v.payload) |csil_x| {
+        try w_text(out, "payload");
+        try w_bytes(out, csil_x);
+    }
     try w_text(out, "timeout");
     try w_int(out, v.timeout);
     try w_text(out, "priority");
@@ -724,8 +742,11 @@ fn dec_UpdateTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.UpdateT
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "payload");
-        out.payload = try as_bytes(csil_fv);
+        if (mget(m, "payload")) |csil_fv| {
+            out.payload = try as_bytes(csil_fv);
+        } else {
+            out.payload = null;
+        }
     }
     {
         const csil_fv = try req(m, "timeout");
@@ -1110,6 +1131,22 @@ pub fn encode_Task(alloc: std.mem.Allocator, v: *const types.Task) CodecError![]
 pub fn decode_Task(alloc: std.mem.Allocator, bytes: []const u8, out: *types.Task) CodecError!void {
     const root = try decode(alloc, bytes);
     try dec_Task(alloc, root, out);
+}
+
+/// Encode a TaskDelivery to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_TaskDelivery(alloc: std.mem.Allocator, v: *const types.TaskDelivery) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_TaskDelivery(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a TaskDelivery. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_TaskDelivery(alloc: std.mem.Allocator, bytes: []const u8, out: *types.TaskDelivery) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_TaskDelivery(alloc, root, out);
 }
 
 /// Encode a SubmitTaskRequest to CBOR. The returned slice is owned by the caller

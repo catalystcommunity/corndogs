@@ -19,34 +19,25 @@ data class Task(
     // wire key: update_time
     val updateTime: Long,
     val timeout: Long,
-    val payload: ByteArray,
     val priority: Long
+)
+
+/** TaskDelivery record. */
+data class TaskDelivery(
+    val task: Task,
+    val payload: ByteArray
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is Task) return false
-        if (uuid != other.uuid) return false
-        if (queue != other.queue) return false
-        if (currentState != other.currentState) return false
-        if (autoTargetState != other.autoTargetState) return false
-        if (submitTime != other.submitTime) return false
-        if (updateTime != other.updateTime) return false
-        if (timeout != other.timeout) return false
+        if (other !is TaskDelivery) return false
+        if (task != other.task) return false
         if (!payload.contentEquals(other.payload)) return false
-        if (priority != other.priority) return false
         return true
     }
 
     override fun hashCode(): Int {
-        var result = uuid.hashCode()
-        result = 31 * result + queue.hashCode()
-        result = 31 * result + currentState.hashCode()
-        result = 31 * result + autoTargetState.hashCode()
-        result = 31 * result + submitTime.hashCode()
-        result = 31 * result + updateTime.hashCode()
-        result = 31 * result + timeout.hashCode()
+        var result = task.hashCode()
         result = 31 * result + payload.contentHashCode()
-        result = 31 * result + priority.hashCode()
         return result
     }
 }
@@ -116,7 +107,7 @@ data class GetNextTaskRequest(
 
 /** GetNextTaskResponse record. */
 data class GetNextTaskResponse(
-    val task: Task? = null
+    val delivery: TaskDelivery? = null
 )
 
 /** GetNextTaskGroupRequest record. */
@@ -134,7 +125,7 @@ data class GetNextTaskGroupRequest(
 
 /** GetNextTaskGroupResponse record. */
 data class GetNextTaskGroupResponse(
-    val task: Task? = null
+    val delivery: TaskDelivery? = null
 )
 
 /** CompleteTaskRequest record. */
@@ -161,7 +152,7 @@ data class UpdateTaskRequest(
     val timeout: Long,
     // wire key: new_state
     val newState: String,
-    val payload: ByteArray,
+    val payload: ByteArray? = null,
     val priority: Long
 ) {
     override fun equals(other: Any?): Boolean {
@@ -173,7 +164,7 @@ data class UpdateTaskRequest(
         if (autoTargetState != other.autoTargetState) return false
         if (timeout != other.timeout) return false
         if (newState != other.newState) return false
-        if (!payload.contentEquals(other.payload)) return false
+        if (!(payload?.contentEquals(other.payload) ?: (other.payload == null))) return false
         if (priority != other.priority) return false
         return true
     }
@@ -185,7 +176,7 @@ data class UpdateTaskRequest(
         result = 31 * result + autoTargetState.hashCode()
         result = 31 * result + timeout.hashCode()
         result = 31 * result + newState.hashCode()
-        result = 31 * result + payload.contentHashCode()
+        result = 31 * result + (payload?.contentHashCode() ?: 0)
         result = 31 * result + priority.hashCode()
         return result
     }

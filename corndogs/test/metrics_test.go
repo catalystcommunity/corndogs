@@ -100,8 +100,8 @@ func TestGetTaskStateCounts(t *testing.T) {
 	}
 	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
 
 	getTaskStateCountsRequest := &api.GetTaskStateCountsRequest{
 		Queue: testQueue,
@@ -153,8 +153,8 @@ func TestGetQueueAndStateCounts(t *testing.T) {
 		}
 		getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 		require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-		require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-		require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
+		require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+		require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
 	}
 
 	getQueueAndStateCountsResponse, err := corndogsClient.GetQueueAndStateCounts(context.Background(), &api.GetQueueAndStateCountsRequest{})

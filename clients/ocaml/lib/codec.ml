@@ -14,13 +14,21 @@ let rec encode_task (v : task) : Cbor.t =
        [
          Some (Cbor.Text "uuid", (Cbor.Text v.uuid));
          Some (Cbor.Text "queue", (Cbor.Text v.queue));
-         Some (Cbor.Text "payload", (Cbor.Bytes v.payload));
          Some (Cbor.Text "timeout", (Cbor.int64 v.timeout));
          Some (Cbor.Text "priority", (Cbor.int64 v.priority));
          Some (Cbor.Text "submit_time", (Cbor.int64 v.submit_time));
          Some (Cbor.Text "update_time", (Cbor.int64 v.update_time));
          Some (Cbor.Text "current_state", (Cbor.Text v.current_state));
          Some (Cbor.Text "auto_target_state", (Cbor.Text v.auto_target_state));
+       ])
+
+and encode_task_delivery (v : task_delivery) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "task", (encode_task v.task));
+         Some (Cbor.Text "payload", (Cbor.Bytes v.payload));
        ])
 
 and encode_submit_task_request (v : submit_task_request) : Cbor.t =
@@ -78,7 +86,7 @@ and encode_get_next_task_response (v : get_next_task_response) : Cbor.t =
     (List.filter_map
        (fun x -> x)
        [
-         (match v.task with Some csil_x -> Some (Cbor.Text "task", (encode_task csil_x)) | None -> None);
+         (match v.delivery with Some csil_x -> Some (Cbor.Text "delivery", (encode_task_delivery csil_x)) | None -> None);
        ])
 
 and encode_get_next_task_group_request (v : get_next_task_group_request) : Cbor.t =
@@ -98,7 +106,7 @@ and encode_get_next_task_group_response (v : get_next_task_group_response) : Cbo
     (List.filter_map
        (fun x -> x)
        [
-         (match v.task with Some csil_x -> Some (Cbor.Text "task", (encode_task csil_x)) | None -> None);
+         (match v.delivery with Some csil_x -> Some (Cbor.Text "delivery", (encode_task_delivery csil_x)) | None -> None);
        ])
 
 and encode_complete_task_request (v : complete_task_request) : Cbor.t =
@@ -126,7 +134,7 @@ and encode_update_task_request (v : update_task_request) : Cbor.t =
        [
          Some (Cbor.Text "uuid", (Cbor.Text v.uuid));
          Some (Cbor.Text "queue", (Cbor.Text v.queue));
-         Some (Cbor.Text "payload", (Cbor.Bytes v.payload));
+         (match v.payload with Some csil_x -> Some (Cbor.Text "payload", (Cbor.Bytes csil_x)) | None -> None);
          Some (Cbor.Text "timeout", (Cbor.int64 v.timeout));
          Some (Cbor.Text "priority", (Cbor.int64 v.priority));
          Some (Cbor.Text "new_state", (Cbor.Text v.new_state));
@@ -257,7 +265,6 @@ let rec decode_task (csil_c : Cbor.t) : task =
       {
         uuid = (Cbor.to_text (csil_req "uuid"));
         queue = (Cbor.to_text (csil_req "queue"));
-        payload = (Cbor.to_bytes (csil_req "payload"));
         timeout = (Cbor.to_i64 (csil_req "timeout"));
         priority = (Cbor.to_i64 (csil_req "priority"));
         submit_time = (Cbor.to_i64 (csil_req "submit_time"));
@@ -266,6 +273,20 @@ let rec decode_task (csil_c : Cbor.t) : task =
         auto_target_state = (Cbor.to_text (csil_req "auto_target_state"));
       }
   | _ -> failwith "csilgen: expected map for task"
+
+and decode_task_delivery (csil_c : Cbor.t) : task_delivery =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        task = (decode_task (csil_req "task"));
+        payload = (Cbor.to_bytes (csil_req "payload"));
+      }
+  | _ -> failwith "csilgen: expected map for task_delivery"
 
 and decode_submit_task_request (csil_c : Cbor.t) : submit_task_request =
   match csil_c with
@@ -351,7 +372,7 @@ and decode_get_next_task_response (csil_c : Cbor.t) : get_next_task_response =
       in
       ignore csil_req;
       {
-        task = (match csil_field "task" with Some csil_v -> Some (decode_task csil_v) | None -> None);
+        delivery = (match csil_field "delivery" with Some csil_v -> Some (decode_task_delivery csil_v) | None -> None);
       }
   | _ -> failwith "csilgen: expected map for get_next_task_response"
 
@@ -381,7 +402,7 @@ and decode_get_next_task_group_response (csil_c : Cbor.t) : get_next_task_group_
       in
       ignore csil_req;
       {
-        task = (match csil_field "task" with Some csil_v -> Some (decode_task csil_v) | None -> None);
+        delivery = (match csil_field "delivery" with Some csil_v -> Some (decode_task_delivery csil_v) | None -> None);
       }
   | _ -> failwith "csilgen: expected map for get_next_task_group_response"
 
@@ -424,7 +445,7 @@ and decode_update_task_request (csil_c : Cbor.t) : update_task_request =
       {
         uuid = (Cbor.to_text (csil_req "uuid"));
         queue = (Cbor.to_text (csil_req "queue"));
-        payload = (Cbor.to_bytes (csil_req "payload"));
+        payload = (match csil_field "payload" with Some csil_v -> Some (Cbor.to_bytes csil_v) | None -> None);
         timeout = (Cbor.to_i64 (csil_req "timeout"));
         priority = (Cbor.to_i64 (csil_req "priority"));
         new_state = (Cbor.to_text (csil_req "new_state"));
@@ -611,6 +632,10 @@ and decode_service_error (csil_c : Cbor.t) : service_error =
 let encode_task_bytes (v : task) : bytes = Cbor.encode (encode_task v)
 let decode_task_bytes (b : bytes) : task =
   match Cbor.decode b with Ok c -> decode_task c | Error e -> failwith e
+
+let encode_task_delivery_bytes (v : task_delivery) : bytes = Cbor.encode (encode_task_delivery v)
+let decode_task_delivery_bytes (b : bytes) : task_delivery =
+  match Cbor.decode b with Ok c -> decode_task_delivery c | Error e -> failwith e
 
 let encode_submit_task_request_bytes (v : submit_task_request) : bytes = Cbor.encode (encode_submit_task_request v)
 let decode_submit_task_request_bytes (b : bytes) : submit_task_request =

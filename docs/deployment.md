@@ -93,3 +93,13 @@ STORAGE_BACKEND=postgres DATABASE_HOST=localhost DATABASE_USER=postgres \
 ```
 
 See [storage-backends.md](./storage-backends.md) for the full env-var reference.
+
+## Payload limit
+
+The Helm value `appconfig.maxPayloadBytes` sets the maximum payload size. The
+default is `16777216` bytes (16 MiB). The valid range is 1 through 1073741823
+bytes.
+
+For a process outside Kubernetes, set `CORNDOGS_MAX_PAYLOAD_BYTES`. Configure
+each custom client frame limit to permit the payload and its RPC envelope. The
+clients in this repository permit the full Corndogs range.

@@ -3,6 +3,6 @@
 package csilgen.generated;
 
 public record GetNextTaskGroupResponse(
-    Task task /* wire: "task" */
+    TaskDelivery delivery /* wire: "delivery" */
 ) {
 }

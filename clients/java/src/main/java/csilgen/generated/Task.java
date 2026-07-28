@@ -2,11 +2,9 @@
 
 package csilgen.generated;
 
-import java.util.Arrays;
-import java.util.Objects;
-
 /**
- * A task as returned by the service. Response-only shape.
+ * Task metadata as returned by the service. Payload bytes are returned only
+ * when a worker claims a task.
  */
 public record Task(
     String uuid /* wire: "uuid" */,
@@ -16,31 +14,6 @@ public record Task(
     long submitTime /* wire: "submit_time" */,
     long updateTime /* wire: "update_time" */,
     long timeout /* wire: "timeout" */,
-    byte[] payload /* wire: "payload" */,
     long priority /* wire: "priority" */
 ) {
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (!(obj instanceof Task o)) return false;
-        return true
-            && Objects.equals(uuid, o.uuid)
-            && Objects.equals(queue, o.queue)
-            && Objects.equals(currentState, o.currentState)
-            && Objects.equals(autoTargetState, o.autoTargetState)
-            && Objects.equals(submitTime, o.submitTime)
-            && Objects.equals(updateTime, o.updateTime)
-            && Objects.equals(timeout, o.timeout)
-            && Arrays.equals(payload, o.payload)
-            && Objects.equals(priority, o.priority)
-        ;
-    }
-    @Override
-    public int hashCode() {
-        return Objects.hash(uuid, queue, currentState, autoTargetState, submitTime, updateTime, timeout, Arrays.hashCode(payload), priority);
-    }
-    @Override
-    public String toString() {
-        return "Task[" + "uuid=" + uuid + ", " + "queue=" + queue + ", " + "currentState=" + currentState + ", " + "autoTargetState=" + autoTargetState + ", " + "submitTime=" + submitTime + ", " + "updateTime=" + updateTime + ", " + "timeout=" + timeout + ", " + "payload=" + Arrays.toString(payload) + ", " + "priority=" + priority + "]";
-    }
 }

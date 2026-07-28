@@ -34,10 +34,10 @@ fun main() {
         queue = "emails", currentState = "submitted", autoTargetState = "sending",
         timeout = -1, payload = "...".toByteArray(), priority = 0,
     ))
-    val task = client.getNextTask(GetNextTaskRequest(
+    val delivery = client.getNextTask(GetNextTaskRequest(
         queue = "emails", currentState = "submitted",
         overrideTimeout = 0, overrideCurrentState = "", overrideAutoTargetState = "",
-    )).task
+    )).delivery
 }
 ```
 

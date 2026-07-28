@@ -105,12 +105,16 @@ using Csilgen.Transport;
 
 public static class CsilEventsExample
 {
+    // The max-frame guard is a carrier setting an operator can raise or lower; valid limits
+    // are 1..=Conventions.MaxFrameLimit and are checked at construction.
+    const int MaxFrame = Conventions.MaxFrameDefault;
+
     static IFrameCarrier OpenTlsCarrier(string host, int port)
     {
         var tcp = new TcpClient(host, port);
         var tls = new SslStream(tcp.GetStream());
         tls.AuthenticateAsClient(host);
-        return new StreamCarrier(tls);
+        return new StreamCarrier(tls, MaxFrame);
     }
 
     public static void Run()

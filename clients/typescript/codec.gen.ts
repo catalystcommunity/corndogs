@@ -2,7 +2,7 @@
 // Source: <csil spec>
 // Target: typescript-codec
 
-import type { CancelTaskRequest, CancelTaskResponse, CleanUpTimedOutRequest, CleanUpTimedOutResponse, CompleteTaskRequest, CompleteTaskResponse, GetNextTaskGroupRequest, GetNextTaskGroupResponse, GetNextTaskRequest, GetNextTaskResponse, GetQueueAndStateCountsRequest, GetQueueAndStateCountsResponse, GetQueueTaskCountsRequest, GetQueueTaskCountsResponse, GetQueuesRequest, GetQueuesResponse, GetTaskStateByIDRequest, GetTaskStateByIDResponse, GetTaskStateCountsRequest, GetTaskStateCountsResponse, QueueAndStateCounts, QueueAndStateCountsMap, ServiceError, StringInt64Map, SubmitTaskRequest, SubmitTaskResponse, Task, UpdateTaskRequest, UpdateTaskResponse } from "./types.gen.ts";
+import type { CancelTaskRequest, CancelTaskResponse, CleanUpTimedOutRequest, CleanUpTimedOutResponse, CompleteTaskRequest, CompleteTaskResponse, GetNextTaskGroupRequest, GetNextTaskGroupResponse, GetNextTaskRequest, GetNextTaskResponse, GetQueueAndStateCountsRequest, GetQueueAndStateCountsResponse, GetQueueTaskCountsRequest, GetQueueTaskCountsResponse, GetQueuesRequest, GetQueuesResponse, GetTaskStateByIDRequest, GetTaskStateByIDResponse, GetTaskStateCountsRequest, GetTaskStateCountsResponse, QueueAndStateCounts, QueueAndStateCountsMap, ServiceError, StringInt64Map, SubmitTaskRequest, SubmitTaskResponse, Task, TaskDelivery, UpdateTaskRequest, UpdateTaskResponse } from "./types.gen.ts";
 
 /** A CBOR semantic tag wrapping an inner value (e.g. tag 0 timestamp, tag 4 decimal). */
 export type CborTag = { readonly tag: number; readonly value: CborValue };
@@ -334,7 +334,6 @@ export function toTaskCborValue(v: Task): CborValue {
   const csilMap = new Map<CborValue, CborValue>();
   csilMap.set("uuid", v.uuid);
   csilMap.set("queue", v.queue);
-  csilMap.set("payload", v.payload);
   csilMap.set("timeout", v.timeout);
   csilMap.set("priority", v.priority);
   csilMap.set("submit_time", v.submitTime);
@@ -353,7 +352,6 @@ export function fromTaskCborValue(value: CborValue): Task {
     submitTime: asNumber(requireKey(value, "submit_time")),
     updateTime: asNumber(requireKey(value, "update_time")),
     timeout: asNumber(requireKey(value, "timeout")),
-    payload: asBytes(requireKey(value, "payload")),
     priority: asNumber(requireKey(value, "priority")),
   };
 }
@@ -364,6 +362,28 @@ export function toTaskCbor(v: Task): Uint8Array {
 
 export function fromTaskCbor(bytes: Uint8Array): Task {
   return fromTaskCborValue(decode(bytes));
+}
+
+export function toTaskDeliveryCborValue(v: TaskDelivery): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("task", toTaskCborValue(v.task));
+  csilMap.set("payload", v.payload);
+  return csilMap;
+}
+
+export function fromTaskDeliveryCborValue(value: CborValue): TaskDelivery {
+  return {
+    task: fromTaskCborValue(requireKey(value, "task")),
+    payload: asBytes(requireKey(value, "payload")),
+  };
+}
+
+export function toTaskDeliveryCbor(v: TaskDelivery): Uint8Array {
+  return encodeValue(toTaskDeliveryCborValue(v));
+}
+
+export function fromTaskDeliveryCbor(bytes: Uint8Array): TaskDelivery {
+  return fromTaskDeliveryCborValue(decode(bytes));
 }
 
 export function toSubmitTaskRequestCborValue(v: SubmitTaskRequest): CborValue {
@@ -488,13 +508,13 @@ export function fromGetNextTaskRequestCbor(bytes: Uint8Array): GetNextTaskReques
 
 export function toGetNextTaskResponseCborValue(v: GetNextTaskResponse): CborValue {
   const csilMap = new Map<CborValue, CborValue>();
-  if (v.task !== undefined) csilMap.set("task", toTaskCborValue(v.task));
+  if (v.delivery !== undefined) csilMap.set("delivery", toTaskDeliveryCborValue(v.delivery));
   return csilMap;
 }
 
 export function fromGetNextTaskResponseCborValue(value: CborValue): GetNextTaskResponse {
   return {
-    task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskCborValue(csilV))(mapGet(value, "task")),
+    delivery: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskDeliveryCborValue(csilV))(mapGet(value, "delivery")),
   };
 }
 
@@ -536,13 +556,13 @@ export function fromGetNextTaskGroupRequestCbor(bytes: Uint8Array): GetNextTaskG
 
 export function toGetNextTaskGroupResponseCborValue(v: GetNextTaskGroupResponse): CborValue {
   const csilMap = new Map<CborValue, CborValue>();
-  if (v.task !== undefined) csilMap.set("task", toTaskCborValue(v.task));
+  if (v.delivery !== undefined) csilMap.set("delivery", toTaskDeliveryCborValue(v.delivery));
   return csilMap;
 }
 
 export function fromGetNextTaskGroupResponseCborValue(value: CborValue): GetNextTaskGroupResponse {
   return {
-    task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskCborValue(csilV))(mapGet(value, "task")),
+    delivery: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskDeliveryCborValue(csilV))(mapGet(value, "delivery")),
   };
 }
 
@@ -602,7 +622,7 @@ export function toUpdateTaskRequestCborValue(v: UpdateTaskRequest): CborValue {
   const csilMap = new Map<CborValue, CborValue>();
   csilMap.set("uuid", v.uuid);
   csilMap.set("queue", v.queue);
-  csilMap.set("payload", v.payload);
+  if (v.payload !== undefined) csilMap.set("payload", v.payload);
   csilMap.set("timeout", v.timeout);
   csilMap.set("priority", v.priority);
   csilMap.set("new_state", v.newState);
@@ -619,7 +639,7 @@ export function fromUpdateTaskRequestCborValue(value: CborValue): UpdateTaskRequ
     autoTargetState: asString(requireKey(value, "auto_target_state")),
     timeout: asNumber(requireKey(value, "timeout")),
     newState: asString(requireKey(value, "new_state")),
-    payload: asBytes(requireKey(value, "payload")),
+    payload: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : asBytes(csilV))(mapGet(value, "payload")),
     priority: asNumber(requireKey(value, "priority")),
   };
 }

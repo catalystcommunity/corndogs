@@ -98,11 +98,11 @@ func main() {
 		os.Exit(1)
 	}
 	r, err := c.GetNextTask(ctx, corndogs.GetNextTaskRequest{Queue: "e2e-go", CurrentState: "s"})
-	if err != nil || r.Task == nil {
+	if err != nil || r.Delivery == nil {
 		fmt.Println("claim:", err)
 		os.Exit(1)
 	}
-	fmt.Println("ok", r.Task.Uuid)
+	fmt.Println("ok", r.Delivery.Task.Uuid)
 }
 GOEOF
   ( cd "$w"
@@ -124,10 +124,10 @@ client = CorndogsClient(tr)
 client.submit_task(SubmitTaskRequest(
     queue="e2e-py", current_state="s", auto_target_state="w",
     timeout=-1, payload=b"hi", priority=0))
-task = client.get_next_task(GetNextTaskRequest(
+delivery = client.get_next_task(GetNextTaskRequest(
     queue="e2e-py", current_state="s",
-    override_timeout=0, override_current_state="", override_auto_target_state="")).task
-assert task is not None, "no task claimed"
+    override_timeout=0, override_current_state="", override_auto_target_state="")).delivery
+assert delivery is not None, "no task claimed"
 print("ok")
 PYEOF
   PYTHONPATH="${CLIENTS}/python" python3 "$w/main.py" >"$w/out.log" 2>&1 && pass python || { fail python; sed 's/^/    /' "$w/out.log" | tail -8; }
@@ -147,11 +147,11 @@ client.submit_task(SubmitTaskRequest.new(
   queue: "e2e-ruby", current_state: "s", auto_target_state: "w",
   timeout: -1, payload: "hi".b, priority: 0
 ))
-task = client.get_next_task(GetNextTaskRequest.new(
+delivery = client.get_next_task(GetNextTaskRequest.new(
   queue: "e2e-ruby", current_state: "s",
   override_timeout: 0, override_current_state: "", override_auto_target_state: ""
-)).task
-raise "no task claimed" if task.nil?
+)).delivery
+raise "no task claimed" if delivery.nil?
 
 puts "ok"
 RBEOF
@@ -180,7 +180,7 @@ fn main() {
         override_timeout: 0, override_current_state: String::new(), override_auto_target_state: String::new(),
     }).expect("get_next_task");
 
-    if got.task.is_none() {
+    if got.delivery.is_none() {
         eprintln!("claim: no task returned");
         std::process::exit(1);
     }
@@ -240,7 +240,7 @@ int main(void) {
         corndogs_transport_close(tr);
         return 1;
     }
-    if (!next_resp.task) {
+    if (!next_resp.delivery) {
         fprintf(stderr, "get_next_task returned no task\n");
         csil_codec_arena_free(owner);
         corndogs_transport_close(tr);
@@ -281,7 +281,7 @@ Future<void> main() async {
       queue: 'e2e-dart', currentState: 's',
       overrideTimeout: 0, overrideCurrentState: '', overrideAutoTargetState: '',
     ));
-    if (got.task == null) {
+    if (got.delivery == null) {
       stderr.writeln('claim: no task returned');
       await tr.close();
       exit(1);
@@ -323,12 +323,12 @@ client.SubmitTask(new SubmitTaskRequest
     Queue = "e2e-csharp", CurrentState = "s", AutoTargetState = "w",
     Timeout = -1, Payload = Encoding.UTF8.GetBytes("hi"), Priority = 0,
 });
-var task = client.GetNextTask(new GetNextTaskRequest
+var delivery = client.GetNextTask(new GetNextTaskRequest
 {
     Queue = "e2e-csharp", CurrentState = "s",
     OverrideTimeout = 0, OverrideCurrentState = "", OverrideAutoTargetState = "",
-}).Task;
-if (task is null)
+}).Delivery;
+if (delivery is null)
 {
     Console.WriteLine("claim: no task returned");
     Environment.Exit(1);
@@ -388,7 +388,7 @@ resp =
     override_auto_target_state: ""
   })
 
-if is_nil(resp.task) do
+if is_nil(resp.delivery) do
   IO.puts("claim: no task returned")
   System.halt(1)
 end
@@ -444,7 +444,7 @@ pub fn main() !void {
         std.debug.print("claim: {}\n", .{err});
         std.process.exit(1);
     };
-    if (next.task == null) {
+    if (next.delivery == null) {
         std.debug.print("claim: no task returned\n", .{});
         std.process.exit(1);
     }
@@ -481,8 +481,8 @@ let () =
     in
     (match Client.Corndogs_service.get_next_task client next_req with
      | Error e -> Printf.eprintf "claim: %s\n" e; exit 1
-     | Ok { task = None } -> Printf.eprintf "claim: no task\n"; exit 1
-     | Ok { task = Some _ } ->
+     | Ok { delivery = None } -> Printf.eprintf "claim: no task\n"; exit 1
+     | Ok { delivery = Some _ } ->
        Transport.close tr;
        print_endline "ok")
 OCAMLEOF
@@ -507,11 +507,11 @@ async function main() {
       queue: "e2e-typescript", currentState: "s", autoTargetState: "w",
       timeout: -1, payload: new TextEncoder().encode("hi"), priority: 0,
     });
-    const { task } = await client.corndogs.getNextTask({
+    const { delivery } = await client.corndogs.getNextTask({
       queue: "e2e-typescript", currentState: "s",
       overrideTimeout: 0, overrideCurrentState: "", overrideAutoTargetState: "",
     });
-    if (!task) {
+    if (!delivery) {
       console.error("claim: no task returned");
       process.exit(1);
     }
@@ -547,7 +547,7 @@ public class RpcExample {
                 "e2e-java", "s", "w", -1L, "hi".getBytes(), 0L));
             GetNextTaskResponse got = client.getNextTask(new GetNextTaskRequest(
                 "e2e-java", "s", 0L, "", ""));
-            if (got.task() == null) {
+            if (got.delivery() == null) {
                 System.out.println("claim: no task");
                 System.exit(1);
             }
@@ -580,11 +580,11 @@ fun main() {
         queue = "e2e-kotlin", currentState = "s", autoTargetState = "w",
         timeout = -1, payload = "hi".toByteArray(), priority = 0,
     ))
-    val task = client.getNextTask(GetNextTaskRequest(
+    val delivery = client.getNextTask(GetNextTaskRequest(
         queue = "e2e-kotlin", currentState = "s",
         overrideTimeout = 0, overrideCurrentState = "", overrideAutoTargetState = "",
-    )).task
-    if (task == null) {
+    )).delivery
+    if (delivery == null) {
         System.err.println("claim: no task returned")
         kotlin.system.exitProcess(1)
     }
@@ -644,7 +644,7 @@ do {
         queue: "e2e-swift", currentState: "s",
         overrideTimeout: 0, overrideCurrentState: "", overrideAutoTargetState: ""))
 
-    guard next.task != nil else {
+    guard next.delivery != nil else {
         print("claim: no task returned"); exit(1)
     }
     print("ok")

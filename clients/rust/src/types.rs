@@ -13,8 +13,13 @@ pub struct Task {
     pub submit_time: i64,
     pub update_time: i64,
     pub timeout: i64,
-    pub payload: Vec<u8>,
     pub priority: i64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TaskDelivery {
+    pub task: Task,
+    pub payload: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,7 +59,7 @@ pub struct GetNextTaskRequest {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GetNextTaskResponse {
-    pub task: Option<Task>,
+    pub delivery: Option<TaskDelivery>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,7 +73,7 @@ pub struct GetNextTaskGroupRequest {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GetNextTaskGroupResponse {
-    pub task: Option<Task>,
+    pub delivery: Option<TaskDelivery>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -91,7 +96,7 @@ pub struct UpdateTaskRequest {
     pub auto_target_state: String,
     pub timeout: i64,
     pub new_state: String,
-    pub payload: Vec<u8>,
+    pub payload: Option<Vec<u8>>,
     pub priority: i64,
 }
 

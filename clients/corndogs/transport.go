@@ -30,7 +30,7 @@ import (
 
 const (
 	tagEncodedCBOR   = 24              // RFC 8949 §3.4.5.1 — embedded encoded CBOR data item
-	maxFrame         = 256 << 20       // frame size guard
+	maxFrame         = 1025 << 20      // payload hard maximum plus RPC envelope allowance
 	defaultDialWait  = 5 * time.Second // connect timeout
 	controlServiceHB = "CorndogsService"
 	opPing           = "$ping" // control-plane heartbeat op (never collides with app ops)

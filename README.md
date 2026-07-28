@@ -75,12 +75,13 @@ loop:
     result = client.get_next_task(queue = "emails", current_state = "submitted")
     #   claims the single best (priority, then oldest) task in that state and
     #   atomically moves it to "sending". Returns nothing if the queue is empty.
-    if result.task == null:
+    if result.delivery == null:
         sleep(a bit); continue
 
-    task = result.task
+    task = result.delivery.task
+    payload = result.delivery.payload
     try:
-        do_work(task.payload)
+        do_work(payload)
         client.complete_task(task.uuid)                        # terminal: archived "completed"
     catch retryable:
         client.update_task(task.uuid, new_state = "submitted") # hand it back
@@ -102,10 +103,9 @@ These are deliberate - and they're why the worker loop above has none of the
 bookkeeping a Celery/Sidekiq-style system would make you write:
 
 - **Corndogs manages task *state*; it never runs your code.** The payload is an
-  opaque bytestring it never opens - there are no registered "task functions", no
-  serialized closures, no framework living inside your worker. A worker is just
-  something that makes requests over a connection, so any language and any workload
-  work equally well with no SDK lock-in.
+  opaque byte string. Corndogs does not decode it. A producer encodes the bytes,
+  and a consumer decodes the bytes. Corndogs sends the payload only when a
+  consumer claims a task.
 
 - **Claiming a task *is* a state transition - there is no separate ack.**
   `get_next_task` atomically moves the task out of its waiting state into its
@@ -131,7 +131,7 @@ A "task" is just a row in a db with the following fields:
  * Submit time
  * Update time
  * Timeout (null if waiting for pulling, otherwise number of seconds until it "times out")
- * Payload (a bytestring, package it however you want. JSON, msgpack, whatever)
+ * Payload (an opaque byte string that is stored separately from task metadata)
 
 ## Flow
 

@@ -22,11 +22,11 @@ client.SubmitTask(new SubmitTaskRequest
     Queue = "emails", CurrentState = "submitted", AutoTargetState = "sending",
     Timeout = -1, Payload = System.Array.Empty<byte>(), Priority = 0,
 });
-var task = client.GetNextTask(new GetNextTaskRequest
+var delivery = client.GetNextTask(new GetNextTaskRequest
 {
     Queue = "emails", CurrentState = "submitted",
     OverrideTimeout = 0, OverrideCurrentState = "", OverrideAutoTargetState = "",
-}).Task;
+}).Delivery;
 ```
 
 Heartbeat, two ways — build the transport explicitly so you can start it:

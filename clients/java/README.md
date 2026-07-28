@@ -27,7 +27,7 @@ client.submitTask(new SubmitTaskRequest(
     "emails", "submitted", "sending", -1L, "...".getBytes(), 0L));
 GetNextTaskResponse got = client.getNextTask(new GetNextTaskRequest(
     "emails", "submitted", 0L, "", ""));
-Task task = got.task();
+TaskDelivery delivery = got.delivery();
 ```
 
 Java calls are synchronous, one in flight at a time: each `call()` is serialized

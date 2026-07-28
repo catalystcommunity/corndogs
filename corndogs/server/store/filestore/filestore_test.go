@@ -79,20 +79,20 @@ func TestBasicFlow(t *testing.T) {
 			// Claim: states swap (current<->auto), matching postgres semantics.
 			got, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "q", CurrentState: "submitted"})
 			require.NoError(t, err)
-			require.NotNil(t, got.Task)
-			require.Equal(t, "submitted-working", got.Task.CurrentState)
-			require.Equal(t, "submitted", got.Task.AutoTargetState)
-			require.Equal(t, sub.Task.Uuid, got.Task.Uuid)
-			require.Equal(t, []byte("hello"), got.Task.Payload)
+			require.NotNil(t, got.Delivery)
+			require.Equal(t, "submitted-working", got.Delivery.Task.CurrentState)
+			require.Equal(t, "submitted", got.Delivery.Task.AutoTargetState)
+			require.Equal(t, sub.Task.Uuid, got.Delivery.Task.Uuid)
+			require.Equal(t, []byte("hello"), got.Delivery.Payload)
 
 			// Queue is now empty for that state.
 			empty, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "q", CurrentState: "submitted"})
 			require.NoError(t, err)
-			require.Nil(t, empty.Task)
+			require.Nil(t, empty.Delivery)
 
 			// Update to a new state.
 			upd, err := s.UpdateTask(ctx(), &api.UpdateTaskRequest{
-				Uuid:            got.Task.Uuid,
+				Uuid:            got.Delivery.Task.Uuid,
 				Queue:           "q",
 				CurrentState:    "submitted-working",
 				NewState:        "phase2",
@@ -104,12 +104,65 @@ func TestBasicFlow(t *testing.T) {
 			// Claim the updated task, then complete it.
 			got2, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "q", CurrentState: "phase2"})
 			require.NoError(t, err)
-			require.NotNil(t, got2.Task)
+			require.NotNil(t, got2.Delivery)
 
-			done, err := s.CompleteTask(ctx(), &api.CompleteTaskRequest{Uuid: got2.Task.Uuid, Queue: "q", CurrentState: got2.Task.CurrentState})
+			done, err := s.CompleteTask(ctx(), &api.CompleteTaskRequest{Uuid: got2.Delivery.Task.Uuid, Queue: "q", CurrentState: got2.Delivery.Task.CurrentState})
 			require.NoError(t, err)
 			require.Equal(t, "completed", done.Task.CurrentState)
-			require.Nil(t, done.Task.Payload, "payload dropped on archive")
+		})
+	}
+}
+
+func TestPayloadUpdatePresence(t *testing.T) {
+	for _, backend := range backends {
+		t.Run(backend, func(t *testing.T) {
+			withFakeClock(t)
+			s, cleanup := newStore(t, backend, SyncNever)
+			defer cleanup()
+
+			sub, err := s.SubmitTask(ctx(), &api.SubmitTaskRequest{
+				Queue:           "q",
+				CurrentState:    "submitted",
+				AutoTargetState: "working",
+				Timeout:         -1,
+				Payload:         []byte("original"),
+			})
+			require.NoError(t, err)
+
+			// An absent payload keeps the stored bytes.
+			_, err = s.UpdateTask(ctx(), &api.UpdateTaskRequest{
+				Uuid:            sub.Task.Uuid,
+				Queue:           "q",
+				CurrentState:    "submitted",
+				NewState:        "kept",
+				AutoTargetState: "kept-working",
+			})
+			require.NoError(t, err)
+			kept, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{
+				Queue:        "q",
+				CurrentState: "kept",
+			})
+			require.NoError(t, err)
+			require.Equal(t, []byte("original"), kept.Delivery.Payload)
+
+			// A present empty payload replaces the stored bytes with zero bytes.
+			emptyPayload := []byte{}
+			_, err = s.UpdateTask(ctx(), &api.UpdateTaskRequest{
+				Uuid:            sub.Task.Uuid,
+				Queue:           "q",
+				CurrentState:    "kept-working",
+				NewState:        "emptied",
+				AutoTargetState: "emptied-working",
+				Payload:         &emptyPayload,
+			})
+			require.NoError(t, err)
+			emptied, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{
+				Queue:        "q",
+				CurrentState: "emptied",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, emptied.Delivery.Payload)
+			require.Empty(t, emptied.Delivery.Payload)
 		})
 	}
 }
@@ -131,8 +184,8 @@ func TestGetNextTaskOverride(t *testing.T) {
 				OverrideAutoTargetState: "oats",
 			})
 			require.NoError(t, err)
-			require.Equal(t, "ocs", got.Task.CurrentState)
-			require.Equal(t, "oats", got.Task.AutoTargetState)
+			require.Equal(t, "ocs", got.Delivery.Task.CurrentState)
+			require.Equal(t, "oats", got.Delivery.Task.AutoTargetState)
 		})
 	}
 }
@@ -167,8 +220,8 @@ func TestPriorityAndFIFOOrdering(t *testing.T) {
 			for i := 0; i < 3; i++ {
 				got, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "q", CurrentState: "submitted"})
 				require.NoError(t, err)
-				require.NotNil(t, got.Task)
-				order = append(order, string(got.Task.Payload))
+				require.NotNil(t, got.Delivery)
+				order = append(order, string(got.Delivery.Payload))
 			}
 			require.Equal(t, []string{"A", "B", "C"}, order)
 		})
@@ -209,8 +262,8 @@ func TestGetNextTaskGroup(t *testing.T) {
 					Queues: group, CurrentState: "submitted",
 				})
 				require.NoError(t, err)
-				require.NotNil(t, got.Task, "expected a task on iteration %d", i)
-				order = append(order, string(got.Task.Payload))
+				require.NotNil(t, got.Delivery, "expected a task on iteration %d", i)
+				order = append(order, string(got.Delivery.Payload))
 			}
 			require.Equal(t, []string{"q1-hi", "q2-hi", "q3-lo"}, order)
 
@@ -218,13 +271,13 @@ func TestGetNextTaskGroup(t *testing.T) {
 			// tasks are untouched.
 			empty, err := s.GetNextTaskGroup(ctx(), &api.GetNextTaskGroupRequest{Queues: group, CurrentState: "submitted"})
 			require.NoError(t, err)
-			require.Nil(t, empty.Task)
+			require.Nil(t, empty.Delivery)
 
 			// The higher-priority task in "other" was never claimed by the group.
 			still, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "other", CurrentState: "submitted"})
 			require.NoError(t, err)
-			require.NotNil(t, still.Task)
-			require.Equal(t, "nope", string(still.Task.Payload))
+			require.NotNil(t, still.Delivery)
+			require.Equal(t, "nope", string(still.Delivery.Payload))
 		})
 	}
 }
@@ -249,20 +302,20 @@ func TestGetNextTaskGroupSemantics(t *testing.T) {
 				OverrideAutoTargetState: "oats",
 			})
 			require.NoError(t, err)
-			require.NotNil(t, got.Task)
-			require.Equal(t, "qA", got.Task.Queue)
-			require.Equal(t, "ocs", got.Task.CurrentState)
-			require.Equal(t, "oats", got.Task.AutoTargetState)
+			require.NotNil(t, got.Delivery)
+			require.Equal(t, "qA", got.Delivery.Task.Queue)
+			require.Equal(t, "ocs", got.Delivery.Task.CurrentState)
+			require.Equal(t, "oats", got.Delivery.Task.AutoTargetState)
 
 			// No matching task in any queue => nil task, no error.
 			none, err := s.GetNextTaskGroup(ctx(), &api.GetNextTaskGroupRequest{Queues: []string{"qB", "qC"}, CurrentState: "submitted"})
 			require.NoError(t, err)
-			require.Nil(t, none.Task)
+			require.Nil(t, none.Delivery)
 
 			// Empty queue set => nil task, no error.
 			emptyset, err := s.GetNextTaskGroup(ctx(), &api.GetNextTaskGroupRequest{Queues: nil, CurrentState: "submitted"})
 			require.NoError(t, err)
-			require.Nil(t, emptyset.Task)
+			require.Nil(t, emptyset.Delivery)
 		})
 	}
 }
@@ -280,7 +333,6 @@ func TestGetByIDActiveAndArchived(t *testing.T) {
 			active, err := s.MustGetTaskStateByID(ctx(), &api.GetTaskStateByIDRequest{Uuid: sub.Task.Uuid})
 			require.NoError(t, err)
 			require.NotNil(t, active.Task)
-			require.Equal(t, []byte("p"), active.Task.Payload)
 
 			// Complete then archived lookup.
 			_, err = s.CompleteTask(ctx(), &api.CompleteTaskRequest{Uuid: sub.Task.Uuid, Queue: "q", CurrentState: "submitted"})
@@ -309,8 +361,8 @@ func TestCleanUpTimedOut(t *testing.T) {
 			require.NoError(t, err)
 			got, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "q", CurrentState: "submitted"})
 			require.NoError(t, err)
-			require.NotNil(t, got.Task)
-			require.Equal(t, "wip", got.Task.CurrentState)
+			require.NotNil(t, got.Delivery)
+			require.Equal(t, "wip", got.Delivery.Task.CurrentState)
 
 			future := time.Now().Add(time.Hour).UnixNano()
 			res, err := s.CleanUpTimedOut(ctx(), &api.CleanUpTimedOutRequest{AtTime: future})
@@ -320,7 +372,7 @@ func TestCleanUpTimedOut(t *testing.T) {
 			// State reverted (current<->auto swap), and it is claimable again as "submitted".
 			reverted, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "q", CurrentState: "submitted"})
 			require.NoError(t, err)
-			require.NotNil(t, reverted.Task, "timed-out task should be back in 'submitted'")
+			require.NotNil(t, reverted.Delivery, "timed-out task should be back in 'submitted'")
 		})
 	}
 }
@@ -393,10 +445,10 @@ func TestConcurrentNoDoubleClaim(t *testing.T) {
 							t.Errorf("worker %d: %v", w, err)
 							return
 						}
-						if got.Task == nil {
+						if got.Delivery == nil {
 							return // empty => all claimed (no skip-locked invisibility)
 						}
-						results[w] = append(results[w], got.Task.Uuid)
+						results[w] = append(results[w], got.Delivery.Task.Uuid)
 						atomic.AddInt64(&claimed, 1)
 					}
 				}(w)
@@ -466,7 +518,7 @@ func drainBolt(t *testing.T, cfg Config, n, workers int) (rate, avgBatch float64
 			defer wg.Done()
 			for {
 				got, err := bs.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "q", CurrentState: "submitted"})
-				if err != nil || got.Task == nil {
+				if err != nil || got.Delivery == nil {
 					return
 				}
 				atomic.AddInt64(&claimed, 1)
@@ -555,10 +607,10 @@ func TestGroupCommitCorrectness(t *testing.T) {
 			for {
 				got, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "q", CurrentState: "submitted"})
 				require.NoError(t, err)
-				if got.Task == nil {
+				if got.Delivery == nil {
 					return
 				}
-				results[w] = append(results[w], got.Task.Uuid)
+				results[w] = append(results[w], got.Delivery.Task.Uuid)
 				atomic.AddInt64(&claimed, 1)
 			}
 		}(w)
@@ -617,7 +669,7 @@ func TestThroughput(t *testing.T) {
 					defer wg.Done()
 					for {
 						got, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "q", CurrentState: "submitted"})
-						if err != nil || got.Task == nil {
+						if err != nil || got.Delivery == nil {
 							return
 						}
 						atomic.AddInt64(&claimed, 1)

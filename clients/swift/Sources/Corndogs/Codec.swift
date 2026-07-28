@@ -265,7 +265,6 @@ public extension Task {
         var csilEntries: [(CsilCborValue, CsilCborValue)] = []
         csilEntries.append(("uuid", .text(self.uuid)))
         csilEntries.append(("queue", .text(self.queue)))
-        csilEntries.append(("payload", .bytes(self.payload)))
         csilEntries.append(("timeout", .int(self.timeout)))
         csilEntries.append(("priority", .int(self.priority)))
         csilEntries.append(("submit_time", .int(self.submitTime)))
@@ -284,9 +283,8 @@ public extension Task {
         let submitTime = try CsilCbor.asI64((try CsilCbor.require(cborValue, "submit_time")))
         let updateTime = try CsilCbor.asI64((try CsilCbor.require(cborValue, "update_time")))
         let timeout = try CsilCbor.asI64((try CsilCbor.require(cborValue, "timeout")))
-        let payload = try CsilCbor.asBytes((try CsilCbor.require(cborValue, "payload")))
         let priority = try CsilCbor.asI64((try CsilCbor.require(cborValue, "priority")))
-        self.init(uuid: uuid, queue: queue, currentState: currentState, autoTargetState: autoTargetState, submitTime: submitTime, updateTime: updateTime, timeout: timeout, payload: payload, priority: priority)
+        self.init(uuid: uuid, queue: queue, currentState: currentState, autoTargetState: autoTargetState, submitTime: submitTime, updateTime: updateTime, timeout: timeout, priority: priority)
     }
 
     /// Encode this record to canonical CSIL CBOR bytes.
@@ -294,6 +292,29 @@ public extension Task {
 
     /// Decode a CSIL CBOR byte payload into this record.
     static func fromCbor(_ bytes: [UInt8]) throws -> Task { try Task(cborValue: CsilCbor.decode(bytes)) }
+}
+
+public extension TaskDelivery {
+    /// The CBOR value tree for this record (deep, canonical key order).
+    func toCborValue() -> CsilCborValue {
+        var csilEntries: [(CsilCborValue, CsilCborValue)] = []
+        csilEntries.append(("task", self.task.toCborValue()))
+        csilEntries.append(("payload", .bytes(self.payload)))
+        return .map(csilEntries)
+    }
+
+    /// Reconstruct this record from a decoded CBOR value tree.
+    init(cborValue: CsilCborValue) throws {
+        let task = try Task(cborValue: (try CsilCbor.require(cborValue, "task")))
+        let payload = try CsilCbor.asBytes((try CsilCbor.require(cborValue, "payload")))
+        self.init(task: task, payload: payload)
+    }
+
+    /// Encode this record to canonical CSIL CBOR bytes.
+    func toCbor() -> [UInt8] { CsilCbor.encode(toCborValue()) }
+
+    /// Decode a CSIL CBOR byte payload into this record.
+    static func fromCbor(_ bytes: [UInt8]) throws -> TaskDelivery { try TaskDelivery(cborValue: CsilCbor.decode(bytes)) }
 }
 
 public extension SubmitTaskRequest {
@@ -425,14 +446,14 @@ public extension GetNextTaskResponse {
     /// The CBOR value tree for this record (deep, canonical key order).
     func toCborValue() -> CsilCborValue {
         var csilEntries: [(CsilCborValue, CsilCborValue)] = []
-        if let csilV = self.task { csilEntries.append(("task", csilV.toCborValue())) }
+        if let csilV = self.delivery { csilEntries.append(("delivery", csilV.toCborValue())) }
         return .map(csilEntries)
     }
 
     /// Reconstruct this record from a decoded CBOR value tree.
     init(cborValue: CsilCborValue) throws {
-        let task: Task? = if let csilV = CsilCbor.mapGet(cborValue, "task") { try Task(cborValue: csilV) } else { nil }
-        self.init(task: task)
+        let delivery: TaskDelivery? = if let csilV = CsilCbor.mapGet(cborValue, "delivery") { try TaskDelivery(cborValue: csilV) } else { nil }
+        self.init(delivery: delivery)
     }
 
     /// Encode this record to canonical CSIL CBOR bytes.
@@ -475,14 +496,14 @@ public extension GetNextTaskGroupResponse {
     /// The CBOR value tree for this record (deep, canonical key order).
     func toCborValue() -> CsilCborValue {
         var csilEntries: [(CsilCborValue, CsilCborValue)] = []
-        if let csilV = self.task { csilEntries.append(("task", csilV.toCborValue())) }
+        if let csilV = self.delivery { csilEntries.append(("delivery", csilV.toCborValue())) }
         return .map(csilEntries)
     }
 
     /// Reconstruct this record from a decoded CBOR value tree.
     init(cborValue: CsilCborValue) throws {
-        let task: Task? = if let csilV = CsilCbor.mapGet(cborValue, "task") { try Task(cborValue: csilV) } else { nil }
-        self.init(task: task)
+        let delivery: TaskDelivery? = if let csilV = CsilCbor.mapGet(cborValue, "delivery") { try TaskDelivery(cborValue: csilV) } else { nil }
+        self.init(delivery: delivery)
     }
 
     /// Encode this record to canonical CSIL CBOR bytes.
@@ -544,7 +565,7 @@ public extension UpdateTaskRequest {
         var csilEntries: [(CsilCborValue, CsilCborValue)] = []
         csilEntries.append(("uuid", .text(self.uuid)))
         csilEntries.append(("queue", .text(self.queue)))
-        csilEntries.append(("payload", .bytes(self.payload)))
+        if let csilV = self.payload { csilEntries.append(("payload", .bytes(csilV))) }
         csilEntries.append(("timeout", .int(self.timeout)))
         csilEntries.append(("priority", .int(self.priority)))
         csilEntries.append(("new_state", .text(self.newState)))
@@ -561,7 +582,7 @@ public extension UpdateTaskRequest {
         let autoTargetState = try CsilCbor.asText((try CsilCbor.require(cborValue, "auto_target_state")))
         let timeout = try CsilCbor.asI64((try CsilCbor.require(cborValue, "timeout")))
         let newState = try CsilCbor.asText((try CsilCbor.require(cborValue, "new_state")))
-        let payload = try CsilCbor.asBytes((try CsilCbor.require(cborValue, "payload")))
+        let payload: [UInt8]? = if let csilV = CsilCbor.mapGet(cborValue, "payload") { try CsilCbor.asBytes(csilV) } else { nil }
         let priority = try CsilCbor.asI64((try CsilCbor.require(cborValue, "priority")))
         self.init(uuid: uuid, queue: queue, currentState: currentState, autoTargetState: autoTargetState, timeout: timeout, newState: newState, payload: payload, priority: priority)
     }

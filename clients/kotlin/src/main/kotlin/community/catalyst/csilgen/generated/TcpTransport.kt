@@ -27,7 +27,7 @@ import kotlin.concurrent.thread
 private const val TAG_ENCODED_CBOR = 24uL
 private const val CONTROL_SERVICE = "CorndogsService"
 private const val OP_PING = "\$ping"
-private const val MAX_FRAME = 256 shl 20 // frame size guard (256 MiB)
+private const val MAX_FRAME = 1025 shl 20 // payload maximum plus envelope allowance
 private const val DEFAULT_HEARTBEAT_INTERVAL_MILLIS = 15_000L
 
 /** A transport-level failure: connection dropped, or a non-zero transport status. */

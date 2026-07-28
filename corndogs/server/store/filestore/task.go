@@ -14,9 +14,8 @@
 // precisely because everything is one process.
 package filestore
 
-// Task mirrors the active task record. The json tags match both the gorm model
-// used by the postgres backend and the generated CSIL api.Task, so
-// conversions.CopyStruct round-trips through any of them.
+// Task is the active task metadata. Payload bytes live in bucketPayloads and are
+// never JSON encoded with this record.
 type Task struct {
 	UUID            string `json:"uuid"`
 	Queue           string `json:"queue"`
@@ -26,7 +25,6 @@ type Task struct {
 	UpdateTime      int64  `json:"update_time"`
 	Timeout         int64  `json:"timeout"`
 	Priority        int64  `json:"priority"`
-	Payload         []byte `json:"payload"`
 }
 
 // ArchivedTask mirrors the postgres archived_tasks row: the payload is

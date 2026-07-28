@@ -44,7 +44,7 @@ public final class TcpTransport implements Transport, AutoCloseable {
     private static final long TAG_ENCODED_CBOR = 24; // RFC 8949 §3.4.5.1 — embedded encoded CBOR data item
     private static final String CONTROL_SERVICE = "CorndogsService";
     private static final String OP_PING = "$ping"; // control-plane heartbeat op (never collides with app ops)
-    private static final int MAX_FRAME = 256 << 20; // frame size guard
+    private static final int MAX_FRAME = 1025 << 20; // payload maximum plus envelope allowance
     private static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 5_000;
     private static final long DEFAULT_HEARTBEAT_INTERVAL_MILLIS = 15_000;
 

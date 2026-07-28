@@ -15,7 +15,6 @@ final class Task {
   final int submitTime;
   final int updateTime;
   final int timeout;
-  final Uint8List payload;
   final int priority;
 
   const Task({
@@ -26,7 +25,6 @@ final class Task {
     required this.submitTime,
     required this.updateTime,
     required this.timeout,
-    required this.payload,
     required this.priority,
   });
 
@@ -39,7 +37,6 @@ final class Task {
     map['submit_time'] = submitTime;
     map['update_time'] = updateTime;
     map['timeout'] = timeout;
-    map['payload'] = payload;
     map['priority'] = priority;
     return map;
   }
@@ -53,7 +50,6 @@ final class Task {
       submitTime: map['submit_time'] as int,
       updateTime: map['update_time'] as int,
       timeout: map['timeout'] as int,
-      payload: map['payload'] as Uint8List,
       priority: map['priority'] as int,
     );
   }
@@ -68,7 +64,6 @@ final class Task {
         submitTime == other.submitTime &&
         updateTime == other.updateTime &&
         timeout == other.timeout &&
-        _bytesEqual(payload, other.payload) &&
         priority == other.priority;
   }
 
@@ -81,18 +76,8 @@ final class Task {
     submitTime,
     updateTime,
     timeout,
-    Object.hashAll(payload),
     priority,
   ]);
-
-  static bool _bytesEqual(Uint8List? a, Uint8List? b) {
-    if (a == null || b == null) return a == b;
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
 
   /// The CBOR-encodable dynamic tree for this record (deep).
   Map<String, Object?> toCborValue() {
@@ -104,7 +89,6 @@ final class Task {
     map['submit_time'] = submitTime;
     map['update_time'] = updateTime;
     map['timeout'] = timeout;
-    map['payload'] = payload;
     map['priority'] = priority;
     return map;
   }
@@ -120,7 +104,6 @@ final class Task {
       submitTime: map['submit_time'] as int,
       updateTime: map['update_time'] as int,
       timeout: map['timeout'] as int,
-      payload: map['payload'] as Uint8List,
       priority: map['priority'] as int,
     );
   }
@@ -131,6 +114,69 @@ final class Task {
   /// Decode a CSIL CBOR byte payload into this record.
   factory Task.fromCbor(List<int> bytes) =>
       Task.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class TaskDelivery {
+  final Task task;
+  final Uint8List payload;
+
+  const TaskDelivery({required this.task, required this.payload});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['task'] = task;
+    map['payload'] = payload;
+    return map;
+  }
+
+  factory TaskDelivery.fromMap(Map<String, Object?> map) {
+    return TaskDelivery(
+      task: map['task'] as Task,
+      payload: map['payload'] as Uint8List,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! TaskDelivery) return false;
+    return task == other.task && _bytesEqual(payload, other.payload);
+  }
+
+  @override
+  int get hashCode => Object.hashAll([task, Object.hashAll(payload)]);
+
+  static bool _bytesEqual(Uint8List? a, Uint8List? b) {
+    if (a == null || b == null) return a == b;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['task'] = task.toCborValue();
+    map['payload'] = payload;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory TaskDelivery.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return TaskDelivery(
+      task: Task.fromCborValue(map['task']),
+      payload: map['payload'] as Uint8List,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory TaskDelivery.fromCbor(List<int> bytes) =>
+      TaskDelivery.fromCborValue(CsilCbor.decode(bytes));
 }
 
 final class SubmitTaskRequest {
@@ -469,33 +515,33 @@ final class GetNextTaskRequest {
 }
 
 final class GetNextTaskResponse {
-  final Task? task;
+  final TaskDelivery? delivery;
 
-  const GetNextTaskResponse({this.task});
+  const GetNextTaskResponse({this.delivery});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
-    if (task != null) map['task'] = task;
+    if (delivery != null) map['delivery'] = delivery;
     return map;
   }
 
   factory GetNextTaskResponse.fromMap(Map<String, Object?> map) {
-    return GetNextTaskResponse(task: map['task'] as Task?);
+    return GetNextTaskResponse(delivery: map['delivery'] as TaskDelivery?);
   }
 
   @override
   bool operator ==(Object other) {
     if (other is! GetNextTaskResponse) return false;
-    return task == other.task;
+    return delivery == other.delivery;
   }
 
   @override
-  int get hashCode => Object.hashAll([task]);
+  int get hashCode => Object.hashAll([delivery]);
 
   /// The CBOR-encodable dynamic tree for this record (deep).
   Map<String, Object?> toCborValue() {
     final map = <String, Object?>{};
-    if (task != null) map['task'] = task!.toCborValue();
+    if (delivery != null) map['delivery'] = delivery!.toCborValue();
     return map;
   }
 
@@ -503,7 +549,9 @@ final class GetNextTaskResponse {
   factory GetNextTaskResponse.fromCborValue(Object? cbor) {
     final map = cbor as Map;
     return GetNextTaskResponse(
-      task: map['task'] == null ? null : Task.fromCborValue(map['task']),
+      delivery: map['delivery'] == null
+          ? null
+          : TaskDelivery.fromCborValue(map['delivery']),
     );
   }
 
@@ -604,33 +652,33 @@ final class GetNextTaskGroupRequest {
 }
 
 final class GetNextTaskGroupResponse {
-  final Task? task;
+  final TaskDelivery? delivery;
 
-  const GetNextTaskGroupResponse({this.task});
+  const GetNextTaskGroupResponse({this.delivery});
 
   Map<String, Object?> toMap() {
     final map = <String, Object?>{};
-    if (task != null) map['task'] = task;
+    if (delivery != null) map['delivery'] = delivery;
     return map;
   }
 
   factory GetNextTaskGroupResponse.fromMap(Map<String, Object?> map) {
-    return GetNextTaskGroupResponse(task: map['task'] as Task?);
+    return GetNextTaskGroupResponse(delivery: map['delivery'] as TaskDelivery?);
   }
 
   @override
   bool operator ==(Object other) {
     if (other is! GetNextTaskGroupResponse) return false;
-    return task == other.task;
+    return delivery == other.delivery;
   }
 
   @override
-  int get hashCode => Object.hashAll([task]);
+  int get hashCode => Object.hashAll([delivery]);
 
   /// The CBOR-encodable dynamic tree for this record (deep).
   Map<String, Object?> toCborValue() {
     final map = <String, Object?>{};
-    if (task != null) map['task'] = task!.toCborValue();
+    if (delivery != null) map['delivery'] = delivery!.toCborValue();
     return map;
   }
 
@@ -638,7 +686,9 @@ final class GetNextTaskGroupResponse {
   factory GetNextTaskGroupResponse.fromCborValue(Object? cbor) {
     final map = cbor as Map;
     return GetNextTaskGroupResponse(
-      task: map['task'] == null ? null : Task.fromCborValue(map['task']),
+      delivery: map['delivery'] == null
+          ? null
+          : TaskDelivery.fromCborValue(map['delivery']),
     );
   }
 
@@ -769,7 +819,7 @@ final class UpdateTaskRequest {
   final String autoTargetState;
   final int timeout;
   final String newState;
-  final Uint8List payload;
+  final Uint8List? payload;
   final int priority;
 
   const UpdateTaskRequest({
@@ -779,7 +829,7 @@ final class UpdateTaskRequest {
     required this.autoTargetState,
     required this.timeout,
     required this.newState,
-    required this.payload,
+    this.payload,
     required this.priority,
   });
 
@@ -791,7 +841,7 @@ final class UpdateTaskRequest {
     map['auto_target_state'] = autoTargetState;
     map['timeout'] = timeout;
     map['new_state'] = newState;
-    map['payload'] = payload;
+    if (payload != null) map['payload'] = payload;
     map['priority'] = priority;
     return map;
   }
@@ -804,7 +854,7 @@ final class UpdateTaskRequest {
       autoTargetState: map['auto_target_state'] as String,
       timeout: map['timeout'] as int,
       newState: map['new_state'] as String,
-      payload: map['payload'] as Uint8List,
+      payload: map['payload'] as Uint8List?,
       priority: map['priority'] as int,
     );
   }
@@ -830,7 +880,7 @@ final class UpdateTaskRequest {
     autoTargetState,
     timeout,
     newState,
-    Object.hashAll(payload),
+    payload == null ? null : Object.hashAll(payload!),
     priority,
   ]);
 
@@ -852,7 +902,7 @@ final class UpdateTaskRequest {
     map['auto_target_state'] = autoTargetState;
     map['timeout'] = timeout;
     map['new_state'] = newState;
-    map['payload'] = payload;
+    if (payload != null) map['payload'] = payload!;
     map['priority'] = priority;
     return map;
   }
@@ -867,7 +917,7 @@ final class UpdateTaskRequest {
       autoTargetState: map['auto_target_state'] as String,
       timeout: map['timeout'] as int,
       newState: map['new_state'] as String,
-      payload: map['payload'] as Uint8List,
+      payload: map['payload'] == null ? null : map['payload'] as Uint8List,
       priority: map['priority'] as int,
     );
   }

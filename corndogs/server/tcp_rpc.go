@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/csilrpc"
 	zlog "github.com/rs/zerolog/log"
 )
@@ -59,7 +60,7 @@ func serveConn(conn net.Conn, routes map[string]rpcHandlerFunc) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	carrier := csilrpc.NewStreamCarrier(conn)
+	carrier := csilrpc.NewStreamCarrierWithMaxFrame(conn, config.MaxRPCFrameBytes)
 	var writeMu sync.Mutex // serializes response frames onto the shared connection
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, maxConcurrentPerConn)

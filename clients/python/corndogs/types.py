@@ -17,7 +17,6 @@ class Task:
     submit_time: int
     update_time: int
     timeout: int
-    payload: bytes
     priority: int
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -36,8 +35,6 @@ class Task:
             result['update_time'] = self.update_time
         if hasattr(self, 'timeout') and self.timeout is not None:
             result['timeout'] = self.timeout
-        if hasattr(self, 'payload') and self.payload is not None:
-            result['payload'] = self.payload
         if hasattr(self, 'priority') and self.priority is not None:
             result['priority'] = self.priority
         return result
@@ -45,7 +42,7 @@ class Task:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Task':
         """Create instance from dictionary."""
-        return cls(uuid=data.get('uuid'), queue=data.get('queue'), current_state=data.get('current_state'), auto_target_state=data.get('auto_target_state'), submit_time=data.get('submit_time'), update_time=data.get('update_time'), timeout=data.get('timeout'), payload=data.get('payload'), priority=data.get('priority'))
+        return cls(uuid=data.get('uuid'), queue=data.get('queue'), current_state=data.get('current_state'), auto_target_state=data.get('auto_target_state'), submit_time=data.get('submit_time'), update_time=data.get('update_time'), timeout=data.get('timeout'), priority=data.get('priority'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -53,6 +50,34 @@ class Task:
 
     @classmethod
     def from_json(cls, json_str: str) -> 'Task':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class TaskDelivery:
+    task: Task
+    payload: bytes
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'task') and self.task is not None:
+            result['task'] = self.task
+        if hasattr(self, 'payload') and self.payload is not None:
+            result['payload'] = self.payload
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'TaskDelivery':
+        """Create instance from dictionary."""
+        return cls(task=data.get('task'), payload=data.get('payload'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'TaskDelivery':
         """Create instance from JSON string."""
         return cls.from_dict(json.loads(json_str))
 
@@ -214,18 +239,18 @@ class GetNextTaskRequest:
 
 @dataclass
 class GetNextTaskResponse:
-    task: Optional[Task] = None
+    delivery: Optional[TaskDelivery] = None
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result = {}
-        if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+        if hasattr(self, 'delivery') and self.delivery is not None:
+            result['delivery'] = self.delivery
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'GetNextTaskResponse':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'))
+        return cls(delivery=data.get('delivery'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -276,18 +301,18 @@ class GetNextTaskGroupRequest:
 
 @dataclass
 class GetNextTaskGroupResponse:
-    task: Optional[Task] = None
+    delivery: Optional[TaskDelivery] = None
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result = {}
-        if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+        if hasattr(self, 'delivery') and self.delivery is not None:
+            result['delivery'] = self.delivery
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'GetNextTaskGroupResponse':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'))
+        return cls(delivery=data.get('delivery'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -363,8 +388,8 @@ class UpdateTaskRequest:
     auto_target_state: str
     timeout: int
     new_state: str
-    payload: bytes
     priority: int
+    payload: Optional[bytes] = None
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result = {}

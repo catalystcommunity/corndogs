@@ -41,7 +41,7 @@ Future<void> main() async {
     overrideCurrentState: '',
     overrideAutoTargetState: '',
   ));
-  print(got.task);
+  print(got.delivery);
 
   await tr.close();
 }

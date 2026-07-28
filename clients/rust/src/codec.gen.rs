@@ -398,10 +398,9 @@ fn cbor_as_map(v: &CsilCborValue) -> Result<&[(CsilCborValue, CsilCborValue)], C
 
 /// Build the canonical CBOR value tree for a Task.
 fn csil_enc_task(csil_v: &Task) -> CsilCborValue {
-    let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(9);
+    let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(8);
     csil_entries.push((cbor_text("uuid"), cbor_text(&csil_v.uuid)));
     csil_entries.push((cbor_text("queue"), cbor_text(&csil_v.queue)));
-    csil_entries.push((cbor_text("payload"), cbor_bytes(&csil_v.payload)));
     csil_entries.push((cbor_text("timeout"), cbor_int(csil_v.timeout)));
     csil_entries.push((cbor_text("priority"), cbor_int(csil_v.priority)));
     csil_entries.push((cbor_text("submit_time"), cbor_int(csil_v.submit_time)));
@@ -451,11 +450,6 @@ fn csil_dec_task(csil_root: &CsilCborValue) -> Result<Task, CsilCborError> {
         let csil_decode = cbor_as_i64;
         csil_decode(csil_field)?
     };
-    let payload = {
-        let csil_field = cbor_require(csil_root, "payload")?;
-        let csil_decode = cbor_as_bytes;
-        csil_decode(csil_field)?
-    };
     let priority = {
         let csil_field = cbor_require(csil_root, "priority")?;
         let csil_decode = cbor_as_i64;
@@ -469,7 +463,6 @@ fn csil_dec_task(csil_root: &CsilCborValue) -> Result<Task, CsilCborError> {
         submit_time,
         update_time,
         timeout,
-        payload,
         priority,
     })
 }
@@ -483,6 +476,40 @@ pub fn encode_task(csil_v: &Task) -> Vec<u8> {
 pub fn decode_task(csil_data: &[u8]) -> Result<Task, CsilCborError> {
     let csil_root = cbor_decode(csil_data)?;
     csil_dec_task(&csil_root)
+}
+
+/// Build the canonical CBOR value tree for a TaskDelivery.
+fn csil_enc_task_delivery(csil_v: &TaskDelivery) -> CsilCborValue {
+    let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(2);
+    csil_entries.push((cbor_text("task"), csil_enc_task(&csil_v.task)));
+    csil_entries.push((cbor_text("payload"), cbor_bytes(&csil_v.payload)));
+    CsilCborValue::Map(csil_entries)
+}
+
+/// Reconstruct a TaskDelivery from a decoded CBOR value tree.
+fn csil_dec_task_delivery(csil_root: &CsilCborValue) -> Result<TaskDelivery, CsilCborError> {
+    let task = {
+        let csil_field = cbor_require(csil_root, "task")?;
+        let csil_decode = csil_dec_task;
+        csil_decode(csil_field)?
+    };
+    let payload = {
+        let csil_field = cbor_require(csil_root, "payload")?;
+        let csil_decode = cbor_as_bytes;
+        csil_decode(csil_field)?
+    };
+    Ok(TaskDelivery { task, payload })
+}
+
+/// Encode a TaskDelivery to canonical CSIL CBOR bytes.
+pub fn encode_task_delivery(csil_v: &TaskDelivery) -> Vec<u8> {
+    cbor_encode(&csil_enc_task_delivery(csil_v))
+}
+
+/// Decode canonical CSIL CBOR bytes into a TaskDelivery.
+pub fn decode_task_delivery(csil_data: &[u8]) -> Result<TaskDelivery, CsilCborError> {
+    let csil_root = cbor_decode(csil_data)?;
+    csil_dec_task_delivery(&csil_root)
 }
 
 /// Build the canonical CBOR value tree for a SubmitTaskRequest.
@@ -735,8 +762,8 @@ pub fn decode_get_next_task_request(csil_data: &[u8]) -> Result<GetNextTaskReque
 /// Build the canonical CBOR value tree for a GetNextTaskResponse.
 fn csil_enc_get_next_task_response(csil_v: &GetNextTaskResponse) -> CsilCborValue {
     let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(1);
-    if let Some(csil_inner) = &csil_v.task {
-        csil_entries.push((cbor_text("task"), csil_enc_task(csil_inner)));
+    if let Some(csil_inner) = &csil_v.delivery {
+        csil_entries.push((cbor_text("delivery"), csil_enc_task_delivery(csil_inner)));
     }
     CsilCborValue::Map(csil_entries)
 }
@@ -745,14 +772,14 @@ fn csil_enc_get_next_task_response(csil_v: &GetNextTaskResponse) -> CsilCborValu
 fn csil_dec_get_next_task_response(
     csil_root: &CsilCborValue,
 ) -> Result<GetNextTaskResponse, CsilCborError> {
-    let task = match cbor_map_get(csil_root, "task") {
+    let delivery = match cbor_map_get(csil_root, "delivery") {
         Some(csil_field) => {
-            let csil_decode = csil_dec_task;
+            let csil_decode = csil_dec_task_delivery;
             Some(csil_decode(csil_field)?)
         }
         None => None,
     };
-    Ok(GetNextTaskResponse { task })
+    Ok(GetNextTaskResponse { delivery })
 }
 
 /// Encode a GetNextTaskResponse to canonical CSIL CBOR bytes.
@@ -845,8 +872,8 @@ pub fn decode_get_next_task_group_request(
 /// Build the canonical CBOR value tree for a GetNextTaskGroupResponse.
 fn csil_enc_get_next_task_group_response(csil_v: &GetNextTaskGroupResponse) -> CsilCborValue {
     let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(1);
-    if let Some(csil_inner) = &csil_v.task {
-        csil_entries.push((cbor_text("task"), csil_enc_task(csil_inner)));
+    if let Some(csil_inner) = &csil_v.delivery {
+        csil_entries.push((cbor_text("delivery"), csil_enc_task_delivery(csil_inner)));
     }
     CsilCborValue::Map(csil_entries)
 }
@@ -855,14 +882,14 @@ fn csil_enc_get_next_task_group_response(csil_v: &GetNextTaskGroupResponse) -> C
 fn csil_dec_get_next_task_group_response(
     csil_root: &CsilCborValue,
 ) -> Result<GetNextTaskGroupResponse, CsilCborError> {
-    let task = match cbor_map_get(csil_root, "task") {
+    let delivery = match cbor_map_get(csil_root, "delivery") {
         Some(csil_field) => {
-            let csil_decode = csil_dec_task;
+            let csil_decode = csil_dec_task_delivery;
             Some(csil_decode(csil_field)?)
         }
         None => None,
     };
-    Ok(GetNextTaskGroupResponse { task })
+    Ok(GetNextTaskGroupResponse { delivery })
 }
 
 /// Encode a GetNextTaskGroupResponse to canonical CSIL CBOR bytes.
@@ -967,7 +994,9 @@ fn csil_enc_update_task_request(csil_v: &UpdateTaskRequest) -> CsilCborValue {
     let mut csil_entries: Vec<(CsilCborValue, CsilCborValue)> = Vec::with_capacity(8);
     csil_entries.push((cbor_text("uuid"), cbor_text(&csil_v.uuid)));
     csil_entries.push((cbor_text("queue"), cbor_text(&csil_v.queue)));
-    csil_entries.push((cbor_text("payload"), cbor_bytes(&csil_v.payload)));
+    if let Some(csil_inner) = &csil_v.payload {
+        csil_entries.push((cbor_text("payload"), cbor_bytes(csil_inner)));
+    }
     csil_entries.push((cbor_text("timeout"), cbor_int(csil_v.timeout)));
     csil_entries.push((cbor_text("priority"), cbor_int(csil_v.priority)));
     csil_entries.push((cbor_text("new_state"), cbor_text(&csil_v.new_state)));
@@ -1013,10 +1042,12 @@ fn csil_dec_update_task_request(
         let csil_decode = cbor_as_text;
         csil_decode(csil_field)?
     };
-    let payload = {
-        let csil_field = cbor_require(csil_root, "payload")?;
-        let csil_decode = cbor_as_bytes;
-        csil_decode(csil_field)?
+    let payload = match cbor_map_get(csil_root, "payload") {
+        Some(csil_field) => {
+            let csil_decode = cbor_as_bytes;
+            Some(csil_decode(csil_field)?)
+        }
+        None => None,
     };
     let priority = {
         let csil_field = cbor_require(csil_root, "priority")?;

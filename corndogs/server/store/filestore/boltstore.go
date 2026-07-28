@@ -18,9 +18,12 @@ import (
 
 // Bucket names for the bbolt backend.
 var (
-	bucketTasks    = []byte("tasks")    // ordered key -> json(Task)
-	bucketByUUID   = []byte("uuid")     // uuid -> ordered key
-	bucketArchived = []byte("archived") // uuid -> json(ArchivedTask)
+	bucketTasks     = []byte("tasks")     // ordered key -> json(Task metadata)
+	bucketByUUID    = []byte("uuid")      // uuid -> ordered key
+	bucketPayloads  = []byte("payloads")  // uuid -> opaque payload bytes
+	bucketDeadlines = []byte("deadlines") // deadline+uuid -> ordered task key
+	bucketArchived  = []byte("archived")  // uuid -> json(ArchivedTask)
+	bucketMeta      = []byte("meta")      // filestore schema metadata
 )
 
 // BoltStore implements store.Store on top of go.etcd.io/bbolt.
@@ -237,7 +240,14 @@ func (s *BoltStore) Initialize() (func(), error) {
 		return nil, err
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
-		for _, b := range [][]byte{bucketTasks, bucketByUUID, bucketArchived} {
+		for _, b := range [][]byte{
+			bucketTasks,
+			bucketByUUID,
+			bucketPayloads,
+			bucketDeadlines,
+			bucketArchived,
+			bucketMeta,
+		} {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
 				return err
 			}
@@ -245,6 +255,10 @@ func (s *BoltStore) Initialize() (func(), error) {
 		return nil
 	})
 	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := migrateTaskStorage(db); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -304,9 +318,17 @@ func (s *BoltStore) putTask(tx *bolt.Tx, t *Task) error {
 	if err := tx.Bucket(bucketByUUID).Put([]byte(t.UUID), key); err != nil {
 		return err
 	}
+	if t.Timeout > 0 {
+		if err := tx.Bucket(bucketDeadlines).Put(encodeDeadlineKey(t), key); err != nil {
+			return err
+		}
+	}
 	if s.cap != nil {
 		s.cap.put(bucketTasks, key, val)
 		s.cap.put(bucketByUUID, []byte(t.UUID), key)
+		if t.Timeout > 0 {
+			s.cap.put(bucketDeadlines, encodeDeadlineKey(t), key)
+		}
 	}
 	return nil
 }
@@ -321,14 +343,54 @@ func (s *BoltStore) deleteTask(tx *bolt.Tx, t *Task) error {
 	if err := tx.Bucket(bucketByUUID).Delete([]byte(t.UUID)); err != nil {
 		return err
 	}
+	if t.Timeout > 0 {
+		if err := tx.Bucket(bucketDeadlines).Delete(encodeDeadlineKey(t)); err != nil {
+			return err
+		}
+	}
 	if s.cap != nil {
 		s.cap.del(bucketTasks, key)
 		s.cap.del(bucketByUUID, []byte(t.UUID))
+		if t.Timeout > 0 {
+			s.cap.del(bucketDeadlines, encodeDeadlineKey(t))
+		}
 	}
 	return nil
 }
 
-// loadByUUID fetches a live task by uuid, or nil if absent.
+// putPayload stores opaque bytes without JSON or base64 conversion.
+func (s *BoltStore) putPayload(tx *bolt.Tx, id string, payload []byte) error {
+	if payload == nil {
+		payload = []byte{}
+	}
+	if err := tx.Bucket(bucketPayloads).Put([]byte(id), payload); err != nil {
+		return err
+	}
+	if s.cap != nil {
+		s.cap.put(bucketPayloads, []byte(id), payload)
+	}
+	return nil
+}
+
+func (s *BoltStore) deletePayload(tx *bolt.Tx, id string) error {
+	if err := tx.Bucket(bucketPayloads).Delete([]byte(id)); err != nil {
+		return err
+	}
+	if s.cap != nil {
+		s.cap.del(bucketPayloads, []byte(id))
+	}
+	return nil
+}
+
+func loadPayload(tx *bolt.Tx, id string) ([]byte, error) {
+	payload := tx.Bucket(bucketPayloads).Get([]byte(id))
+	if payload == nil {
+		return nil, fmt.Errorf("filestore: payload for task %s is missing", id)
+	}
+	return bytes.Clone(payload), nil
+}
+
+// loadByUUID fetches live task metadata by uuid, or nil if absent.
 func loadByUUID(tx *bolt.Tx, id string) (*Task, error) {
 	key := tx.Bucket(bucketByUUID).Get([]byte(id))
 	if key == nil {
@@ -357,9 +419,13 @@ func (s *BoltStore) SubmitTask(ctx context.Context, req *api.SubmitTaskRequest) 
 		UpdateTime:      now,
 		Timeout:         req.Timeout,
 		Priority:        req.Priority,
-		Payload:         req.Payload,
 	}
-	err := s.write(func(tx *bolt.Tx) error { return s.putTask(tx, t) })
+	err := s.write(func(tx *bolt.Tx) error {
+		if err := s.putPayload(tx, t.UUID, req.Payload); err != nil {
+			return err
+		}
+		return s.putTask(tx, t)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +460,7 @@ func (s *BoltStore) MustGetTaskStateByID(ctx context.Context, req *api.GetTaskSt
 }
 
 func (s *BoltStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequest) (*api.GetNextTaskResponse, error) {
-	var out *api.Task
+	var out *api.TaskDelivery
 	err := s.write(func(tx *bolt.Tx) error {
 		c := tx.Bucket(bucketTasks).Cursor()
 		prefix := taskPrefix(req.Queue, req.CurrentState)
@@ -406,6 +472,10 @@ func (s *BoltStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequest
 		if err := json.Unmarshal(v, &t); err != nil {
 			return err
 		}
+		payload, err := loadPayload(tx, t.UUID)
+		if err != nil {
+			return err
+		}
 		if err := s.deleteTask(tx, &t); err != nil {
 			return err
 		}
@@ -413,14 +483,14 @@ func (s *BoltStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequest
 		if err := s.putTask(tx, &t); err != nil {
 			return err
 		}
-		out = toAPITask(&t)
+		out = toAPIDelivery(&t, payload)
 		s.audit.Record(AuditEvent{Op: "claim", UUID: t.UUID, Queue: t.Queue, FromState: req.CurrentState, ToState: t.CurrentState})
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &api.GetNextTaskResponse{Task: out}, nil
+	return &api.GetNextTaskResponse{Delivery: out}, nil
 }
 
 // GetNextTaskGroup claims the single best task across a set of queues. Each
@@ -431,7 +501,7 @@ func (s *BoltStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequest
 // like the postgres backend, and the whole claim happens in one write
 // transaction so two workers never claim the same task.
 func (s *BoltStore) GetNextTaskGroup(ctx context.Context, req *api.GetNextTaskGroupRequest) (*api.GetNextTaskGroupResponse, error) {
-	var out *api.Task
+	var out *api.TaskDelivery
 	// applyGetNext only reads the Override* fields; reuse the single-queue path's
 	// claim semantics unchanged.
 	claim := &api.GetNextTaskRequest{
@@ -461,6 +531,10 @@ func (s *BoltStore) GetNextTaskGroup(ctx context.Context, req *api.GetNextTaskGr
 		if best == nil {
 			return nil // no task available in any queue
 		}
+		payload, err := loadPayload(tx, best.UUID)
+		if err != nil {
+			return err
+		}
 		if err := s.deleteTask(tx, best); err != nil {
 			return err
 		}
@@ -468,14 +542,14 @@ func (s *BoltStore) GetNextTaskGroup(ctx context.Context, req *api.GetNextTaskGr
 		if err := s.putTask(tx, best); err != nil {
 			return err
 		}
-		out = toAPITask(best)
+		out = toAPIDelivery(best, payload)
 		s.audit.Record(AuditEvent{Op: "claim", UUID: best.UUID, Queue: best.Queue, FromState: req.CurrentState, ToState: best.CurrentState})
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &api.GetNextTaskGroupResponse{Task: out}, nil
+	return &api.GetNextTaskGroupResponse{Delivery: out}, nil
 }
 
 // betterCandidate reports whether task a should be claimed before task b under
@@ -507,8 +581,10 @@ func (s *BoltStore) UpdateTask(ctx context.Context, req *api.UpdateTaskRequest) 
 		t.AutoTargetState = req.AutoTargetState
 		t.Timeout = req.Timeout
 		t.Priority = req.Priority
-		if len(req.Payload) > 0 {
-			t.Payload = req.Payload
+		if req.Payload != nil {
+			if err := s.putPayload(tx, t.UUID, *req.Payload); err != nil {
+				return err
+			}
 		}
 		t.UpdateTime = nowNano()
 		if err := s.putTask(tx, t); err != nil {
@@ -551,6 +627,9 @@ func (s *BoltStore) archiveAndDelete(id, terminalState, op string) (*api.Task, e
 		if err := s.deleteTask(tx, t); err != nil {
 			return err
 		}
+		if err := s.deletePayload(tx, t.UUID); err != nil {
+			return err
+		}
 		out = archivedToAPITask(&a)
 		s.audit.Record(AuditEvent{Op: op, UUID: a.UUID, Queue: a.Queue, FromState: from, ToState: terminalState})
 		return nil
@@ -577,15 +656,24 @@ func (s *BoltStore) CancelTask(ctx context.Context, req *api.CancelTaskRequest) 
 func (s *BoltStore) CleanUpTimedOut(ctx context.Context, req *api.CleanUpTimedOutRequest) (*api.CleanUpTimedOutResponse, error) {
 	var count int64
 	err := s.write(func(tx *bolt.Tx) error {
-		// Collect first; mutating the bucket during cursor iteration is unsafe.
+		// Collect first because task updates also update the deadline index.
 		var expired []Task
-		c := tx.Bucket(bucketTasks).Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
+		c := tx.Bucket(bucketDeadlines).Cursor()
+		for deadlineKey, taskKey := c.First(); deadlineKey != nil; deadlineKey, taskKey = c.Next() {
+			if len(deadlineKey) < 8 || decodeTimeAsc(deadlineKey[:8]) >= req.AtTime {
+				break
+			}
+			v := tx.Bucket(bucketTasks).Get(taskKey)
+			if v == nil {
+				continue
+			}
 			var t Task
 			if err := json.Unmarshal(v, &t); err != nil {
 				return err
 			}
-			if !timedOut(&t, req.AtTime) {
+			// Ignore a stale index entry defensively. Normal writes maintain both
+			// buckets in one transaction.
+			if !bytes.Equal(deadlineKey, encodeDeadlineKey(&t)) || !timedOut(&t, req.AtTime) {
 				continue
 			}
 			if req.Queue != "" && req.Queue != t.Queue {

@@ -24,7 +24,7 @@ await client.corndogs.submitTask({
   queue: "emails", currentState: "submitted", autoTargetState: "sending",
   timeout: -1, payload: new Uint8Array(), priority: 0,
 });
-const { task } = await client.corndogs.getNextTask({
+const { delivery } = await client.corndogs.getNextTask({
   queue: "emails", currentState: "submitted",
   overrideTimeout: 0, overrideCurrentState: "", overrideAutoTargetState: "",
 });

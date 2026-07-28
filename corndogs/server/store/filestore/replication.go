@@ -64,6 +64,11 @@ func (c *captureBuf) reset() { c.muts = c.muts[:0] }
 // applyBatch applies a batch to a bbolt transaction verbatim. Buckets are created
 // if missing so a follower bootstrapping from an empty database converges.
 func applyBatch(tx *bolt.Tx, b MutationBatch) error {
+	for _, name := range bucketsForReplication {
+		if _, err := tx.CreateBucketIfNotExists(name); err != nil {
+			return err
+		}
+	}
 	for _, m := range b.Mutations {
 		bkt, err := tx.CreateBucketIfNotExists(m.Bucket)
 		if err != nil {
@@ -196,7 +201,12 @@ func unexpected(err error) error {
 	return err
 }
 
-// bucketsForReplication is the set of buckets whose mutations are replicated. It
-// is exactly the durable state (live tasks + uuid index + archive); everything
-// else in the store is derived.
-var bucketsForReplication = [][]byte{bucketTasks, bucketByUUID, bucketArchived}
+// bucketsForReplication is the durable task state. The schema metadata is local
+// initialization state and is not changed by normal replicated writes.
+var bucketsForReplication = [][]byte{
+	bucketTasks,
+	bucketByUUID,
+	bucketPayloads,
+	bucketDeadlines,
+	bucketArchived,
+}

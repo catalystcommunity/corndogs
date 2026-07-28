@@ -56,7 +56,7 @@ public static class Corndogs
 internal static class CsilRpcWire
 {
     internal const ulong TagEncodedCbor = 24; // RFC 8949 §3.4.5.1 — embedded encoded CBOR data item
-    internal const int MaxFrame = 256 << 20; // frame size guard
+    internal const int MaxFrame = 1025 << 20; // payload maximum plus envelope allowance
     internal const string ControlService = "CorndogsService";
     internal const string OpPing = "$ping"; // control-plane heartbeat op (never collides with app ops)
 

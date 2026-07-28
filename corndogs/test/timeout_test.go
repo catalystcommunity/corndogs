@@ -41,14 +41,14 @@ func TestBasicTimeout(t *testing.T) {
 	}
 	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.Equal(t, timeout, getNextTaskResponse.Task.Timeout, "Timeout is not equal")
-	require.NotEmpty(t, getNextTaskResponse.Task.SubmitTime, "submit_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.UpdateTime, "update_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.Uuid, "uuid should not be empty")
-	require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
-	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.Equal(t, timeout, getNextTaskResponse.Delivery.Task.Timeout, "Timeout is not equal")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.SubmitTime, "submit_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.UpdateTime, "update_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.Uuid, "uuid should not be empty")
+	require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Delivery.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
+	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Delivery.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
 
 	timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
 	cleanUpTimedOutRequest := &api.CleanUpTimedOutRequest{
@@ -62,14 +62,14 @@ func TestBasicTimeout(t *testing.T) {
 	// If everything is working things like state should be the same except Timeout should now be 0
 	getNextTaskResponse, err = corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.Equal(t, int64(0), getNextTaskResponse.Task.Timeout, "Timeout should now be 0")
-	require.NotEmpty(t, getNextTaskResponse.Task.SubmitTime, "submit_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.UpdateTime, "update_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.Uuid, "uuid should not be empty")
-	require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
-	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(0), getNextTaskResponse.Delivery.Task.Timeout, "Timeout should now be 0")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.SubmitTime, "submit_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.UpdateTime, "update_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.Uuid, "uuid should not be empty")
+	require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Delivery.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
+	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Delivery.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
 }
 
 func TestNoTimeout(t *testing.T) {
@@ -103,14 +103,14 @@ func TestNoTimeout(t *testing.T) {
 	}
 	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.Equal(t, int64(0), getNextTaskResponse.Task.Timeout, "Timeout should be zero meaning no timeout")
-	require.NotEmpty(t, getNextTaskResponse.Task.SubmitTime, "submit_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.UpdateTime, "update_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.Uuid, "uuid should not be empty")
-	require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
-	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.Equal(t, int64(0), getNextTaskResponse.Delivery.Task.Timeout, "Timeout should be zero meaning no timeout")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.SubmitTime, "submit_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.UpdateTime, "update_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.Uuid, "uuid should not be empty")
+	require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Delivery.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
+	require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Delivery.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
 
 	timeoutDuration := time.Duration(5) * time.Second
 	timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
@@ -124,7 +124,7 @@ func TestNoTimeout(t *testing.T) {
 
 	getNextTaskResponse, err = corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.Nil(t, getNextTaskResponse.Task, "Task was not nil.")
+	require.Nil(t, getNextTaskResponse.Delivery, "Task was not nil.")
 }
 
 func TestGetNextTaskOverrideTimeout(t *testing.T) {
@@ -157,12 +157,12 @@ func TestGetNextTaskOverrideTimeout(t *testing.T) {
 	}
 	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.NotEmpty(t, getNextTaskResponse.Task.SubmitTime, "submit_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.UpdateTime, "update_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.Uuid, "uuid should not be empty")
-	require.Equal(t, getNextTaskRequest.OverrideTimeout, getNextTaskResponse.Task.Timeout, "Task Timeout is not the overridden")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.SubmitTime, "submit_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.UpdateTime, "update_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.Uuid, "uuid should not be empty")
+	require.Equal(t, getNextTaskRequest.OverrideTimeout, getNextTaskResponse.Delivery.Task.Timeout, "Task Timeout is not the overridden")
 
 	timeoutDuration := time.Duration(timeout) * time.Second
 	timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
@@ -205,12 +205,12 @@ func TestGetNextTaskOverrideNoTimeout(t *testing.T) {
 	}
 	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.NotEmpty(t, getNextTaskResponse.Task.SubmitTime, "submit_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.UpdateTime, "update_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.Uuid, "uuid should not be empty")
-	require.Equal(t, int64(0), getNextTaskResponse.Task.Timeout, "Task Timeout is not the overridden with 0")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.SubmitTime, "submit_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.UpdateTime, "update_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.Uuid, "uuid should not be empty")
+	require.Equal(t, int64(0), getNextTaskResponse.Delivery.Task.Timeout, "Task Timeout is not the overridden with 0")
 
 	timeoutDuration := time.Duration(timeout) * time.Second
 	timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
@@ -252,13 +252,13 @@ func TestGetNextTaskOverrideTimeoutNotSet(t *testing.T) {
 	}
 	getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-	require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-	require.NotEmpty(t, getNextTaskResponse.Task.SubmitTime, "submit_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.UpdateTime, "update_time should not be empty")
-	require.NotEmpty(t, getNextTaskResponse.Task.Uuid, "uuid should not be empty")
-	require.NotEqual(t, int64(0), getNextTaskResponse.Task.Timeout, "Task Timeout was wrongly overriden")
-	require.Equal(t, timeout, getNextTaskResponse.Task.Timeout, "Task Timeout is not equal")
+	require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+	require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.SubmitTime, "submit_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.UpdateTime, "update_time should not be empty")
+	require.NotEmpty(t, getNextTaskResponse.Delivery.Task.Uuid, "uuid should not be empty")
+	require.NotEqual(t, int64(0), getNextTaskResponse.Delivery.Task.Timeout, "Task Timeout was wrongly overriden")
+	require.Equal(t, timeout, getNextTaskResponse.Delivery.Task.Timeout, "Task Timeout is not equal")
 
 	timeoutDuration := time.Duration(timeout) * time.Second
 	timeWhenTimedout := time.Now().UTC().Add(timeoutDuration).UnixNano()
@@ -305,14 +305,14 @@ func TestTimeoutSpecificQueue(t *testing.T) {
 		}
 		getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 		require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-		require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-		require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-		require.Equal(t, timeout, getNextTaskResponse.Task.Timeout, "Timeout should be zero meaning no timeout")
-		require.NotEmpty(t, getNextTaskResponse.Task.SubmitTime, "submit_time should not be empty")
-		require.NotEmpty(t, getNextTaskResponse.Task.UpdateTime, "update_time should not be empty")
-		require.NotEmpty(t, getNextTaskResponse.Task.Uuid, "uuid should not be empty")
-		require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
-		require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
+		require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+		require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+		require.Equal(t, timeout, getNextTaskResponse.Delivery.Task.Timeout, "Timeout should be zero meaning no timeout")
+		require.NotEmpty(t, getNextTaskResponse.Delivery.Task.SubmitTime, "submit_time should not be empty")
+		require.NotEmpty(t, getNextTaskResponse.Delivery.Task.UpdateTime, "update_time should not be empty")
+		require.NotEmpty(t, getNextTaskResponse.Delivery.Task.Uuid, "uuid should not be empty")
+		require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Delivery.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
+		require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Delivery.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
 	}
 
 	// Timeout each queue individually
@@ -363,14 +363,14 @@ func TestTimeoutNoQueue(t *testing.T) {
 		}
 		getNextTaskResponse, err := corndogsClient.GetNextTask(context.Background(), getNextTaskRequest)
 		require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
-		require.NotNil(t, getNextTaskResponse.Task, "Task in response was nil")
-		require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Task.Queue, "Queue name is not equal")
-		require.Equal(t, timeout, getNextTaskResponse.Task.Timeout, "Timeout should be zero meaning no timeout")
-		require.NotEmpty(t, getNextTaskResponse.Task.SubmitTime, "submit_time should not be empty")
-		require.NotEmpty(t, getNextTaskResponse.Task.UpdateTime, "update_time should not be empty")
-		require.NotEmpty(t, getNextTaskResponse.Task.Uuid, "uuid should not be empty")
-		require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
-		require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
+		require.NotNil(t, getNextTaskResponse.Delivery, "Task in response was nil")
+		require.Equal(t, getNextTaskRequest.Queue, getNextTaskResponse.Delivery.Task.Queue, "Queue name is not equal")
+		require.Equal(t, timeout, getNextTaskResponse.Delivery.Task.Timeout, "Timeout should be zero meaning no timeout")
+		require.NotEmpty(t, getNextTaskResponse.Delivery.Task.SubmitTime, "submit_time should not be empty")
+		require.NotEmpty(t, getNextTaskResponse.Delivery.Task.UpdateTime, "update_time should not be empty")
+		require.NotEmpty(t, getNextTaskResponse.Delivery.Task.Uuid, "uuid should not be empty")
+		require.Equal(t, getNextTaskRequest.CurrentState+workingTaskSuffix, getNextTaskResponse.Delivery.Task.CurrentState, "Task CurrentState is not the auto target state from before retrieval")
+		require.Equal(t, getNextTaskRequest.CurrentState, getNextTaskResponse.Delivery.Task.AutoTargetState, "Task AutoTargetState is not swapped with current state before retrieval")
 	}
 
 	// Timeout both queues
