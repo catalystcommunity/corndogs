@@ -3,8 +3,9 @@
 # Helm chart release. semver-tags analyzes commits under helm_chart/ (scoped with
 # --directories) to compute the next `helm_chart/vX.Y.Z` version. We bump
 # Chart.yaml `version`, TAG THE BUMP COMMIT (so the tag points at the resulting
-# HEAD of main rather than trailing it), package, and publish a GitHub release
-# with the .tgz.
+# HEAD of main rather than trailing it), package, publish a GitHub release with
+# the .tgz, and push the new chart version to catalystcommunity/charts (the repo
+# backing the public Helm repo served over GitHub Pages).
 #
 # Ordering matters: semver-tags is run in --dry_run to compute the version
 # WITHOUT tagging; we create the version-bump commit, then create the tag and
@@ -93,10 +94,33 @@ if ! command -v gh >/dev/null 2>&1; then
   tar -xzf /tmp/gh.tar.gz -C /tmp
   cp "/tmp/gh_${GHCLI_VERSION}_linux_amd64/bin/gh" "${LOCAL_BIN}/gh"
 fi
+CHART_TGZ="$(ls ./corndogs-*.tgz)"
 GH_TOKEN="${GITHUB_PAT}" gh release create "${NEW_TAG}" \
   --repo "${REACTORCIDE_REPO}" \
   --title "${NEW_TAG}" \
   --notes "Helm chart ${VERSION}" \
-  ./corndogs-*.tgz
+  "${CHART_TGZ}"
 
 echo "=== released chart ${NEW_TAG} (version ${VERSION}) ==="
+
+echo "=== push packaged chart to ${CHARTS_REPO} ==="
+# The charts repo (served via GitHub Pages from its main branch root) holds a flat
+# directory of chart .tgz files plus a repo-root index.yaml built by `helm repo
+# index`. All prior .tgz files live in the repo itself, so regenerating the index
+# from a full clone reindexes everything, not just the new chart.
+CHARTS_DIR="$(mktemp -d)"
+git clone "https://x-access-token:${CHARTS_GITHUB_PAT}@github.com/${CHARTS_REPO}.git" "${CHARTS_DIR}"
+cp "${CHART_TGZ}" "${CHARTS_DIR}/"
+
+pushd "${CHARTS_DIR}" >/dev/null
+git config user.name "catalystcommunityci"
+git config user.email "ci@catalystcommunity.org"
+
+helm repo index . --url "${CHARTS_PAGES_URL}"
+git add "corndogs-${VERSION}.tgz" index.yaml
+git commit -m "chore: add corndogs ${VERSION}"
+git push origin main
+popd >/dev/null
+rm -rf "${CHARTS_DIR}"
+
+echo "=== pushed corndogs ${VERSION} to ${CHARTS_REPO} ==="
