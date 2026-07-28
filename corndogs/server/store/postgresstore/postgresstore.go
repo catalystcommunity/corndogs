@@ -247,10 +247,8 @@ func (s PostgresStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequ
 func (s PostgresStore) UpdateTask(ctx context.Context, req *api.UpdateTaskRequest) (*api.UpdateTaskResponse, error) {
 	taskProto := &api.Task{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		model := models.Task{}
-		result := tx.Select(taskMetadataColumns).
-			Where("uuid = ? AND queue = ? AND current_state = ?", req.Uuid, req.Queue, req.CurrentState).
-			First(&model)
+		model := models.Task{UUID: req.Uuid}
+		result := tx.Select(taskMetadataColumns).First(&model)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				// not found return nil
@@ -301,12 +299,9 @@ func (s PostgresStore) UpdateTask(ctx context.Context, req *api.UpdateTaskReques
 func (s PostgresStore) CompleteTask(ctx context.Context, req *api.CompleteTaskRequest) (*api.CompleteTaskResponse, error) {
 	taskProto := &api.Task{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Queue and CurrentState are required to validate you know the current state
-		// and not accidentally pass something someone else is working on
-		model := models.Task{}
-		result := tx.Select(taskMetadataColumns).
-			Where("uuid = ? AND queue = ? AND current_state = ?", req.Uuid, req.Queue, req.CurrentState).
-			First(&model)
+		// Load task metadata without the payload.
+		model := models.Task{UUID: req.Uuid}
+		result := tx.Select(taskMetadataColumns).First(&model)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				// not found return nil
@@ -341,12 +336,9 @@ func (s PostgresStore) CompleteTask(ctx context.Context, req *api.CompleteTaskRe
 func (s PostgresStore) CancelTask(ctx context.Context, req *api.CancelTaskRequest) (*api.CancelTaskResponse, error) {
 	taskProto := &api.Task{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Queue and CurrentState are required to validate you know the current state
-		// and not accidentally pass something someone else is working on
-		model := models.Task{}
-		result := tx.Select(taskMetadataColumns).
-			Where("uuid = ? AND queue = ? AND current_state = ?", req.Uuid, req.Queue, req.CurrentState).
-			First(&model)
+		// Load task metadata without the payload.
+		model := models.Task{UUID: req.Uuid}
+		result := tx.Select(taskMetadataColumns).First(&model)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				// not found return nil
