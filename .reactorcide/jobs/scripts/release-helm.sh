@@ -4,8 +4,7 @@
 # --directories) to compute the next `helm_chart/vX.Y.Z` version. We bump
 # Chart.yaml `version`, TAG THE BUMP COMMIT (so the tag points at the resulting
 # HEAD of main rather than trailing it), package, publish a GitHub release with
-# the .tgz, and push the new chart version to catalystcommunity/charts (the repo
-# backing the public Helm repo served over GitHub Pages).
+# the .tgz, and push the new chart version to the chart repo
 #
 # Ordering matters: semver-tags is run in --dry_run to compute the version
 # WITHOUT tagging; we create the version-bump commit, then create the tag and
