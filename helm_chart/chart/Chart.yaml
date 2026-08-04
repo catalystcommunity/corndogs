@@ -8,7 +8,7 @@ keywords:
 
 type: application
 version: "0.5.3"
-appVersion: "0.7.1"
+appVersion: "0.7.2"
 
 
 dependencies:
