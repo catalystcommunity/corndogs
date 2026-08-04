@@ -42,6 +42,9 @@ var DatabaseSSLMode = config.GetEnvOrDefault("DATABASE_SSL_MODE", "disable")
 var MaxIdleConns = config.GetEnvAsIntOrDefault("DATABASE_MAX_IDLE_CONNS", "1")
 var MaxOpenConns = config.GetEnvAsIntOrDefault("DATABASE_MAX_OPEN_CONNS", "10")
 var ConnMaxLifetime = time.Duration(config.GetEnvAsIntOrDefault("DATABASE_CONN_MAX_LIFETIME_SECONDS", "3600")) * time.Second
+var DatabaseStartupTimeout = time.Duration(config.GetEnvAsIntOrDefault("DATABASE_STARTUP_TIMEOUT_SECONDS", "120")) * time.Second
+
+const databaseStartupRetryInterval = time.Second
 
 // sql files embedded at compile time, used by goose
 //
@@ -51,11 +54,26 @@ var embedMigrations embed.FS
 type PostgresStore struct{}
 
 func (s PostgresStore) Initialize() (func(), error) {
-	var err error
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s", DatabaseHost, DatabaseUser, DatabasePassword, DatabaseName, DatabasePort, DatabaseSSLMode)
-	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logging.NewGormLogger()})
+	if DatabaseStartupTimeout < 0 {
+		return nil, fmt.Errorf("DATABASE_STARTUP_TIMEOUT_SECONDS must not be negative")
+	}
+
+	err := retryUntilTimeout(DatabaseStartupTimeout, databaseStartupRetryInterval, func() error {
+		db, openErr := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logging.NewGormLogger()})
+		if openErr != nil {
+			if db != nil {
+				if sqlDB, dbErr := db.DB(); dbErr == nil {
+					_ = sqlDB.Close()
+				}
+			}
+			return openErr
+		}
+		DB = db
+		return nil
+	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("postgres did not become ready within %s: %w", DatabaseStartupTimeout, err)
 	}
 	sqlDb, err := DB.DB()
 	if err != nil {
@@ -73,6 +91,26 @@ func (s PostgresStore) Initialize() (func(), error) {
 		return nil, err
 	}
 	return func() { sqlDb.Close() }, nil
+}
+
+func retryUntilTimeout(timeout, interval time.Duration, attempt func() error) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		err := attempt()
+		if err == nil {
+			return nil
+		}
+
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return err
+		}
+
+		log.Warn().Err(err).Dur("remaining", remaining).Msg("postgres is not ready; retrying")
+		wait := min(interval, remaining)
+		timer := time.NewTimer(wait)
+		<-timer.C
+	}
 }
 
 func (s PostgresStore) SubmitTask(ctx context.Context, req *api.SubmitTaskRequest) (*api.SubmitTaskResponse, error) {
