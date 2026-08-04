@@ -101,6 +101,10 @@ spec:
             - name: DATABASE_CONN_MAX_LIFETIME_SECONDS
               value: {{ .Values.database.connMaxLifetimeSeconds | quote }}
             {{- end }}
+            {{- if .Values.database.startupTimeoutSeconds }}
+            - name: DATABASE_STARTUP_TIMEOUT_SECONDS
+              value: {{ .Values.database.startupTimeoutSeconds | quote }}
+            {{- end }}
             {{- if .Values.database.maxOpenConns }}
             - name: DATABASE_MAX_OPEN_CONNS
               value: {{ .Values.database.maxOpenConns | quote }}
@@ -136,10 +140,20 @@ spec:
           livenessProbe:
             tcpSocket:
               port: corndogsrpc
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.livenessProbe.successThreshold }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
           readinessProbe:
             httpGet:
               path: /healthz
               port: corndogsops
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.readinessProbe.successThreshold }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- if eq .Values.storage.backend "file" }}

@@ -88,6 +88,23 @@ appconfig:
   # Maximum payload size in bytes. Valid values are 1 through 1073741823.
   maxPayloadBytes: "16777216"
 
+livenessProbe:
+  # Delay liveness checks while Corndogs waits for its storage backend.
+  initialDelaySeconds: 120
+  periodSeconds: 10
+  timeoutSeconds: 1
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  # Start readiness checks immediately. The pod stays out of service until the
+  # storage backend is ready and the server starts.
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 1
+  successThreshold: 1
+  failureThreshold: 3
+
 # timeoutCron optionally creates a cronjob to send CleanUpTimedOut requests using the cli
 timeoutCron:
   enabled: false
@@ -158,6 +175,8 @@ database:
   host: "corndogs-postgresql"
   user: "postgres"
   password: "postgres"
+  # Time to wait for Postgres to accept connections before Corndogs exits.
+  startupTimeoutSeconds: "120"
   maxIdleConns: "10"
   maxOpenConns: "10"
   connMaxLifetimeSeconds: "3600"
