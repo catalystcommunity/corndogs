@@ -14,7 +14,6 @@ const (
 )
 
 var LogLevel = GetEnvOrDefault("LOGLEVEL", "error")
-var FlushBytes = int64(GetEnvAsIntOrDefault("FLUSH_BYTES", "1000"))
 var PrometheusEnabled = GetEnvAsBoolOrDefault("PROMETHEUS_ENABLED", "false")
 var PrometheusNamespace = GetEnvOrDefault("PROMETHEUS_NAMESPACE", "corndogs")
 var PrometheusQueueSizeEnabled = GetEnvAsBoolOrDefault("PROMETHEUS_QUEUE_SIZE_ENABLED", "true")
@@ -24,7 +23,6 @@ var DefaultQueue = GetEnvOrDefault("DEFAULT_QUEUE", "default")
 var DefaultStartingState = GetEnvOrDefault("DEFAULT_STARTING_STATE", "submitted")
 var DefaultTimeout = int64(GetEnvAsIntOrDefault("DEFAULT_TIMEOUT", "0"))
 var DefaultWorkingSuffix = "-working"
-var RequestIdHeader = GetEnvOrDefault("REQUEST_ID_HEADER", "X-Request-ID")
 var MaxPayloadBytes = loadMaxPayloadBytes()
 var MaxRPCFrameBytes = int(MaxPayloadBytes + RPCEnvelopeAllowance)
 

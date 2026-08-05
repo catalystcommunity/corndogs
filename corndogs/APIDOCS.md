@@ -1,8 +1,8 @@
 # Corndogs API
 
-The [Flow](/README.md#flow) section gives a usage example. The `csil/`
-directory contains the service contract. The `clients/` directory contains the
-generated client types.
+The [project README](../README.md) gives a usage example. The `csil/` directory
+contains the service contract. The `clients/` directory contains the generated
+clients.
 
 ## Payload rules
 
@@ -22,8 +22,7 @@ The default maximum payload size is 16 MiB. Set
 `CORNDOGS_MAX_PAYLOAD_BYTES` to change the limit. The value must be from `1`
 through `1073741823` bytes. The server rejects a larger payload.
 
-## General
-The regular flow stuff.
+## Task operations
 
 ### `SubmitTask`
 
@@ -39,7 +38,7 @@ does not return the payload.
 
 Claim the next task from `queue` that has the specified `current_state`. The
 `override_` fields change task data after Corndogs switches the states. See
-[State and Timeout Overrides](/README.md#state-and-timeout-overrides).
+[Task states and timeouts](../README.md#task-states-and-timeouts).
 
 The response contains an optional `TaskDelivery`. The delivery contains the
 task metadata and payload.
@@ -67,40 +66,37 @@ Corndogs sets both states to `canceled` and archives the task. The response
 contains the archived task metadata.
 
 ### `CleanUpTimedOut`
-Will compare tasks to `at_time` to see if they're timed out. Optionally limited to a specific `queue`.\
-See the [Timeouts](/README.md#timeouts) section in the readme for more info on how you might use timeouts.\
-Returns the number of tasks `timed_out`.
+
+Process tasks with a timeout before `at_time`. Set `queue` to process only one
+queue. The response gives the number of changed tasks in `timed_out`.
+
+See [Task states and timeouts](../README.md#task-states-and-timeouts).
 
 ---
 
-## Metrics
-For the proto based metrics stuff. 
+## Metric operations
 
 ### `GetQueues`
-Returns `GetQueuesResponse` containing a list of `queues`, and the `total_task_count`.
+
+Return the queue names and `total_task_count`.
 
 ### `GetQueueTaskCounts`
-Returns `GetQueueTaskCountsResponse` containing:
-- `queue_counts` map of queue name to number of tasks in that queue.
-- Also returns `total_task_count`.
+
+Return `queue_counts`, which maps each queue name to its task count. Also return
+`total_task_count`.
 
 ### `GetTaskStateCounts`
-Accepts `GetTaskStateCountsRequest` with the `queue` you'd like to get the state task count for.\
-Returns `GetTaskStateCountsResponse` containing:
-- `queue` requested
-- `count` of the total tasks in the queue
-- `state_counts` map of state name to number of tasks in that state.
+
+Return the task counts for the requested queue. `state_counts` maps each state
+name to its task count. `count` gives the total for the queue.
 
 ### `GetQueueAndStateCounts`
-Returns `GetQueueAndStateCountsResponse` containing:
-- `queue_and_state_counts` map of queue name to `QueueAndStateCounts` object.
 
-`QueueAndStateCounts` contains:
-- `queue` requested
-- `count` of the total tasks in the queue
-- `state_counts` map of state name to number of tasks in that state.
+Return `queue_and_state_counts`, which maps each queue name to its
+`QueueAndStateCounts` value. Each value contains the queue name, its total task
+count, and a count for each state.
 
 ## Health & metrics
-The server exposes `GET /healthz` for Kubernetes liveness/readiness probes
-(returns `200` while serving). When `PROMETHEUS_ENABLED=true`, Prometheus metrics
-are served on `:8080/metrics`.
+The HTTP operations address is `:8080` by default. Set `CORNDOGS_HTTP_LISTEN` to
+change it. `GET /healthz` returns `200` while the server runs. If
+`PROMETHEUS_ENABLED=true`, `GET /metrics` returns Prometheus metrics.

@@ -5,18 +5,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var runCmd = NewRunCommand()
-
-func NewRunCommand() *cobra.Command {
-	runCmd := &cobra.Command{
+func newRunCommand() *cobra.Command {
+	return &cobra.Command{
 		Use:   "run",
-		Short: "Run the corndogs service",
-		Long:  "Run the corndogs service",
+		Short: "Run the Corndogs service",
+		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			server.SetupAndRun()
 		},
 	}
-
-	rootCmd.AddCommand(runCmd)
-	return runCmd
 }

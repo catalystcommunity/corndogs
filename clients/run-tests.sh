@@ -1,26 +1,8 @@
 #!/usr/bin/env bash
 #
-# End-to-end test the corndogs clients in every language against a live corndogs
-# server — the multi-language analogue of the Go E2E test. A successful
-# SubmitTask/GetNextTask round-trips the whole stack: client -> codec -> our TCP
-# transport -> server.
-#
-# Transport: corndogs speaks CSIL-RPC over TCP (StreamCarrier, 4-byte length prefix)
-# on :5080 — HTTP is only for health/metrics. Each language ships its OWN ready-to-use
-# TCP transport (clients/<lang>/transport.*, with a heartbeat) + README examples, and
-# this harness drives THAT shipped transport — the exact thing a user gets — not the
-# csilgen genquickstart HTTP carrier (which the server no longer serves). Every driver
-# is self-contained: it builds a tiny round-trip against the committed package and
-# points it at $CORNDOGS_ADDR. No csilgen transports/<lang> checkout is needed anymore.
-#
-#   dev workflow:  clone -> clients/install-transport-toolchains.sh -> clients/run-tests.sh
-#   CI (reactorcide): same script; toolchains baked into the corndogs-test-env image.
-#
-# Toolchains come from the shared catalyst-tools bundle (clients/install-transport-
-# toolchains.sh; see ../../CLAUDE.md). Languages whose toolchain is absent are SKIPPED,
-# not failed (e.g. swift has no Linux toolchain here). Set CORNDOGS_E2E=<addr>
-# (host:port, or a URL whose scheme is stripped) to test an already-running server;
-# otherwise a local file-backed server is built and started for the run.
+# Test each installed language client against a Corndogs TCP server. Set
+# CORNDOGS_E2E to use an existing server. Otherwise, the script starts a local
+# file-backed server. The script skips clients with no installed toolchain.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,12 +10,9 @@ ROOT="$(cd "${HERE}/.." && pwd)"
 CLIENTS="${HERE}"
 WORK="$(mktemp -d)"
 ALL_LANGS="go python ruby rust typescript elixir dart ocaml zig c csharp java kotlin swift"
-LANGS="${LANGS:-$ALL_LANGS}"   # override to test a subset, e.g. LANGS="go python"
+LANGS="${LANGS:-$ALL_LANGS}"   # For example: LANGS="go python"
 
-# --- toolchains from the shared catalyst-tools bundle (../../CLAUDE.md) -----
-# Set up once with clients/install-transport-toolchains.sh. Provides zig, jdk17 + gradle
-# (Kotlin builds via Gradle), dotnet, dart, go, node, opam/ocaml. Ruby + Elixir are
-# system installs; Rust is the host rustup/cargo.
+# Load the optional shared toolchain bundle.
 CATALYST_TOOLS="${CATALYST_TOOLS:-$HOME/.local/catalyst-tools}"
 [ -f "$CATALYST_TOOLS/env.sh" ] && . "$CATALYST_TOOLS/env.sh"
 

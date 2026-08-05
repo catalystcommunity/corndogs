@@ -12,28 +12,14 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-// CSIL-RPC over TCP (the StreamCarrier profile): the canonical client transport.
-// Each accepted connection is served on its own goroutine. A single reader pulls
-// request frames off the connection in order and dispatches each on its own
-// goroutine, so a client that multiplexes calls over one connection (correlation
-// ids) gets them handled concurrently — one slow store op does not head-of-line
-// block the others. Responses echo the request id and are serialized back onto the
-// shared connection under a write mutex. The application envelope is identical to
-// the HTTP profile — only the framing differs (a 4-byte length prefix instead of an
-// HTTP body) — so this reuses the exact same route table (buildRPCRoutes).
-//
-// The transport control plane (service ordinal 0, verbose `$`-prefixed ops) is
-// handled here: `$hello` (handshake) and `$ping` (heartbeat) get lightweight
-// control replies so a client can keep an idle connection alive and detect a dead
-// server without an application call.
+// Requests on one connection run concurrently so that one slow operation does
+// not block other multiplexed requests. A mutex keeps response frames intact.
 const (
 	opHello = "$hello"
 	opPing  = "$ping"
 )
 
-// maxConcurrentPerConn bounds in-flight handlers on a single connection so a client
-// firing an unbounded burst can't spawn unbounded goroutines; the reader blocks
-// (natural backpressure) once this many requests are being served.
+// This limit gives backpressure before one connection creates too many goroutines.
 const maxConcurrentPerConn = 256
 
 // serveCSILRPCTCP accepts connections on ln and serves CSIL-RPC on each until ln
@@ -54,9 +40,7 @@ func serveConn(conn net.Conn, routes map[string]rpcHandlerFunc) {
 		_ = tc.SetKeepAlive(true)
 	}
 	defer conn.Close()
-	// A per-connection context cancels the store operations still running for this
-	// connection when it drops — the deadline/cancellation propagation the HTTP
-	// handler used to get from r.Context(). Cancelled on return.
+	// Close of the connection cancels its active store operations.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

@@ -11,25 +11,21 @@ import (
 type SyncMode string
 
 const (
-	// SyncAlways fsyncs on every committed write. Safest, slowest. Default.
+	// SyncAlways flushes each committed write to disk.
 	SyncAlways SyncMode = "always"
 	// SyncInterval flushes on a timer (~1s). Fast; a crash may lose the last
 	// fraction of a second of writes.
 	SyncInterval SyncMode = "interval"
-	// SyncNever never explicitly fsyncs; durability is left to the OS. Fastest,
-	// least safe. Useful for caches/benchmarks.
+	// SyncNever leaves disk flushes to the operating system.
 	SyncNever SyncMode = "never"
-	// SyncGroup acks every write only after it is fsync'd, but coalesces all
-	// in-flight writes into a single fsync (group commit). Durable like
-	// "always", but with throughput that scales with concurrency. (bolt only.)
+	// SyncGroup flushes concurrent writes together before it acknowledges them.
 	SyncGroup SyncMode = "group"
 )
 
 // Config holds the file-backend configuration, all sourced from env vars so it
 // matches the existing config style.
 type Config struct {
-	// Backend selects the implementation. Only "bolt" (default) is supported;
-	// retained for forward compatibility.
+	// Backend must be "bolt". The field remains for configuration compatibility.
 	Backend string
 	// DataDir is where the live task data file lives.
 	DataDir string
