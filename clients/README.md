@@ -34,9 +34,9 @@ The generation script replaces generated types, codecs, and service methods.
 It preserves each Corndogs TCP transport and README. Do not edit a file with a
 generated-code notice. Change the CSIL contract and regenerate it.
 
-The generated generic quick-start uses an HTTP carrier, which the Corndogs
-server does not support. The generation script removes that file. Use the
-Corndogs README in each client package.
+The CSIL contract sets `emit_readme: false` because the generic quick-start uses
+an HTTP carrier that the Corndogs server does not support. Use the Corndogs
+README in each client package.
 
 ## Regenerate clients
 

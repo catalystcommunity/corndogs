@@ -56,8 +56,6 @@ for lang in "${LANGUAGES[@]}"; do
   rm -rf "${OUT:?}/${lang}"
   mkdir -p "${OUT}/${lang}"
   csilgen generate --input "${SPEC}" --target "${lang}-client" --output "${OUT}/${lang}"
-	# The generated guide uses an HTTP carrier that the Corndogs server does not expose.
-	rm -f "${OUT}/${lang}/genquickstart.md"
   for f in ${CORNDOGS_CARRIERS[$lang]:-}; do
     if [ -f "${bak}/${f}" ]; then
       mkdir -p "$(dirname "${OUT}/${lang}/${f}")"
@@ -73,6 +71,5 @@ echo "=== package go (all surfaces) -> clients/corndogs ==="
 mkdir -p "${GO_LIB}"
 rm -f "${GO_LIB}"/*.gen.go "${GO_LIB}/go.mod" "${GO_LIB}/genquickstart.md"
 csilgen generate --input "${SPEC}" --target go --output "${GO_LIB}"
-rm -f "${GO_LIB}/genquickstart.md"
 
 echo "=== done; every client packaged under ${OUT}/ (Go module at ${GO_LIB}) ==="
