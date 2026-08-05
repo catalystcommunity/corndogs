@@ -104,9 +104,8 @@ echo "=== released chart ${NEW_TAG} (version ${VERSION}) ==="
 
 echo "=== push packaged chart to ${CHARTS_REPO} ==="
 # The charts repo (served via GitHub Pages from its main branch root) holds a flat
-# directory of chart .tgz files plus a repo-root index.yaml built by `helm repo
-# index`. All prior .tgz files live in the repo itself, so regenerating the index
-# from a full clone reindexes everything, not just the new chart.
+# directory of chart .tgz files. The charts repo itself indexes on merge, so we
+# just add the new .tgz here.
 CHARTS_DIR="$(mktemp -d)"
 git clone "https://x-access-token:${CHARTS_GITHUB_PAT}@github.com/${CHARTS_REPO}.git" "${CHARTS_DIR}"
 cp "${CHART_TGZ}" "${CHARTS_DIR}/"
@@ -115,8 +114,7 @@ pushd "${CHARTS_DIR}" >/dev/null
 git config user.name "catalystcommunityci"
 git config user.email "ci@catalystcommunity.org"
 
-helm repo index . --url "${CHARTS_PAGES_URL}"
-git add "corndogs-${VERSION}.tgz" index.yaml
+git add "corndogs-${VERSION}.tgz"
 git commit -m "chore: add corndogs ${VERSION}"
 git push origin main
 popd >/dev/null
