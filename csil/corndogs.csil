@@ -4,7 +4,8 @@ options {
     version: "v1alpha1",
     emit_packages: ["rust", "go", "typescript", "python", "java", "csharp", "c", "swift", "kotlin", "zig", "ocaml", "elixir", "ruby", "dart"],
     package_name: "github.com/CatalystCommunity/corndogs/clients/corndogs",
-    package_version: "0.0.0"
+    package_version: "0.0.0",
+    emit_readme: false
 }
 
 ;;; Corndogs task-state service over CSIL-RPC and a persistent TCP connection.
