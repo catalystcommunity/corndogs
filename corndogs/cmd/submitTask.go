@@ -1,23 +1,22 @@
 package cmd
 
 import (
-	"os"
+	"fmt"
+	"net"
 
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
-var submitTaskCmd = NewSubmitTaskCmd()
-
-func NewSubmitTaskCmd() *cobra.Command {
+func newSubmitTaskCommand() *cobra.Command {
 	var address, port string
 	var queue, currentState, autoTargetState, payload string
 	var timeout, priority int64
 	cmd := &cobra.Command{
 		Use:   "submit-task",
-		Short: "creates a corndogs task",
-		Run: func(cmd *cobra.Command, args []string) {
+		Short: "Submit a task",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
 			req := api.SubmitTaskRequest{
 				Queue:           queue,
 				CurrentState:    currentState,
@@ -26,22 +25,24 @@ func NewSubmitTaskCmd() *cobra.Command {
 				Payload:         []byte(payload),
 				Priority:        priority,
 			}
-			var resp api.SubmitTaskResponse
-			if err := cborCall(baseURL(address, port), "SubmitTask", &req, &resp); err != nil {
-				log.Err(err).Msg("failed to submit task")
-				os.Exit(1)
+			resp, err := api.New(net.JoinHostPort(address, port)).SubmitTask(cmd.Context(), req)
+			if err != nil {
+				return fmt.Errorf("submit task: %w", err)
 			}
-			log.Info().Msgf("response: %+v", resp)
+			if resp.Task == nil {
+				return fmt.Errorf("submit task: server response did not contain a task")
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Submitted task %s\n", resp.Task.Uuid)
+			return err
 		},
 	}
-	cmd.Flags().StringVarP(&address, "address", "a", "127.0.0.1", "The address to connect to the corndogs service")
-	cmd.Flags().StringVarP(&port, "port", "p", "5080", "The port to connect to the corndogs service")
-	cmd.Flags().StringVarP(&queue, "queue", "q", "", "The queue to submit the task to")
-	cmd.Flags().StringVarP(&currentState, "current-state", "c", "", "The current state of the task")
-	cmd.Flags().StringVarP(&autoTargetState, "auto-target-state", "t", "", "The target state of the task")
-	cmd.Flags().Int64VarP(&timeout, "timeout", "o", 0, "The timeout of the task")
-	cmd.Flags().StringVarP(&payload, "payload", "l", "", "The payload of the task")
-	cmd.Flags().Int64VarP(&priority, "priority", "r", 0, "The priority of the task")
-	rootCmd.AddCommand(cmd)
+	cmd.Flags().StringVarP(&address, "address", "a", "127.0.0.1", "RPC host name or IP address")
+	cmd.Flags().StringVarP(&port, "port", "p", "5080", "RPC port")
+	cmd.Flags().StringVarP(&queue, "queue", "q", "", "Queue name (server default if empty)")
+	cmd.Flags().StringVarP(&currentState, "current-state", "c", "", "Initial state (server default if empty)")
+	cmd.Flags().StringVarP(&autoTargetState, "auto-target-state", "t", "", "State to use when a worker claims the task")
+	cmd.Flags().Int64VarP(&timeout, "timeout", "o", 0, "Timeout in seconds (server default if 0)")
+	cmd.Flags().StringVarP(&payload, "payload", "l", "", "Task payload as text")
+	cmd.Flags().Int64VarP(&priority, "priority", "r", 0, "Priority; higher values are claimed first")
 	return cmd
 }

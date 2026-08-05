@@ -6,7 +6,7 @@ implementation at startup with the `STORAGE_BACKEND` environment variable:
 | `STORAGE_BACKEND` | Backend | Use when |
 | --- | --- | --- |
 | `postgres` (default) | External PostgreSQL | You want multiple replicas, HA/failover, and shared state, and are willing to operate a database. |
-| `file` | Embedded, single-process [bbolt](https://github.com/etcd-io/bbolt) | You want one process and no separate database to run, and a single replica is acceptable. |
+| `file` | Embedded [bbolt](https://github.com/etcd-io/bbolt) | You want one process and no separate database. |
 
 Both backends implement identical semantics (priority ordering, the timeout
 state-swap, completion/cancellation, metrics). They differ only in operational
@@ -48,6 +48,7 @@ LOCKED` to hand out tasks safely across any number of server replicas.
 | `DATABASE_MAX_OPEN_CONNS` | `10` | Max open pooled connections. |
 | `DATABASE_MAX_IDLE_CONNS` | `1` | Max idle pooled connections. |
 | `DATABASE_CONN_MAX_LIFETIME_SECONDS` | `3600` | Connection max lifetime. |
+| `DATABASE_STARTUP_TIMEOUT_SECONDS` | `120` | Maximum time to wait for PostgreSQL at startup. |
 
 Migrations run automatically on startup. For Helm deployment of postgres itself
 (bundled bitnami chart or the Zalando operator), see
@@ -67,10 +68,11 @@ payload. Metadata-only queries do not select the payload column.
 
 ## file (embedded)
 
-An embedded backend that keeps all state in a single bbolt file on a mounted
-volume. There is no separate database process. Because the data file is owned by
-one OS process (it takes an exclusive file lock), the file backend is
-**single-replica only** — it cannot be shared across pods.
+An embedded backend keeps all state in a bbolt file on a mounted volume. There
+is no separate database process. One process owns each data file and takes an
+exclusive file lock. Do not share one file between processes. For replicated
+local files, use [Tier-1 clustering](./clustering-tier1.md). The Helm chart
+supports only the single-replica file configuration.
 
 The file backend stores task metadata as JSON. It stores payloads as raw values
 in a separate bbolt bucket. A deadline index supports timeout cleanup. On
@@ -109,11 +111,17 @@ process death, not power loss.
 
 ### Audit log
 
-Every mutation (submit, claim, update, complete, cancel, timeout) is appended as
-newline-delimited JSON — a durable, replayable history of state transitions
-(more than the postgres backend keeps, which only records terminal
-completed/canceled rows). Appends are O(1) regardless of log size, so it never
-slows the write path.
+Corndogs appends each mutation to a newline-delimited JSON log. The operations
+are submit, claim, update, complete, cancel, and timeout. This log contains more
+history than the PostgreSQL backend, which records only completed and canceled
+tasks.
+
+The audit log uses the selected sync mode. In `always` mode, Corndogs flushes
+each audit record before it continues. In `interval` mode, it flushes the log on
+a timer. In `group` and `never` modes, the operating system can keep the newest
+audit records in memory until rotation or shutdown. Thus, a power failure can
+remove the newest audit records even when the bbolt data is durable in `group`
+mode.
 
 The log is written as size-bounded segment files named `audit-000001.log`,
 `audit-000002.log`, …. The active segment rolls to the next once it reaches
@@ -129,19 +137,17 @@ By default it lives alongside the data file. Point it at its own volume with
 on cheaper/separate storage. Disable entirely with
 `CORNDOGS_FILESTORE_AUDIT_ENABLED=false`.
 
-It is a log, not a query store: corndogs' own queries and metrics hit the
-indexed bbolt state, never the log. For ad-hoc analytics over the history, query
-the JSONL with a tool rather than scanning by hand — e.g. **DuckDB**
-(`SELECT ... FROM read_json_auto('audit-*.log')`, no server) for local analysis,
-or **ship it to ClickHouse / Loki / BigQuery** for ongoing dashboards.
+Corndogs does not query the audit log. Its queries and metrics use the indexed
+bbolt data. Use a JSONL query tool or send the segments to your log system if
+you need to analyze the history.
 
 ### Trade-offs
 
 - **Pros:** no separate system to operate; very fast on the dequeue hot path; a
   single file is trivial to back up (copy `corndogs.bolt`); the audit log gives
   a replayable history.
-- **Cons:** single replica only (no horizontal scale-out or HA failover); you
-  own backups/redundancy.
+- **Cons:** one process can write each data file. Without Tier-1 clustering, you
+  own backups and redundancy.
 
 ### Single-replica enforcement
 

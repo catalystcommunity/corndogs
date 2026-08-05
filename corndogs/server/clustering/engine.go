@@ -6,21 +6,14 @@ import (
 	"time"
 )
 
-// ErrNotLeader is returned for a write attempted on a non-leader node. The caller
-// (RPC layer) turns it into a redirect to Leader().
+// ErrNotLeader lets the RPC layer return a leader redirect.
 var ErrNotLeader = errors.New("clustering: not the leader")
 
-// ErrCommitTimeout is returned when a write applied locally on the leader but did
-// not reach the semi-sync durability quorum in time (e.g. the leader lost contact
-// with enough followers — the split-brain guard, docs §6).
+// ErrCommitTimeout means that the write did not reach the required followers.
 var ErrCommitTimeout = errors.New("clustering: write not committed to quorum in time")
 
-// Engine owns a Replicator and drives it on a single goroutine (the Node and
-// Replicator are not thread-safe). Everything that touches them — inbound frames,
-// ticks, and client writes — is funneled through that goroutine via channels, so
-// there is no shared-memory concurrency on the protocol state. This is the actor
-// model: the network and the RPC handlers are the outside world; the run loop is
-// the actor.
+// Engine serializes protocol state on one goroutine because Node and Replicator
+// are not safe for concurrent use.
 type Engine struct {
 	rep      *Replicator
 	settings Settings
@@ -36,15 +29,11 @@ type Engine struct {
 	waiters []commitWaiter
 	now     int64
 
-	// leadership edge tracking: leaderSince is the tick at which this node last
-	// became leader (used to grant a freshly elected leader a grace window before the
-	// pre-apply quorum check can reject writes — followers need a moment to send their
-	// first ack). wasLeader mirrors the last observed leader role on this goroutine.
+	// A new leader needs time to receive the first follower acknowledgements.
 	leaderSince int64
 	wasLeader   bool
 
-	// topology + stats snapshots for the RPC/watch/metrics layer (guarded; read
-	// off-goroutine, written only on the engine goroutine).
+	// The RPC and metrics goroutines read these snapshots.
 	mu    sync.RWMutex
 	topo  Topology
 	stats Stats
@@ -73,9 +62,6 @@ type Topology struct {
 	LeaderID string `json:"leader_id"`
 }
 
-// NewEngine builds an Engine around an already-constructed Replicator. tickDur is
-// the wall-clock duration of one logical tick (the cluster Config timings are in
-// ticks; ~100ms is the design cadence).
 func NewEngine(rep *Replicator, settings Settings, tickDur time.Duration) *Engine {
 	if tickDur <= 0 {
 		tickDur = 100 * time.Millisecond
@@ -144,13 +130,7 @@ func (e *Engine) handleProposal(p proposal) {
 		return
 	}
 	if e.quorumUnreachable() {
-		// We have led long enough to have a current view of followers yet still cannot
-		// reach the semi-sync durability quorum — a real partition, not the brief
-		// post-election window. Applying now would persist locally (and to a minority)
-		// but never commit, leaving state diverged from what the client is told (a
-		// claimed-but-undelivered task, or a submit the client retries into a
-		// duplicate). Reject *before* applying so the error truthfully means "nothing
-		// happened" and a retry is safe (docs §6).
+		// Reject before the local write so that the client can safely retry it.
 		p.done <- ErrCommitTimeout
 		return
 	}
@@ -161,8 +141,7 @@ func (e *Engine) handleProposal(p proposal) {
 	}
 	lsn := e.rep.LastLSN()
 	if lsn == before {
-		// The op made no durable change (e.g. GetNextTask on an empty queue). Nothing
-		// to replicate; release immediately.
+		// An empty claim has no write to replicate.
 		p.done <- nil
 		return
 	}

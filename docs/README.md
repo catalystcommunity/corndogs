@@ -5,4 +5,6 @@
   modes, and trade-offs.
 - [Deploying with Helm](./deployment.md) — installing the chart from this repo
   (it is not published to a registry), with examples for each backend.
+- [Tier-1 clustering](./clustering-tier1.md) — configuring replicated local
+  files, leader failover, and acknowledgement requirements.
 - [API reference](../corndogs/APIDOCS.md) — the RPC surface.

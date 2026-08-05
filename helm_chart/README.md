@@ -1,48 +1,58 @@
-# chart-corndogs
-Helm chart for corndogs
+# Corndogs Helm chart
 
-This chart is not published to a chart registry; install it from a checkout of
-this repo (`helm install corndogs ./helm_chart/chart`). See
-[docs/deployment.md](../docs/deployment.md) for getting-started examples.
+This chart is not in a chart registry. Install it from a repository checkout:
 
-# Storage backend
+```sh
+helm dependency update ./helm_chart/chart
+helm install corndogs ./helm_chart/chart
+```
 
-The chart supports two storage backends, selected with `storage.backend`:
+See [Deploying with Helm](../docs/deployment.md) for examples.
 
-- `postgres` (default) — the shared, horizontally-scalable backend. The chart
-  can deploy postgres for you (see [Database](#database) below) or point at an
-  external one.
-- `file` — an embedded, single-process bbolt backend with no separate database.
-  It is **single-replica only**: the chart calls Helm `fail` and refuses to
-  install if `replicaCount > 1` or autoscaling is enabled while
-  `storage.backend=file`. When using it, set `postgresql.enabled=false` (and
-  `zalando_postgres.enabled=false`) so no database is deployed alongside it.
+## Storage backend
 
-All `storage.*` values are documented inline in
-[values.yaml](./chart/values.yaml). Full backend reference and trade-offs:
-[docs/storage-backends.md](../docs/storage-backends.md).
+Set `storage.backend` to `postgres` or `file`.
 
-The sections below cover deploying postgres for the `postgres` backend.
+The PostgreSQL backend is the default. The chart can install the Bitnami
+PostgreSQL chart, connect to an external database, or create a database resource
+for the Zalando PostgreSQL operator.
 
-# Database
-This helm chart includes support for two methods of deploying postgres
+The file backend uses a local bbolt file. The chart permits only one Corndogs
+replica in this mode. It rejects file-backend settings that enable autoscaling
+or more than one replica. Disable both PostgreSQL options when you use the file
+backend:
 
-**Bitnami Postgres Helm Chart**
+```sh
+helm install corndogs ./helm_chart/chart \
+  --set storage.backend=file \
+  --set postgresql.enabled=false \
+  --set zalando_postgres.enabled=false
+```
 
-By default this helm chart deploys postgres using the [bitnami postgresql helm chart](https://github.com/bitnami/charts/tree/main/bitnami/postgresql/), with tls and persistence disabled. The bitnami
-chart is great for quickly experimenting with the chart, or running locally or in CI. Configuration is under the key `postgresql`
-and you can simply use the values from the bitnami helm chart under this key.
+See [values.yaml](./chart/values.yaml) for all chart values. See
+[Storage backends](../docs/storage-backends.md) for the runtime settings and
+trade-offs.
 
-**Zalando Operator**
+## PostgreSQL options
 
-For production workloads we recommend using the [zalando postgres operator](https://github.com/zalando/postgres-operator).
-This helm chart can be configured to deploy a zalando postgresql crd using the `zalando_postgres` key. The CRD will only be
-created if `zalando_postgres.enabled` is true. In this case the database user and password are populated by a secret key reference
-to the credentials that the operator creates. The entire crd spec is passed into the crd using the `zalando_postgres.spec`
-key. This way you can configure your zalando CRD however you want. We've included a default spec that works and shows an example of how to configure your crd.
-> **_NOTE:_**  When using the zalando configuration you need to set the `database.tls.enabled` key differently. When using bitnami postgres this is a boolean.
-> When using zalando this is the ssl type. So you should set it to [one of the ssl modes supported by postgres](https://www.postgresql.org/docs/8.4/libpq-connect.html#LIBPQ-CONNECT-SSLMODE)
->. Typically when using zalando this will be set to `require` buf if you disable tls in your crd spec you can set it to `disable`
+### Bitnami chart
 
-> **_NOTE:_** This helm chart does not install the zalando operator. Installing the operator itself along with the chart would be a mistake. You'll need to run the zalando operator 
-> in your cluster via other means if you want to use zalando postgres. This chart only supports creating the CRD for a postgres database.
+The chart installs the Bitnami PostgreSQL chart by default. This configuration
+has TLS and persistence disabled. Use it for tests and local development. Put
+Bitnami chart values under `postgresql`.
+
+### External database
+
+Set `postgresql.enabled=false`. Then set the values under `database`.
+
+### Zalando operator
+
+Set `zalando_postgres.enabled=true` to create a PostgreSQL custom resource. Put
+its specification under `zalando_postgres.spec`.
+
+This chart does not install the Zalando operator. Install the operator before
+you install this chart.
+
+For the Zalando configuration, set `database.tls.enabled` to a PostgreSQL SSL
+mode such as `require` or `disable`. For the Bitnami configuration, this value
+is a Boolean value.

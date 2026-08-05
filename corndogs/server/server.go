@@ -16,12 +16,8 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-// listenOn is the CSIL-RPC TCP (StreamCarrier) listen address — the canonical
-// client transport. Configurable so multiple nodes can run on one host.
 var listenOn = config.GetEnvOrDefault("CORNDOGS_LISTEN", "0.0.0.0:5080")
 
-// opsListenOn is the HTTP address for liveness/readiness and Prometheus only
-// (never CSIL-RPC).
 var opsListenOn = config.GetEnvOrDefault("CORNDOGS_HTTP_LISTEN", ":8080")
 
 func SetupAndRun() {
@@ -34,15 +30,8 @@ func SetupAndRun() {
 	}
 }
 
-// selectStore chooses the storage backend from STORAGE_BACKEND:
-//
-//	postgres (default) — the shared, horizontally-scalable backend.
-//	file               — an embedded, single-process backend (bolt or bunt,
-//	                     chosen via CORNDOGS_FILESTORE_BACKEND). No extra system
-//	                     to operate; trades horizontal scale-out / HA for it.
 func selectStore() error {
-	// Clustering wraps the file backend for redundancy/failover (docs/clustering-tier1.md).
-	// It takes precedence over STORAGE_BACKEND when CORNDOGS_CLUSTER_ENABLED=true.
+	// Cluster settings take precedence because a cluster always wraps a local file store.
 	if cs := clustering.LoadSettings(); cs.Enabled {
 		wrapped, err := clustering.Setup(cs, filestore.LoadConfig())
 		if err != nil {
@@ -81,8 +70,6 @@ func run() error {
 
 	srv := &implementations.V1Alpha1Server{}
 
-	// Ops HTTP (health + Prometheus) on a separate port. HTTP now serves ONLY
-	// liveness/readiness and metrics; the CSIL-RPC service itself is TCP (below).
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -103,8 +90,6 @@ func run() error {
 		zlog.Info().Msg("clustering active (TCP StreamCarrier peer transport)")
 	}
 
-	// CSIL-RPC transport = TCP StreamCarrier (the canonical client transport). One
-	// shared dispatch (buildRPCRoutes) as the HTTP profile used; only framing differs.
 	ln, err := net.Listen("tcp", listenOn)
 	if err != nil {
 		return err

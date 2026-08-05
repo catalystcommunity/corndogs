@@ -1,6 +1,4 @@
-# Default values for corndogs.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
+# Default chart values.
 
 replicaCount: 1
 namespace: corndogs
@@ -58,10 +56,7 @@ ingress:
   #      - chart-example.local
 
 resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # Add resource limits and requests for your environment.
   # limits:
   #   cpu: 100m
   #   memory: 128Mi
@@ -105,22 +100,22 @@ readinessProbe:
   successThreshold: 1
   failureThreshold: 3
 
-# timeoutCron optionally creates a cronjob to send CleanUpTimedOut requests using the cli
+# Create a CronJob that sends CleanUpTimedOut requests.
 timeoutCron:
   enabled: false
-  # schedule uses the typical cronjob schedule syntax
+  # Set a standard Cron schedule.
   # schedule:
   
-  # address is the address to the corndogs service. Defaults to corndogs.fullname
+  # Set the service host. The default is the chart full name.
   # address: corndogs
 
-  # port is the port for the corndogs service. Defualts to the service port.
+  # Set the service port. The default is service.port.
   # port: 5080
 
-  # queue is optional and sets the queue in the CleanUpTimedOut request to limit what it affects.
+  # Set a queue to process only that queue.
   # queue: example
 
-  # restartPolicy for the job created. Defaults to Never.
+  # Set the pod restart policy.
   # restartPolicy: Never
 
 

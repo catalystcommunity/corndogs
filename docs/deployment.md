@@ -60,13 +60,16 @@ helm install corndogs ./helm_chart/chart \
   --set postgresql.enabled=false
 ```
 
-This provisions a `ReadWriteOnce` PVC mounted at `/data`, forces a single
-replica, and uses a `Recreate` rollout. Common overrides:
+This command creates a `ReadWriteOnce` PVC at `/data`. It also selects one
+replica and the `Recreate` update strategy. You can add these settings:
 
 ```sh
+helm install corndogs ./helm_chart/chart \
+  --set storage.backend=file \
+  --set postgresql.enabled=false \
   --set storage.file.persistence.size=20Gi \
   --set storage.file.sync=group \
-  --set storage.file.persistence.audit.enabled=true \   # audit log on its own PVC
+  --set storage.file.persistence.audit.enabled=true \
   --set storage.file.auditDir=/audit
 ```
 
@@ -81,15 +84,16 @@ Full details, durability modes, and the crash-safety guarantee:
 
 ## Running without Kubernetes
 
-The same backends work for a plain local process. Set the env vars and run:
+The same backends work for a local process. Run these commands from the
+`corndogs` module directory:
 
 ```sh
 # file backend (no database needed)
-STORAGE_BACKEND=file CORNDOGS_FILESTORE_DIR=./corndogs-data go run main.go run
+STORAGE_BACKEND=file CORNDOGS_FILESTORE_DIR=./corndogs-data go run . run
 
 # postgres backend
 STORAGE_BACKEND=postgres DATABASE_HOST=localhost DATABASE_USER=postgres \
-  DATABASE_PASSWORD=postgres DATABASE_NAME=corndogs go run main.go run
+  DATABASE_PASSWORD=postgres DATABASE_NAME=corndogs go run . run
 ```
 
 See [storage-backends.md](./storage-backends.md) for the full env-var reference.
