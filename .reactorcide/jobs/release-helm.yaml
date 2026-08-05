@@ -30,4 +30,3 @@ environment:
   GITHUB_PAT: "${secret:catalystcommunity/ci:githubpat}"
   CHARTS_GITHUB_PAT: "${secret:catalystcommunity/ci:githubpat}"
   CHARTS_REPO: "catalystcommunity/charts"
-  CHARTS_PAGES_URL: "https://catalystcommunity.github.io/charts"
