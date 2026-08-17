@@ -9,7 +9,7 @@ paths:
   include:
     - "helm_chart/chart/**"
 job:
-  image: containers.catalystsquad.com/public/reactorcide/runnerbase:dev
+  image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
   # Clone the repo ourselves (triggered child jobs don't get /job/src populated) —
   # the linkkeys release pattern. The authed clone gives semver-tags full history,
   # tags, and a push-capable origin. The script operates on the current dir.

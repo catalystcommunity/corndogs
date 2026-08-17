@@ -14,7 +14,7 @@
 #
 # Published to: containers.catalystsquad.com/public/catalystcommunity/corndogs-test-env
 
-FROM containers.catalystsquad.com/public/reactorcide/runnerbase:dev
+FROM containers.catalystsquad.com/public/reactorcide/runnerbase:latest
 
 USER root
 

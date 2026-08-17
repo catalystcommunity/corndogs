@@ -1,0 +1,17 @@
+id: corndogs-release-helm
+name: Corndogs Helm Release
+description: "Release the Helm chart after a pull request changes chart files."
+
+on:
+  events:
+    - pull_request_merged
+  branches:
+    - main
+
+paths:
+  include:
+    - "helm_chart/chart/**"
+
+jobs:
+  corndogs-release-helm:
+    job_file: release-helm.yaml

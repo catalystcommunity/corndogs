@@ -1,0 +1,19 @@
+id: corndogs-pr-csil
+name: Corndogs PR CSIL
+description: "Check generated clients when CSIL or client files change."
+
+on:
+  events:
+    - pull_request_opened
+    - pull_request_updated
+  branches:
+    - main
+
+paths:
+  include:
+    - "csil/**"
+    - "clients/**"
+
+jobs:
+  corndogs-csil-gen-check:
+    job_file: csil-gen-check.yaml
