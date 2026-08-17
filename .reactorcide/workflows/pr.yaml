@@ -1,0 +1,14 @@
+id: corndogs-pr
+name: Corndogs PR
+description: "Validate commit messages for pull requests."
+
+on:
+  events:
+    - pull_request_opened
+    - pull_request_updated
+  branches:
+    - main
+
+jobs:
+  corndogs-conventional-commits:
+    job_file: conventional-commits.yaml

@@ -1,0 +1,17 @@
+id: corndogs-build-test-env
+name: Corndogs Build Test Environment
+description: "Build and publish the test environment image when its files change."
+
+on:
+  events:
+    - push
+  branches:
+    - main
+
+paths:
+  include:
+    - ".reactorcide/images/corndogs-test-env/**"
+
+jobs:
+  corndogs-build-test-env:
+    job_file: build-test-env.yaml

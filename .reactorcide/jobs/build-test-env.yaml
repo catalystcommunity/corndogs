@@ -9,7 +9,7 @@ paths:
   include:
     - ".reactorcide/images/corndogs-test-env/**"
 job:
-  image: containers.catalystsquad.com/public/reactorcide/runnerbase:dev
+  image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
   command: "bash /job/src/.reactorcide/jobs/scripts/build-test-env.sh"
   timeout: 2400          # csilgen compiles from source in the image build
   priority: 10
