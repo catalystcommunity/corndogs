@@ -10,7 +10,7 @@ LOCAL_BIN="${HOME}/.local/bin"
 mkdir -p "${LOCAL_BIN}"
 export PATH="${LOCAL_BIN}:${PATH}"
 
-cd /job/src
+cd "${REACTORCIDE_CODE_DIR:-/job/src}"
 CONTEXT=".reactorcide/images/corndogs-test-env"
 IMAGE="${REGISTRY}/${IMAGE_PATH}"
 TAG="${REACTORCIDE_SHA:-latest}"

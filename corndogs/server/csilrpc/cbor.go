@@ -1,5 +1,5 @@
-// Vendored from csilgen transports/go (rev 5415953) — DO NOT EDIT.
-// Regenerate by re-copying from the pinned csilgen revision.
+// Vendored from csilgen transports/go (csilgen/v0.2.4) — DO NOT EDIT.
+// Regenerate by re-copying from the pinned csilgen release.
 // Minimal canonical CBOR codec (RFC 8949). Hand-written and dependency-free so the
 // transport library stays offline-testable. It supports exactly what the CSIL
 // envelopes need — unsigned ints, negative ints, text strings, byte strings,

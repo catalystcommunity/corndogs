@@ -16,13 +16,7 @@ job:
     # `helm dependency update` writes charts/ + Chart.lock INTO the mounted chart
     # dir, so this runs as the tree-owning user (run-local host-uid default); don't
     # opt into uid parity here.
-    if [ "${REACTORCIDE_WORKER_MODE:-remote}" = "local" ]; then
-      cd /job/src
-    else
-      git clone --branch "${REACTORCIDE_HEAD_REF:-$REACTORCIDE_PR_REF}" \
-        "${REACTORCIDE_HEAD_URL:-$REACTORCIDE_SOURCE_URL}" /job/src
-      cd /job/src
-    fi
+    cd "${REACTORCIDE_CODE_DIR:-/job/src}"
     helm repo add bitnami https://charts.bitnami.com/bitnami
     helm dependency update ./helm_chart/chart
     helm lint ./helm_chart/chart

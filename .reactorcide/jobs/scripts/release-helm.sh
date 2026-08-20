@@ -12,7 +12,8 @@
 #
 # Independent of release-server (separate prefixed tag sequence). runnerbase
 # ships only curl/git/bash, so semver-tags, helm, and gh are curl-installed. Runs
-# in the dir the job command cloned (an authed full clone of main).
+# in the prepared source checkout. The job gives that checkout a push-capable
+# origin before this script starts.
 set -euo pipefail
 
 SEMVER_TAGS_VERSION="${SEMVER_TAGS_VERSION:-v0.4.0}"

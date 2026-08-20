@@ -44,7 +44,10 @@ func serveConn(conn net.Conn, routes map[string]rpcHandlerFunc) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	carrier := csilrpc.NewStreamCarrierWithMaxFrame(conn, config.MaxRPCFrameBytes)
+	carrier, err := csilrpc.NewStreamCarrierWithMaxFrame(conn, config.MaxRPCFrameBytes)
+	if err != nil {
+		return
+	}
 	var writeMu sync.Mutex // serializes response frames onto the shared connection
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, maxConcurrentPerConn)

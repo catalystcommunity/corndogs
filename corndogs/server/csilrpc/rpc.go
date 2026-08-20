@@ -1,5 +1,5 @@
-// Vendored from csilgen transports/go (rev 5415953) — DO NOT EDIT.
-// Regenerate by re-copying from the pinned csilgen revision.
+// Vendored from csilgen transports/go (csilgen/v0.2.4) — DO NOT EDIT.
+// Regenerate by re-copying from the pinned csilgen release.
 // CSIL-RPC transport — request/response/push envelopes — see csil-rpc-transport.md.
 package csilrpc
 

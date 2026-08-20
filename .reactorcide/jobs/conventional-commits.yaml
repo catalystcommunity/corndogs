@@ -10,15 +10,14 @@ job:
   image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
   command: |
     set -e
-    # SOURCE_URL/HEAD_URL point at the fork for cross-repo PRs; BASE_URL is the
-    # upstream, added as a second remote so `git log base..HEAD` works.
-    git clone --branch "${REACTORCIDE_HEAD_REF:-$REACTORCIDE_PR_REF}" \
-      "${REACTORCIDE_HEAD_URL:-$REACTORCIDE_SOURCE_URL}" /job/src
-    cd /job/src
-    if [ -n "${REACTORCIDE_BASE_URL}" ] && \
-       [ "${REACTORCIDE_BASE_URL}" != "${REACTORCIDE_HEAD_URL:-$REACTORCIDE_SOURCE_URL}" ]; then
-      git remote add upstream "${REACTORCIDE_BASE_URL}"
-      git fetch upstream "${REACTORCIDE_BASE_REF:-$REACTORCIDE_PR_BASE_REF}"
+    cd "${REACTORCIDE_CODE_DIR:-/job/src}"
+
+    HEAD_URL="${REACTORCIDE_HEAD_URL:-$REACTORCIDE_SOURCE_URL}"
+    BASE_URL="${REACTORCIDE_BASE_URL}"
+    BASE_REF="${REACTORCIDE_BASE_REF:-$REACTORCIDE_PR_BASE_REF}"
+    if [ -n "${BASE_URL}" ] && [ "${BASE_URL}" != "${HEAD_URL}" ]; then
+      git remote add upstream "${BASE_URL}"
+      git fetch upstream "${BASE_REF}"
     fi
 
     echo "=== Validating Conventional Commits ==="

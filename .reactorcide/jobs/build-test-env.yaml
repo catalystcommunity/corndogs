@@ -10,8 +10,8 @@ paths:
     - ".reactorcide/images/corndogs-test-env/**"
 job:
   image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
-  command: "bash /job/src/.reactorcide/jobs/scripts/build-test-env.sh"
-  timeout: 2400          # csilgen compiles from source in the image build
+  command: "bash /job/ci/.reactorcide/jobs/scripts/build-test-env.sh"
+  timeout: 2400
   priority: 10
   capabilities:
     - docker

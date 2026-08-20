@@ -24,13 +24,7 @@ job:
     export CATALYST_CACHE=/tmp/catalyst-cache   # where run-tests.sh git-clones transports
     mkdir -p "$HOME" "$GOCACHE" "$GOMODCACHE" "$GOPATH" "$CATALYST_CACHE"
 
-    if [ "${REACTORCIDE_WORKER_MODE:-remote}" = "local" ]; then
-      cd /job/src
-    else
-      git clone --branch "${REACTORCIDE_HEAD_REF:-$REACTORCIDE_PR_REF}" \
-        "${REACTORCIDE_HEAD_URL:-$REACTORCIDE_SOURCE_URL}" /job/src
-      cd /job/src
-    fi
+    cd "${REACTORCIDE_CODE_DIR:-/job/src}"
 
     # Only the two languages we gate in CI; the full 14 run on a dev machine via
     # catalyst-tools. CORNDOGS_E2E is unset, so run-tests.sh builds+starts the server.

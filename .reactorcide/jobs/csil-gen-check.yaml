@@ -11,38 +11,28 @@ paths:
     - "csil/**"
     - "clients/**"
 job:
-  # BUILD csilgen at the rev corndogs pins (csil/generate.sh's CSILGEN_REV) instead of
-  # baking it into a runner image — so bumping the rev needs no image rebuild, and the
-  # check can never drift from / lag behind the binary. A stock rust image has the
-  # cargo + C toolchain csilgen needs; runnerbase ships only curl/git/bash and can't
-  # compile it. Everything writes to /tmp, so any uid works (incl. `reactorcide run-local`).
-  image: rust:1-bookworm
+  # Install the published CLI and generator bundle with csilgen's supported
+  # installer. This avoids a source build in each CI run.
+  image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
   command: |
     set -e
-    # NB: do NOT set CARGO_TARGET_DIR — xtask install-wasm reads a relative
-    # target/wasm32-unknown-unknown/release. The csilgen clone lives under /tmp (cloned
-    # by this uid), so its default ./target is writable.
     export HOME=/tmp/home CARGO_HOME=/tmp/cargo
     mkdir -p "$HOME" "$CARGO_HOME"
+    cd "${REACTORCIDE_CODE_DIR:-/job/src}"
 
-    if [ "${REACTORCIDE_WORKER_MODE:-remote}" = "local" ]; then
-      cd /job/src
-    else
-      git clone --branch "${REACTORCIDE_HEAD_REF:-$REACTORCIDE_PR_REF}" \
-        "${REACTORCIDE_HEAD_URL:-$REACTORCIDE_SOURCE_URL}" /job/src
-      cd /job/src
+    CSILGEN_RELEASE="$(sed -n 's/^CSILGEN_RELEASE="\([^"]*\)".*/\1/p' csil/generate.sh)"
+    CSILGEN_TOOLS="$(mktemp -d /tmp/csilgen-tools.XXXXXX)"
+    echo "=== installing ${CSILGEN_RELEASE} ==="
+    git clone --depth 1 --branch "${CSILGEN_RELEASE}" \
+      https://github.com/catalystcommunity/csilgen "${CSILGEN_TOOLS}"
+    INSTALL_OUTPUT="$("${CSILGEN_TOOLS}/tools.sh" install-all)"
+    printf '%s\n' "${INSTALL_OUTPUT}"
+    INSTALLED_RELEASE="$(printf '%s\n' "${INSTALL_OUTPUT}" | sed -n 's/^Installed GitHub Release: //p')"
+    if [ "${INSTALLED_RELEASE}" != "${CSILGEN_RELEASE}" ]; then
+      echo "error: expected ${CSILGEN_RELEASE}; installer selected ${INSTALLED_RELEASE}" >&2
+      exit 1
     fi
-
-    # Single source of truth for the rev: the pin in generate.sh.
-    CSILGEN_REV="$(sed -n 's/^CSILGEN_REV="\([^"]*\)".*/\1/p' csil/generate.sh)"
-    echo "=== building csilgen @ ${CSILGEN_REV} ==="
-    git clone https://github.com/catalystcommunity/csilgen /tmp/csilgen
-    git -C /tmp/csilgen checkout "${CSILGEN_REV}"
-    ( cd /tmp/csilgen \
-        && rustup target add wasm32-unknown-unknown \
-        && cargo build -p csilgen --release \
-        && cargo run -p xtask install-wasm )
-    export PATH="/tmp/csilgen/target/release:${PATH}"   # the csilgen CLI; generators land in $HOME/.csilgen
+    export PATH="${CARGO_HOME}/bin:${PATH}"
 
     echo "=== validate + regenerate + diff ==="
     csilgen validate --input csil/corndogs.csil
@@ -53,6 +43,8 @@ job:
       exit 1
     }
     echo "Generated clients are up to date."
-  timeout: 1800          # builds csilgen + its wasm generators from source
+  timeout: 900
   priority: 10
   raw_command: true
+run_local:
+  user: host

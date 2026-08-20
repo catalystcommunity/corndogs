@@ -142,7 +142,11 @@ func (t *TCPTransport) peerSender(id, addr string, q chan Frame) {
 			continue
 		}
 		enableKeepAlive(conn)
-		carrier := csilrpc.NewStreamCarrierWithMaxFrame(conn, t.maxFrame)
+		carrier, err := csilrpc.NewStreamCarrierWithMaxFrame(conn, t.maxFrame)
+		if err != nil {
+			conn.Close()
+			return
+		}
 		// Advertise who we are + our RPC URL first.
 		if t.sendFrame(carrier, Frame{Kind: FrameHello, From: t.self, To: id, Addr: t.rpcAddr}) != nil {
 			conn.Close()
@@ -203,7 +207,11 @@ func (t *TCPTransport) acceptLoop() {
 // connection into a topology-push channel.
 func (t *TCPTransport) readConn(conn net.Conn) {
 	enableKeepAlive(conn)
-	carrier := csilrpc.NewStreamCarrierWithMaxFrame(conn, t.maxFrame)
+	carrier, err := csilrpc.NewStreamCarrierWithMaxFrame(conn, t.maxFrame)
+	if err != nil {
+		conn.Close()
+		return
+	}
 	defer conn.Close()
 	for {
 		b, err := carrier.RecvFrame()
