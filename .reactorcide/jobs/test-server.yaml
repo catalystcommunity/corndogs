@@ -35,13 +35,7 @@ job:
     export DATABASE_NAME=corndogs
     export DATABASE_SSL_MODE=disable
 
-    if [ "${REACTORCIDE_WORKER_MODE:-remote}" = "local" ]; then
-      cd /job/src
-    else
-      git clone --branch "${REACTORCIDE_HEAD_REF:-$REACTORCIDE_PR_REF}" \
-        "${REACTORCIDE_HEAD_URL:-$REACTORCIDE_SOURCE_URL}" /job/src
-      cd /job/src
-    fi
+    cd "${REACTORCIDE_CODE_DIR:-/job/src}"
     cd corndogs
 
     echo "=== build ==="

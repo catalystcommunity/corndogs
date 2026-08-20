@@ -3,13 +3,14 @@
 # Generate the transport-neutral client code. Corndogs supplies its TCP transport
 # and README for each language.
 #
-# Use this csilgen revision so that generation is reproducible. Install csilgen
-# at the same revision before you run this script:
-#   git -C <csilgen> checkout <CSILGEN_REV> && cargo build -p csilgen --release \
-#     && cargo run -p xtask install-wasm   # then `csilgen` on PATH + ./csil/generate.sh
+# Use this csilgen release so that generation is reproducible. Install the CLI
+# and generator bundle with the supported installer. Confirm that its
+# `Installed GitHub Release` line matches CSILGEN_RELEASE before generation:
+#   <csilgen>/tools.sh install-all
+#   ./csil/generate.sh
 set -euo pipefail
 
-CSILGEN_REV="abac53b"   # csilgen git rev this output was generated against (matches the image's ARG CSILGEN_REF)
+CSILGEN_RELEASE="csilgen/v0.2.4"
 
 # Go is generated separately because the server also uses its service interface.
 LANGUAGES=(rust typescript python java csharp c swift kotlin zig ocaml elixir ruby dart)
@@ -20,7 +21,7 @@ SPEC="${HERE}/corndogs.csil"
 OUT="${ROOT}/clients"
 
 if ! command -v csilgen >/dev/null 2>&1; then
-  echo "error: csilgen not found on PATH (rev ${CSILGEN_REV} expected)" >&2
+  echo "error: csilgen not found on PATH (${CSILGEN_RELEASE} expected)" >&2
   exit 1
 fi
 
