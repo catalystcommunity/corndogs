@@ -13,10 +13,15 @@ job:
   image: alpine/helm:3.14.0
   command: |
     set -e
-    # `helm dependency update` writes charts/ + Chart.lock INTO the mounted chart
-    # dir, so this runs as the tree-owning user (run-local host-uid default); don't
-    # opt into uid parity here.
-    cd "${REACTORCIDE_CODE_DIR:-/job/src}"
+    # This image does not contain runnerlib. Check out the exact tested revision.
+    if [ "${REACTORCIDE_WORKER_MODE:-remote}" = "local" ]; then
+      cd "${REACTORCIDE_CODE_DIR:-/job/src}"
+    else
+      git clone --no-checkout "${REACTORCIDE_SOURCE_URL}" /job/src
+      git -C /job/src fetch --depth 1 origin "${REACTORCIDE_SHA}"
+      git -C /job/src checkout --detach FETCH_HEAD
+      cd /job/src
+    fi
     helm repo add bitnami https://charts.bitnami.com/bitnami
     helm dependency update ./helm_chart/chart
     helm lint ./helm_chart/chart
