@@ -14,37 +14,8 @@ job:
   # Install the published CLI and generator bundle with csilgen's supported
   # installer. This avoids a source build in each CI run.
   image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
-  command: |
-    set -e
-    export HOME=/tmp/home CARGO_HOME=/tmp/cargo
-    mkdir -p "$HOME" "$CARGO_HOME"
-    cd "${REACTORCIDE_CODE_DIR:-/job/src}"
-
-    CSILGEN_RELEASE="$(sed -n 's/^CSILGEN_RELEASE="\([^"]*\)".*/\1/p' csil/generate.sh)"
-    CSILGEN_TOOLS="$(mktemp -d /tmp/csilgen-tools.XXXXXX)"
-    echo "=== installing ${CSILGEN_RELEASE} ==="
-    git clone --depth 1 --branch "${CSILGEN_RELEASE}" \
-      https://github.com/catalystcommunity/csilgen "${CSILGEN_TOOLS}"
-    INSTALL_OUTPUT="$("${CSILGEN_TOOLS}/tools.sh" install-all)"
-    printf '%s\n' "${INSTALL_OUTPUT}"
-    INSTALLED_RELEASE="$(printf '%s\n' "${INSTALL_OUTPUT}" | sed -n 's/^Installed GitHub Release: //p')"
-    if [ "${INSTALLED_RELEASE}" != "${CSILGEN_RELEASE}" ]; then
-      echo "error: expected ${CSILGEN_RELEASE}; installer selected ${INSTALLED_RELEASE}" >&2
-      exit 1
-    fi
-    export PATH="${CARGO_HOME}/bin:${PATH}"
-
-    echo "=== validate + regenerate + diff ==="
-    csilgen validate --input csil/corndogs.csil
-    ./csil/generate.sh                 # all generated packages land under clients/ (incl. the Go module clients/corndogs)
-    git diff --exit-code -- clients/ || {
-      echo ""
-      echo "Generated code is stale — run ./csil/generate.sh and commit the result."
-      exit 1
-    }
-    echo "Generated clients are up to date."
+  command: "runnerlib run --job-command 'bash /job/ci/.reactorcide/jobs/scripts/csil-gen-check.sh'"
   timeout: 900
   priority: 10
-  raw_command: true
 run_local:
   user: host

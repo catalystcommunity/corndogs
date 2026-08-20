@@ -11,18 +11,11 @@ paths:
     - "csil/**"
 job:
   image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
-  # The worker prepares the source checkout. Add write credentials to its origin,
-  # then run the release script from the trusted CI checkout.
-  command: |
-    set -e
-    cd "${REACTORCIDE_CODE_DIR:-/job/src}"
-    git remote set-url origin "https://x-access-token:${GITHUB_PAT}@github.com/${REACTORCIDE_REPO}.git"
-    bash /job/ci/.reactorcide/jobs/scripts/release-server.sh
+  command: "runnerlib run --job-command 'bash /job/ci/.reactorcide/jobs/scripts/release-server.sh'"
   timeout: 1800
   priority: 15
   capabilities:
     - docker          # build + push the image
-  raw_command: true
   disable_run_local: true
 environment:
   REGISTRY: "containers.catalystsquad.com"

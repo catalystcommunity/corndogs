@@ -12,9 +12,12 @@
 #
 # Independent of release-helm (separate prefixed tag sequence). The runnerbase
 # image ships only curl/git/bash, so semver-tags, the docker CLI, crane, and gh
-# are all curl-installed. This script runs in the prepared source checkout. The
-# job gives that checkout a push-capable origin.
+# are all curl-installed. This script runs in the prepared source checkout. It
+# gives that checkout a push-capable origin.
 set -euo pipefail
+
+cd "${REACTORCIDE_CODE_DIR:-/job/src}"
+git remote set-url origin "https://x-access-token:${GITHUB_PAT}@github.com/${REACTORCIDE_REPO}.git"
 
 SEMVER_TAGS_VERSION="${SEMVER_TAGS_VERSION:-v0.4.0}"
 GHCLI_VERSION="${GHCLI_VERSION:-2.63.2}"
