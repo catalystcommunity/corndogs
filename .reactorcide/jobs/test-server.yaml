@@ -11,9 +11,8 @@ paths:
     - "corndogs/**"
     - "csil/**"        # a contract change must still build + pass the suite
 job:
-  # This image inherits runnerlib from runnerbase. Runnerlib prepares the source
-  # checkout before it starts the test script.
-  image: containers.catalystsquad.com/public/catalystcommunity/corndogs-test-env:latest
+  # Runnerbase contains runnerlib and Go. The test script installs PostgreSQL.
+  image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
   command: "runnerlib run --job-command 'bash /job/ci/.reactorcide/jobs/scripts/test-server.sh'"
   timeout: 1800
   priority: 10

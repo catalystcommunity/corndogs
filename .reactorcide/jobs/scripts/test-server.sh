@@ -6,7 +6,14 @@ export HOME=/tmp/home
 export GOCACHE=/tmp/gocache
 export GOMODCACHE=/tmp/gomod
 export GOPATH=/tmp/gopath
+export GOFLAGS="${GOFLAGS:+${GOFLAGS} }-buildvcs=false"
 mkdir -p "$HOME" "$GOCACHE" "$GOMODCACHE" "$GOPATH"
+
+echo "=== install PostgreSQL ==="
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends postgresql postgresql-client
+PG_BIN="$(dirname "$(find /usr/lib/postgresql -name initdb -type f | sort -V | tail -1)")"
+export PATH="${PG_BIN}:${PATH}"
 
 echo "=== start PostgreSQL on 127.0.0.1:5432 ==="
 PGDATA=/tmp/pgdata

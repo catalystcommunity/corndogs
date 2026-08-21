@@ -12,9 +12,8 @@ paths:
     - "csil/**"        # a contract change regenerates the clients
     - "corndogs/**"    # the server the clients are tested against
 job:
-  # This image inherits runnerlib from runnerbase. Runnerlib prepares the source
-  # checkout before it starts the test script.
-  image: containers.catalystsquad.com/public/catalystcommunity/corndogs-test-env:latest
+  # Runnerbase contains runnerlib, Go, Git, and Python.
+  image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
   command: "runnerlib run --job-command 'bash /job/ci/.reactorcide/jobs/scripts/client-tests.sh'"
   timeout: 900
   priority: 10
