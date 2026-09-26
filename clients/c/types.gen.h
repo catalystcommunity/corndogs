@@ -145,7 +145,7 @@ typedef struct UpdateTaskRequest {
     int64_t timeout;
     char *new_state;
     CsilBytes *payload;
-    int64_t priority;
+    int64_t *priority;
 } UpdateTaskRequest;
 
 /* UpdateTaskResponse is a structured data type. */

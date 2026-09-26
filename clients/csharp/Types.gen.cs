@@ -145,7 +145,7 @@ public sealed record UpdateTaskRequest
     // CBOR key: payload
     public byte[]? Payload { get; init; }
     // CBOR key: priority
-    public required long Priority { get; init; }
+    public long? Priority { get; init; }
 }
 
 public sealed record UpdateTaskResponse

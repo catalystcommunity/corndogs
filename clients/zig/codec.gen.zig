@@ -190,7 +190,8 @@ fn half_to_f64(h: u16) f64 {
     return @as(f64, @as(f32, @bitCast(bits)));
 }
 
-fn decode_value(alloc: std.mem.Allocator, b: []const u8) CodecError!Decoded {
+fn decode_value(alloc: std.mem.Allocator, b: []const u8, depth: usize) CodecError!Decoded {
+    if (depth > 64) return error.Malformed;
     if (b.len == 0) return error.UnexpectedEof;
     const ib = b[0];
     const major: u8 = ib >> 5;
@@ -207,38 +208,41 @@ fn decode_value(alloc: std.mem.Allocator, b: []const u8) CodecError!Decoded {
         2, 3 => {
             if (arg > b.len - n) return error.UnexpectedEof;
             const end = n + @as(usize, @intCast(arg));
+            if (major == 3 and !std.unicode.utf8ValidateSlice(b[n..end])) return error.Malformed;
             const slice = try alloc.dupe(u8, b[n..end]);
             const value: Value = if (major == 2) .{ .bytes = slice } else .{ .text = slice };
             return .{ .value = value, .consumed = end };
         },
         4 => {
+            if (arg > b.len - n) return error.UnexpectedEof;
             const count: usize = @intCast(arg);
             const items = try alloc.alloc(Value, count);
             var off = n;
             var i: usize = 0;
             while (i < count) : (i += 1) {
-                const d = try decode_value(alloc, b[off..]);
+                const d = try decode_value(alloc, b[off..], depth + 1);
                 items[i] = d.value;
                 off += d.consumed;
             }
             return .{ .value = .{ .array = items }, .consumed = off };
         },
         5 => {
+            if (arg > b.len - n) return error.UnexpectedEof;
             const count: usize = @intCast(arg);
             const pairs = try alloc.alloc(Pair, count);
             var off = n;
             var i: usize = 0;
             while (i < count) : (i += 1) {
-                const k = try decode_value(alloc, b[off..]);
+                const k = try decode_value(alloc, b[off..], depth + 1);
                 off += k.consumed;
-                const v = try decode_value(alloc, b[off..]);
+                const v = try decode_value(alloc, b[off..], depth + 1);
                 off += v.consumed;
                 pairs[i] = .{ .key = k.value, .val = v.value };
             }
             return .{ .value = .{ .map = pairs }, .consumed = off };
         },
         6 => {
-            const inner = try decode_value(alloc, b[n..]);
+            const inner = try decode_value(alloc, b[n..], depth + 1);
             const content = try alloc.create(Value);
             content.* = inner.value;
             return .{ .value = .{ .tag = .{ .num = arg, .content = content } }, .consumed = n + inner.consumed };
@@ -257,7 +261,7 @@ fn decode_value(alloc: std.mem.Allocator, b: []const u8) CodecError!Decoded {
 }
 
 fn decode(alloc: std.mem.Allocator, b: []const u8) CodecError!Value {
-    const d = try decode_value(alloc, b);
+    const d = try decode_value(alloc, b, 0);
     if (d.consumed != b.len) return error.TrailingBytes;
     return d.value;
 }
@@ -707,8 +711,9 @@ fn dec_CompleteTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.Comp
 }
 
 fn enc_UpdateTaskRequest(out: *std.ArrayList(u8), v: *const types.UpdateTaskRequest) CodecError!void {
-    var csil_n: usize = 7;
+    var csil_n: usize = 6;
     if (v.payload != null) csil_n += 1;
+    if (v.priority != null) csil_n += 1;
     try w_map_head(out, csil_n);
     try w_text(out, "uuid");
     try w_text(out, v.uuid);
@@ -720,8 +725,10 @@ fn enc_UpdateTaskRequest(out: *std.ArrayList(u8), v: *const types.UpdateTaskRequ
     }
     try w_text(out, "timeout");
     try w_int(out, v.timeout);
-    try w_text(out, "priority");
-    try w_int(out, v.priority);
+    if (v.priority) |csil_x| {
+        try w_text(out, "priority");
+        try w_int(out, csil_x);
+    }
     try w_text(out, "new_state");
     try w_text(out, v.new_state);
     try w_text(out, "current_state");
@@ -753,8 +760,11 @@ fn dec_UpdateTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.UpdateT
         out.timeout = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "priority");
-        out.priority = try as_i64(csil_fv);
+        if (mget(m, "priority")) |csil_fv| {
+            out.priority = try as_i64(csil_fv);
+        } else {
+            out.priority = null;
+        }
     }
     {
         const csil_fv = try req(m, "new_state");

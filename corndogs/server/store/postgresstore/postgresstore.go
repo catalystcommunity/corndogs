@@ -300,14 +300,18 @@ func (s PostgresStore) UpdateTask(ctx context.Context, req *api.UpdateTaskReques
 		model.CurrentState = req.NewState
 		model.AutoTargetState = req.AutoTargetState
 		model.Timeout = req.Timeout
-		model.Priority = req.Priority
 		model.UpdateTime = time.Now().UnixNano()
 		updates := map[string]interface{}{
 			"current_state":     model.CurrentState,
 			"auto_target_state": model.AutoTargetState,
 			"timeout":           model.Timeout,
-			"priority":          model.Priority,
 			"update_time":       model.UpdateTime,
+		}
+		// An absent priority or payload keeps the stored value. See UpdateTaskRequest
+		// in csil/corndogs.csil; the file store obeys the same rules.
+		if req.Priority != nil {
+			model.Priority = *req.Priority
+			updates["priority"] = model.Priority
 		}
 		if req.Payload != nil {
 			updates["payload"] = *req.Payload

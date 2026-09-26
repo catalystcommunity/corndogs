@@ -209,4 +209,5 @@ var bucketsForReplication = [][]byte{
 	bucketPayloads,
 	bucketDeadlines,
 	bucketArchived,
+	bucketCounts,
 }

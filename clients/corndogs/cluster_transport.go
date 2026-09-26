@@ -12,6 +12,7 @@ package corndogs
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"sync"
 	"time"
@@ -21,6 +22,9 @@ import (
 // node TCP addresses.
 type ClusterTransport struct {
 	Seeds []string
+	// TLSConfig, when set, is used for every node connection. Each node's
+	// certificate must be valid for the address that node advertises.
+	TLSConfig *tls.Config
 
 	mu         sync.Mutex
 	transports map[string]*StreamTransport // addr -> persistent connection
@@ -34,6 +38,15 @@ func NewCluster(seeds ...string) *CorndogsClient {
 	return NewCorndogsClient(&ClusterTransport{Seeds: seeds, transports: map[string]*StreamTransport{}})
 }
 
+// NewClusterTLS is NewCluster with TLS on every node connection. A nil cfg
+// verifies each node against the system roots.
+func NewClusterTLS(cfg *tls.Config, seeds ...string) *CorndogsClient {
+	if cfg == nil {
+		cfg = &tls.Config{}
+	}
+	return NewCorndogsClient(&ClusterTransport{Seeds: seeds, TLSConfig: cfg, transports: map[string]*StreamTransport{}})
+}
+
 // transportFor returns (creating if needed) the persistent transport for addr.
 func (t *ClusterTransport) transportFor(addr string) *StreamTransport {
 	addr = dialAddr(addr)
@@ -44,7 +57,7 @@ func (t *ClusterTransport) transportFor(addr string) *StreamTransport {
 	}
 	tr := t.transports[addr]
 	if tr == nil {
-		tr = &StreamTransport{Addr: addr}
+		tr = &StreamTransport{Addr: addr, TLSConfig: t.TLSConfig}
 		t.transports[addr] = tr
 	}
 	return tr

@@ -5,6 +5,20 @@ package csilgen.generated;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * UpdateTask finds the live task by uuid and writes it again.
+ * - new_state, auto_target_state, and timeout replace the stored values on
+ * every update. The server supplies defaults for empty state fields.
+ * - payload is optional. If it is absent, the stored payload does not change,
+ * and the server does not write it again. If it is present, it replaces the
+ * stored payload. A present, empty payload stores an empty byte string.
+ * - priority is optional. If it is absent, the stored priority does not change.
+ * If it is present, it replaces the stored priority.
+ * - update_time becomes the current time. Claim order is priority descending,
+ * then update_time ascending, so an update moves the task to the end of its
+ * priority band.
+ * Both storage backends obey these rules.
+ */
 public record UpdateTaskRequest(
     String uuid /* wire: "uuid" */,
     String queue /* wire: "queue" */,
@@ -13,7 +27,7 @@ public record UpdateTaskRequest(
     long timeout /* wire: "timeout" */,
     String newState /* wire: "new_state" */,
     byte[] payload /* wire: "payload" */,
-    long priority /* wire: "priority" */
+    Long priority /* wire: "priority" */
 ) {
     @Override
     public boolean equals(Object obj) {

@@ -28,6 +28,10 @@ response, err := client.SubmitTask(ctx, corndogs.SubmitTaskRequest{
 
 Use `corndogs.NewCluster` in Go when you have multiple seed nodes.
 
+The server can serve TLS. The Go client (`corndogs.NewTLS`) and the Rust client
+(the `tls` cargo feature) support TLS. The other clients do not support TLS at
+this time.
+
 ## Generated and maintained files
 
 The generation script replaces generated types, codecs, and service methods.

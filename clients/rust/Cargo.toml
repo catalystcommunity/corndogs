@@ -2,3 +2,18 @@
 name = "corndogs"
 version = "0.0.0"
 edition = "2021"
+
+[features]
+default = []
+# TLS to the corndogs RPC port (rustls with the ring provider). Off by default:
+# the default build has no dependencies.
+tls = ["dep:rustls", "dep:rustls-pki-types", "dep:rustls-native-certs"]
+
+[dependencies]
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"], optional = true }
+rustls-pki-types = { version = "1.15", features = ["std"], optional = true }
+rustls-native-certs = { version = "0.8", optional = true }
+
+[dev-dependencies]
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"] }

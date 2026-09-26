@@ -47,7 +47,7 @@ Set these variables on each node:
 | `CORNDOGS_CLUSTER_NODE_ID` | none | Set the stable ID of this node. The ID must be in the peer list. |
 | `CORNDOGS_CLUSTER_PEERS` | none | Set the full membership as `id=host:port` entries separated by commas. |
 | `CORNDOGS_CLUSTER_LISTEN` | `0.0.0.0:5090` | Listen for cluster TCP traffic. |
-| `CORNDOGS_CLUSTER_RPC_ADVERTISE` | none | Advertise the client RPC address as `host:port`. |
+| `CORNDOGS_CLUSTER_RPC_ADVERTISE` | none | Advertise the client RPC address as `host:port`. With TLS, the node certificate must be valid for this host. |
 | `CORNDOGS_CLUSTER_ACK_COUNT` | `-1` | Set the required follower acknowledgements. `-1` selects the write-majority default. |
 | `CORNDOGS_CLUSTER_ASYNC` | `false` | Use asynchronous replication and ignore the acknowledgement count. |
 | `CORNDOGS_CLUSTER_REPLLOG_CHUNK_MB` | `64` | Start a new replication log segment at this size. Use `0` for one segment. |

@@ -20,6 +20,7 @@ package corndogs
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -40,7 +41,10 @@ const (
 // connection. Safe for concurrent use.
 type StreamTransport struct {
 	Addr        string        // host:port
-	DialTimeout time.Duration // 0 => defaultDialWait
+	DialTimeout time.Duration // 0 => defaultDialWait; covers the TLS handshake too
+	// TLSConfig, when set, makes each dial a TLS connection. A nil RootCAs uses
+	// the system roots. An empty ServerName uses the host part of Addr.
+	TLSConfig *tls.Config
 
 	mu      sync.Mutex // guards conn, pending, nextID, closed
 	conn    net.Conn
@@ -63,6 +67,17 @@ func New(addr string) *CorndogsClient {
 	return NewCorndogsClient(&StreamTransport{Addr: addr})
 }
 
+// NewTLS returns a CorndogsClient that connects to addr (host:port) with TLS.
+// The server must set CORNDOGS_TLS_CERT_FILE and CORNDOGS_TLS_KEY_FILE. Use a
+// nil cfg to verify the server against the system roots, or set cfg.RootCAs to
+// verify it against your CA.
+func NewTLS(addr string, cfg *tls.Config) *CorndogsClient {
+	if cfg == nil {
+		cfg = &tls.Config{}
+	}
+	return NewCorndogsClient(&StreamTransport{Addr: addr, TLSConfig: cfg})
+}
+
 func (t *StreamTransport) dialTimeout() time.Duration {
 	if t.DialTimeout > 0 {
 		return t.DialTimeout
@@ -81,13 +96,21 @@ func (t *StreamTransport) ensureConn() (net.Conn, error) {
 	if t.conn != nil {
 		return t.conn, nil
 	}
-	conn, err := net.DialTimeout("tcp", t.Addr, t.dialTimeout())
+	dialer := &net.Dialer{Timeout: t.dialTimeout(), KeepAlive: 15 * time.Second}
+	var conn net.Conn
+	var err error
+	if t.TLSConfig != nil {
+		cfg := t.TLSConfig
+		if cfg.MinVersion == 0 {
+			cfg = cfg.Clone()
+			cfg.MinVersion = tls.VersionTLS12
+		}
+		conn, err = tls.DialWithDialer(dialer, "tcp", t.Addr, cfg)
+	} else {
+		conn, err = dialer.Dial("tcp", t.Addr)
+	}
 	if err != nil {
 		return nil, err
-	}
-	if tc, ok := conn.(*net.TCPConn); ok {
-		_ = tc.SetKeepAlive(true)
-		_ = tc.SetKeepAlivePeriod(15 * time.Second)
 	}
 	t.conn = conn
 	t.pending = map[uint64]chan rpcResult{}

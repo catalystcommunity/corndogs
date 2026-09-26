@@ -79,13 +79,17 @@ module CsilCbor
   # Decode a binary String to a Ruby value tree.
   def decode(bytes)
     bin = bytes.b
-    value, pos = take(bin, 0)
+    value, pos = take(bin, 0, 0)
     raise ArgumentError, "csilgen: trailing bytes" unless pos == bin.bytesize
 
     value
   end
 
   def read_arg(bin, pos, low)
+    width = { 24 => 1, 25 => 2, 26 => 4, 27 => 8 }[low]
+    if low >= 24 && (width.nil? || bin.bytesize - pos - 1 < width)
+      raise ArgumentError, "csilgen: truncated argument"
+    end
     if low < 24
       [low, pos + 1]
     elsif low == 24
@@ -102,7 +106,9 @@ module CsilCbor
     end
   end
 
-  def take(bin, pos)
+  def take(bin, pos, depth)
+    raise ArgumentError, "csilgen: nesting limit exceeded" if depth > 64
+    raise ArgumentError, "csilgen: unexpected end of input" if pos >= bin.bytesize
     ib = bin.getbyte(pos)
     major = ib >> 5
     low = ib & 0x1f
@@ -123,26 +129,32 @@ module CsilCbor
       when 1
         [-1 - arg, p]
       when 2
+        raise ArgumentError, "csilgen: truncated byte string" if arg > bin.bytesize - p
         [bin[p, arg].b, p + arg]
       when 3
-        [bin[p, arg].dup.force_encoding(Encoding::UTF_8), p + arg]
+        raise ArgumentError, "csilgen: truncated text string" if arg > bin.bytesize - p
+        text = bin[p, arg].dup.force_encoding(Encoding::UTF_8)
+        raise ArgumentError, "csilgen: invalid utf-8" unless text.valid_encoding?
+        [text, p + arg]
       when 4
+        raise ArgumentError, "csilgen: array length exceeds remaining input" if arg > bin.bytesize - p
         items = []
         arg.times do
-          item, p = take(bin, p)
+          item, p = take(bin, p, depth + 1)
           items << item
         end
         [items, p]
       when 5
+        raise ArgumentError, "csilgen: map length exceeds remaining input" if arg > bin.bytesize - p
         hash = {}
         arg.times do
-          k, p = take(bin, p)
-          v, p = take(bin, p)
+          k, p = take(bin, p, depth + 1)
+          v, p = take(bin, p, depth + 1)
           hash[k] = v
         end
         [hash, p]
       when 6
-        inner, p = take(bin, p)
+        inner, p = take(bin, p, depth + 1)
         [Tag.new(arg, inner), p]
       else
         raise ArgumentError, "csilgen: bad major"
@@ -500,7 +512,7 @@ class UpdateTaskRequest
     csil_map["queue"] = queue
     csil_map["payload"] = (payload).b unless payload.nil?
     csil_map["timeout"] = timeout
-    csil_map["priority"] = priority
+    csil_map["priority"] = priority unless priority.nil?
     csil_map["new_state"] = new_state
     csil_map["current_state"] = current_state
     csil_map["auto_target_state"] = auto_target_state
@@ -520,7 +532,7 @@ class UpdateTaskRequest
       timeout: node["timeout"],
       new_state: node["new_state"],
       payload: (node.key?("payload") ? node["payload"] : nil),
-      priority: node["priority"]
+      priority: (node.key?("priority") ? node["priority"] : nil)
     )
   end
 end

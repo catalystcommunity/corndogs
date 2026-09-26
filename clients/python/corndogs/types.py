@@ -388,8 +388,8 @@ class UpdateTaskRequest:
     auto_target_state: str
     timeout: int
     new_state: str
-    priority: int
     payload: Optional[bytes] = None
+    priority: Optional[int] = None
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result = {}

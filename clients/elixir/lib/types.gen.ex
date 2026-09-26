@@ -753,15 +753,7 @@ end
 defmodule Csilgen.Generated.UpdateTaskRequest do
   @moduledoc "Generated struct for the UpdateTaskRequest type."
 
-  @enforce_keys [
-    :uuid,
-    :queue,
-    :current_state,
-    :auto_target_state,
-    :timeout,
-    :new_state,
-    :priority
-  ]
+  @enforce_keys [:uuid, :queue, :current_state, :auto_target_state, :timeout, :new_state]
   defstruct [
     :uuid,
     :queue,
@@ -781,7 +773,7 @@ defmodule Csilgen.Generated.UpdateTaskRequest do
           timeout: integer(),
           new_state: String.t(),
           payload: binary() | nil,
-          priority: integer()
+          priority: integer() | nil
         }
 
   @wire_keys [
@@ -808,7 +800,7 @@ defmodule Csilgen.Generated.UpdateTaskRequest do
          {{:text, "queue"}, {:text, v.queue}},
          if(is_nil(v.payload), do: nil, else: {{:text, "payload"}, {:bytes, v.payload}}),
          {{:text, "timeout"}, {:int, v.timeout}},
-         {{:text, "priority"}, {:int, v.priority}},
+         if(is_nil(v.priority), do: nil, else: {{:text, "priority"}, {:int, v.priority}}),
          {{:text, "new_state"}, {:text, v.new_state}},
          {{:text, "current_state"}, {:text, v.current_state}},
          {{:text, "auto_target_state"}, {:text, v.auto_target_state}}
@@ -831,7 +823,11 @@ defmodule Csilgen.Generated.UpdateTaskRequest do
           csil_v -> Csilgen.Generated.Cbor.to_bytes(csil_v)
         end,
       timeout: Csilgen.Generated.Cbor.to_int(Map.fetch!(csil_fields, {:text, "timeout"})),
-      priority: Csilgen.Generated.Cbor.to_int(Map.fetch!(csil_fields, {:text, "priority"})),
+      priority:
+        case Map.get(csil_fields, {:text, "priority"}) do
+          nil -> nil
+          csil_v -> Csilgen.Generated.Cbor.to_int(csil_v)
+        end,
       new_state: Csilgen.Generated.Cbor.to_text(Map.fetch!(csil_fields, {:text, "new_state"})),
       current_state:
         Csilgen.Generated.Cbor.to_text(Map.fetch!(csil_fields, {:text, "current_state"})),

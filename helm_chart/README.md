@@ -33,6 +33,11 @@ See [values.yaml](./chart/values.yaml) for all chart values. See
 [Storage backends](../docs/storage-backends.md) for the runtime settings and
 trade-offs.
 
+## TLS
+
+Set `tls.enabled=true` and `tls.secretName` to serve the RPC port with TLS.
+See [Deploying with Helm](../docs/deployment.md#tls).
+
 ## PostgreSQL options
 
 ### Bitnami chart

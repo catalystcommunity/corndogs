@@ -10,7 +10,7 @@
 #   ./csil/generate.sh
 set -euo pipefail
 
-CSILGEN_RELEASE="csilgen/v0.2.4"
+CSILGEN_RELEASE="csilgen/v0.2.8"
 
 # Go is generated separately because the server also uses its service interface.
 LANGUAGES=(rust typescript python java csharp c swift kotlin zig ocaml elixir ruby dart)
@@ -32,7 +32,7 @@ csilgen validate --input "${SPEC}"
 declare -A CORNDOGS_CARRIERS
 CORNDOGS_CARRIERS[python]="corndogs/transport.py corndogs/transport_async.py README.md"
 CORNDOGS_CARRIERS[typescript]="transport.ts README.md package.json"
-CORNDOGS_CARRIERS[rust]="src/transport.rs README.md src/lib.rs"
+CORNDOGS_CARRIERS[rust]="src/transport.rs src/tls.rs README.md src/lib.rs Cargo.toml tests/common/mod.rs tests/timeouts.rs tests/tls.rs"
 CORNDOGS_CARRIERS[csharp]="Transport.cs TransportAsync.cs README.md"
 CORNDOGS_CARRIERS[dart]="lib/transport.dart README.md"
 CORNDOGS_CARRIERS[java]="src/main/java/csilgen/generated/TcpTransport.java README.md"

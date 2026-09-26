@@ -66,7 +66,7 @@ and update_task_request = {
   timeout : int64;
   new_state : string;
   payload : bytes option;
-  priority : int64;
+  priority : int64 option;
 }
 
 and update_task_response = { task : task option }

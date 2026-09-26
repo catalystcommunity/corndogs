@@ -24,6 +24,7 @@ var (
 	bucketDeadlines = []byte("deadlines") // deadline+uuid -> ordered task key
 	bucketArchived  = []byte("archived")  // uuid -> json(ArchivedTask)
 	bucketMeta      = []byte("meta")      // filestore schema metadata
+	// bucketCounts (counts.go): queue+state -> live task count
 )
 
 // BoltStore implements store.Store on top of go.etcd.io/bbolt.
@@ -153,7 +154,8 @@ func (s *BoltStore) RestoreSnapshot(r io.Reader, lsn uint64) error {
 	}
 	s.db = db
 	s.replLSN = lsn
-	return nil
+	// A snapshot from a node that does not maintain counts has no ready marker.
+	return ensureCounts(db)
 }
 
 // DB exposes the underlying bbolt handle for snapshot/verification use by the
@@ -178,7 +180,19 @@ func (s *BoltStore) ApplyReplicated(b MutationBatch) error {
 	if b.LSN != s.replLSN+1 {
 		return fmt.Errorf("filestore: non-contiguous replicated batch LSN %d (have %d)", b.LSN, s.replLSN)
 	}
-	if err := s.db.Update(func(tx *bolt.Tx) error { return applyBatch(tx, b) }); err != nil {
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		if err := applyBatch(tx, b); err != nil {
+			return err
+		}
+		if !batchKeepsCounts(b) {
+			// The leader does not maintain counts, so the local counts are now
+			// stale. The metric operations scan the tasks until a restart
+			// rebuilds the counts.
+			return tx.Bucket(bucketMeta).Delete(keyCountsReady)
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 	s.replLSN = b.LSN
@@ -247,6 +261,7 @@ func (s *BoltStore) Initialize() (func(), error) {
 			bucketDeadlines,
 			bucketArchived,
 			bucketMeta,
+			bucketCounts,
 		} {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
 				return err
@@ -259,6 +274,10 @@ func (s *BoltStore) Initialize() (func(), error) {
 		return nil, err
 	}
 	if err := migrateTaskStorage(db); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := ensureCounts(db); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -312,8 +331,14 @@ func (s *BoltStore) putTask(tx *bolt.Tx, t *Task) error {
 		return err
 	}
 	key := encodeTaskKey(t)
+	isNew := tx.Bucket(bucketTasks).Get(key) == nil
 	if err := tx.Bucket(bucketTasks).Put(key, val); err != nil {
 		return err
+	}
+	if isNew {
+		if err := s.adjustCount(tx, t.Queue, t.CurrentState, 1); err != nil {
+			return err
+		}
 	}
 	if err := tx.Bucket(bucketByUUID).Put([]byte(t.UUID), key); err != nil {
 		return err
@@ -337,8 +362,14 @@ func (s *BoltStore) putTask(tx *bolt.Tx, t *Task) error {
 // records the two deletes for replication when capture is enabled.
 func (s *BoltStore) deleteTask(tx *bolt.Tx, t *Task) error {
 	key := encodeTaskKey(t)
+	existed := tx.Bucket(bucketTasks).Get(key) != nil
 	if err := tx.Bucket(bucketTasks).Delete(key); err != nil {
 		return err
+	}
+	if existed {
+		if err := s.adjustCount(tx, t.Queue, t.CurrentState, -1); err != nil {
+			return err
+		}
 	}
 	if err := tx.Bucket(bucketByUUID).Delete([]byte(t.UUID)); err != nil {
 		return err
@@ -580,7 +611,11 @@ func (s *BoltStore) UpdateTask(ctx context.Context, req *api.UpdateTaskRequest) 
 		t.CurrentState = req.NewState
 		t.AutoTargetState = req.AutoTargetState
 		t.Timeout = req.Timeout
-		t.Priority = req.Priority
+		// An absent priority or payload keeps the stored value. See UpdateTaskRequest
+		// in csil/corndogs.csil; the postgres store obeys the same rules.
+		if req.Priority != nil {
+			t.Priority = *req.Priority
+		}
 		if req.Payload != nil {
 			if err := s.putPayload(tx, t.UUID, *req.Payload); err != nil {
 				return err
@@ -703,23 +738,21 @@ func (s *BoltStore) CleanUpTimedOut(ctx context.Context, req *api.CleanUpTimedOu
 	return &api.CleanUpTimedOutResponse{TimedOut: count}, nil
 }
 
-// --- metrics: computed by scanning keys (queue/state parsed from the key,
-// avoiding a full JSON decode), mirroring postgres' GROUP BY scans. ---
+// --- metrics: read from the counts bucket (counts.go), which putTask and
+// deleteTask keep current. The cost grows with the number of (queue, state)
+// pairs, not with the number of live tasks. ---
 
 func (s *BoltStore) GetQueues(ctx context.Context, req *api.GetQueuesRequest) (*api.GetQueuesResponse, error) {
-	seen := map[string]struct{}{}
 	queues := []string{}
 	var count int64
 	err := s.db.View(func(tx *bolt.Tx) error {
-		c := tx.Bucket(bucketTasks).Cursor()
-		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			count++
-			q, _ := parseKeyQueueState(k)
-			if _, ok := seen[q]; !ok {
-				seen[q] = struct{}{}
+		forEachCount(tx, nil, func(q, _ string, n int64) {
+			count += n
+			// Keys are in queue order, so a new queue differs from the last one.
+			if len(queues) == 0 || queues[len(queues)-1] != q {
 				queues = append(queues, q)
 			}
-		}
+		})
 		return nil
 	})
 	if err != nil {
@@ -732,12 +765,10 @@ func (s *BoltStore) GetQueueTaskCounts(ctx context.Context, req *api.GetQueueTas
 	counts := api.StringInt64Map{}
 	var total int64
 	err := s.db.View(func(tx *bolt.Tx) error {
-		c := tx.Bucket(bucketTasks).Cursor()
-		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			total++
-			q, _ := parseKeyQueueState(k)
-			counts[q]++
-		}
+		forEachCount(tx, nil, func(q, _ string, n int64) {
+			total += n
+			counts[q] += n
+		})
 		return nil
 	})
 	if err != nil {
@@ -750,13 +781,10 @@ func (s *BoltStore) GetTaskStateCounts(ctx context.Context, req *api.GetTaskStat
 	counts := api.StringInt64Map{}
 	var total int64
 	err := s.db.View(func(tx *bolt.Tx) error {
-		c := tx.Bucket(bucketTasks).Cursor()
-		prefix := []byte(req.Queue + string(rune(sep)))
-		for k, _ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
-			total++
-			_, st := parseKeyQueueState(k)
-			counts[st]++
-		}
+		forEachCount(tx, []byte(req.Queue+string(rune(sep))), func(_, st string, n int64) {
+			total += n
+			counts[st] += n
+		})
 		return nil
 	})
 	if err != nil {
@@ -768,17 +796,15 @@ func (s *BoltStore) GetTaskStateCounts(ctx context.Context, req *api.GetTaskStat
 func (s *BoltStore) GetQueueAndStateCounts(ctx context.Context, req *api.GetQueueAndStateCountsRequest) (*api.GetQueueAndStateCountsResponse, error) {
 	result := api.QueueAndStateCountsMap{}
 	err := s.db.View(func(tx *bolt.Tx) error {
-		c := tx.Bucket(bucketTasks).Cursor()
-		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			q, st := parseKeyQueueState(k)
+		forEachCount(tx, nil, func(q, st string, n int64) {
 			entry, ok := result[q]
 			if !ok {
 				entry = api.QueueAndStateCounts{Queue: q, StateCounts: api.StringInt64Map{}}
 			}
-			entry.StateCounts[st]++
-			entry.Count++
+			entry.StateCounts[st] += n
+			entry.Count += n
 			result[q] = entry
-		}
+		})
 		return nil
 	})
 	if err != nil {

@@ -93,6 +93,9 @@ def cbor_encode(value: Any) -> bytes:
 def _csil_read_arg(b: bytes, pos: int, low: int):
     if low < 24:
         return low, pos + 1
+    width = {24: 1, 25: 2, 26: 4, 27: 8}.get(low)
+    if width is None or len(b) - pos - 1 < width:
+        raise ValueError("csilgen: truncated argument")
     if low == 24:
         return b[pos + 1], pos + 2
     if low == 25:
@@ -104,7 +107,11 @@ def _csil_read_arg(b: bytes, pos: int, low: int):
     raise ValueError("csilgen: bad head")
 
 
-def _csil_dec(b: bytes, pos: int):
+def _csil_dec(b: bytes, pos: int, depth: int):
+    if depth > 64:
+        raise ValueError("csilgen: nesting limit exceeded")
+    if pos >= len(b):
+        raise ValueError("csilgen: unexpected end of input")
     ib = b[pos]
     major = ib >> 5
     low = ib & 0x1F
@@ -126,31 +133,39 @@ def _csil_dec(b: bytes, pos: int):
     if major == 1:
         return -1 - arg, pos
     if major == 2:
+        if arg > len(b) - pos:
+            raise ValueError("csilgen: truncated byte string")
         return bytes(b[pos : pos + arg]), pos + arg
     if major == 3:
+        if arg > len(b) - pos:
+            raise ValueError("csilgen: truncated text string")
         return b[pos : pos + arg].decode("utf-8"), pos + arg
     if major == 4:
+        if arg > len(b) - pos:
+            raise ValueError("csilgen: array length exceeds remaining input")
         items = []
         for _ in range(arg):
-            item, pos = _csil_dec(b, pos)
+            item, pos = _csil_dec(b, pos, depth + 1)
             items.append(item)
         return items, pos
     if major == 5:
+        if arg > len(b) - pos:
+            raise ValueError("csilgen: map length exceeds remaining input")
         result: Dict[Any, Any] = {}
         for _ in range(arg):
-            key, pos = _csil_dec(b, pos)
-            val, pos = _csil_dec(b, pos)
+            key, pos = _csil_dec(b, pos, depth + 1)
+            val, pos = _csil_dec(b, pos, depth + 1)
             result[key] = val
         return result, pos
     if major == 6:
-        inner, pos = _csil_dec(b, pos)
+        inner, pos = _csil_dec(b, pos, depth + 1)
         return CborTag(arg, inner), pos
     raise ValueError("csilgen: bad major type")
 
 
 def cbor_decode(data: bytes) -> Any:
     """Decode canonical CBOR bytes into a value tree."""
-    value, pos = _csil_dec(data, 0)
+    value, pos = _csil_dec(data, 0, 0)
     if pos != len(data):
         raise ValueError("csilgen: trailing bytes")
     return value
@@ -679,7 +694,9 @@ def _encode_update_task_request_value(v: "UpdateTaskRequest") -> Dict[Any, Any]:
     if csil_x is not None:
         csil_m["payload"] = csil_x
     csil_m["timeout"] = v.timeout
-    csil_m["priority"] = v.priority
+    csil_x = v.priority
+    if csil_x is not None:
+        csil_m["priority"] = csil_x
     csil_m["new_state"] = v.new_state
     csil_m["current_state"] = v.current_state
     csil_m["auto_target_state"] = v.auto_target_state
@@ -695,7 +712,7 @@ def _decode_update_task_request_value(tree: Any) -> "UpdateTaskRequest":
         timeout=_csil_expect_int(tree["timeout"]),
         new_state=_csil_expect_text(tree["new_state"]),
         payload=(None if tree.get("payload") is None else _csil_expect_bytes(tree["payload"])),
-        priority=_csil_expect_int(tree["priority"]),
+        priority=(None if tree.get("priority") is None else _csil_expect_int(tree["priority"])),
     )
 
 

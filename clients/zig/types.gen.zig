@@ -102,7 +102,7 @@ pub const UpdateTaskRequest = struct {
     timeout: i64,
     new_state: []const u8,
     payload: ?[]const u8 = null,
-    priority: i64,
+    priority: ?i64 = null,
 };
 
 /// UpdateTaskResponse is a structured data type.
