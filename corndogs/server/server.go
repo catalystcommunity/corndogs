@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -90,11 +91,19 @@ func run() error {
 		zlog.Info().Msg("clustering active (TCP StreamCarrier peer transport)")
 	}
 
+	tlsCfg, err := rpcTLSConfig()
+	if err != nil {
+		return err
+	}
 	ln, err := net.Listen("tcp", listenOn)
 	if err != nil {
 		return err
 	}
-	zlog.Info().Str("rpc_tcp", listenOn).Str("ops_http", opsListenOn).Msg("corndogs listening (CSIL-RPC over TCP)")
+	if tlsCfg != nil {
+		ln = tls.NewListener(ln, tlsCfg)
+	}
+	zlog.Info().Str("rpc_tcp", listenOn).Str("ops_http", opsListenOn).Bool("tls", tlsCfg != nil).
+		Msg("corndogs listening (CSIL-RPC over TCP)")
 	serveCSILRPCTCP(ln, srv) // blocks until the listener closes
 	return nil
 }

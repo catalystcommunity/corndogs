@@ -820,7 +820,7 @@ final class UpdateTaskRequest {
   final int timeout;
   final String newState;
   final Uint8List? payload;
-  final int priority;
+  final int? priority;
 
   const UpdateTaskRequest({
     required this.uuid,
@@ -830,7 +830,7 @@ final class UpdateTaskRequest {
     required this.timeout,
     required this.newState,
     this.payload,
-    required this.priority,
+    this.priority,
   });
 
   Map<String, Object?> toMap() {
@@ -842,7 +842,7 @@ final class UpdateTaskRequest {
     map['timeout'] = timeout;
     map['new_state'] = newState;
     if (payload != null) map['payload'] = payload;
-    map['priority'] = priority;
+    if (priority != null) map['priority'] = priority;
     return map;
   }
 
@@ -855,7 +855,7 @@ final class UpdateTaskRequest {
       timeout: map['timeout'] as int,
       newState: map['new_state'] as String,
       payload: map['payload'] as Uint8List?,
-      priority: map['priority'] as int,
+      priority: map['priority'] as int?,
     );
   }
 
@@ -903,7 +903,7 @@ final class UpdateTaskRequest {
     map['timeout'] = timeout;
     map['new_state'] = newState;
     if (payload != null) map['payload'] = payload!;
-    map['priority'] = priority;
+    if (priority != null) map['priority'] = priority!;
     return map;
   }
 
@@ -918,7 +918,7 @@ final class UpdateTaskRequest {
       timeout: map['timeout'] as int,
       newState: map['new_state'] as String,
       payload: map['payload'] == null ? null : map['payload'] as Uint8List,
-      priority: map['priority'] as int,
+      priority: map['priority'] == null ? null : map['priority'] as int,
     );
   }
 

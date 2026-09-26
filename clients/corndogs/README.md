@@ -62,6 +62,42 @@ redirected to the leader. Seed it with several nodes for failover:
 c := corndogs.NewCluster("node1:5080", "node2:5080", "node3:5080")
 ```
 
+## TLS
+
+Use `NewTLS` when the server sets `CORNDOGS_TLS_CERT_FILE` and
+`CORNDOGS_TLS_KEY_FILE`. A nil config verifies the server against the system
+roots. To verify the server against your CA, set `RootCAs`:
+
+```go
+pem, err := os.ReadFile("/etc/corndogs/ca.crt")
+if err != nil {
+	log.Fatal(err)
+}
+roots := x509.NewCertPool()
+roots.AppendCertsFromPEM(pem)
+c := corndogs.NewTLS("corndogs.example.com:5080", &tls.Config{RootCAs: roots})
+```
+
+The client verifies the host part of the address. To verify a different name,
+set `ServerName`. For a cluster, use `NewClusterTLS(cfg, seeds...)`. The
+certificate of each node must be valid for the address that the node
+advertises.
+
+## Update a task
+
+In `UpdateTaskRequest`, `Payload` and `Priority` are pointers. A nil value
+keeps the stored value. To park a task without a new write of its payload,
+and without a change to its priority, leave both nil:
+
+```go
+_, err := c.UpdateTask(ctx, corndogs.UpdateTaskRequest{
+	Uuid:            task.Uuid,
+	NewState:        "retry",
+	AutoTargetState: "retry-working",
+	Timeout:         60,
+})
+```
+
 ## Notes
 
 - **Transport:** CSIL-RPC over TCP (4-byte length-prefix framing). HTTP is not used

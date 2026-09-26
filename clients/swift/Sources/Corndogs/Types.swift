@@ -270,9 +270,9 @@ public struct UpdateTaskRequest: Equatable, Sendable {
     /// wire key: new_state
     public let newState: String
     public let payload: [UInt8]?
-    public let priority: Int64
+    public let priority: Int64?
 
-    public init(uuid: String, queue: String, currentState: String, autoTargetState: String, timeout: Int64, newState: String, payload: [UInt8]? = nil, priority: Int64) {
+    public init(uuid: String, queue: String, currentState: String, autoTargetState: String, timeout: Int64, newState: String, payload: [UInt8]? = nil, priority: Int64? = nil) {
         self.uuid = uuid
         self.queue = queue
         self.currentState = currentState

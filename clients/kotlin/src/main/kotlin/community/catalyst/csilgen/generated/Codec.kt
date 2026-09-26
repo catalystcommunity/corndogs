@@ -116,7 +116,7 @@ object CsilCbor {
 
     fun decode(b: ByteArray): CborValue {
         val cur = Cursor(b)
-        val v = dec(cur)
+        val v = dec(cur, 0)
         if (cur.pos != b.size) throw CborError("trailing bytes after CBOR value")
         return v
     }
@@ -125,6 +125,10 @@ object CsilCbor {
         if (low < 24) {
             cur.pos += 1
             return low.toULong()
+        }
+        val width = when (low) { 24 -> 1; 25 -> 2; 26 -> 4; 27 -> 8; else -> 0 }
+        if (width == 0 || cur.pos >= cur.b.size || cur.b.size - cur.pos - 1 < width) {
+            throw CborError("truncated CBOR argument")
         }
         return when (low) {
             24 -> {
@@ -153,7 +157,18 @@ object CsilCbor {
         }
     }
 
-    private fun dec(cur: Cursor): CborValue {
+    private fun decodeUtf8(b: ByteArray, off: Int, len: Int): String = try {
+        Charsets.UTF_8.newDecoder()
+            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            .decode(java.nio.ByteBuffer.wrap(b, off, len)).toString()
+    } catch (_: java.nio.charset.CharacterCodingException) {
+        throw CborError("invalid UTF-8 text string")
+    }
+
+    private fun dec(cur: Cursor, depth: Int): CborValue {
+        if (depth > 64) throw CborError("CBOR nesting limit exceeded")
+        if (cur.pos >= cur.b.size) throw CborError("unexpected end of CBOR input")
         val ib = cur.b[cur.pos].toUByte().toInt()
         val major = ib shr 5
         val low = ib and 0x1f
@@ -190,34 +205,38 @@ object CsilCbor {
                 CborValue.CInt(-1L - arg.toLong())
             }
             2 -> {
+                if (arg > (cur.b.size - cur.pos).toULong()) throw CborError("truncated byte string")
                 val n = arg.toInt()
                 val slice = cur.b.copyOfRange(cur.pos, cur.pos + n)
                 cur.pos += n
                 CborValue.CBytes(slice)
             }
             3 -> {
+                if (arg > (cur.b.size - cur.pos).toULong()) throw CborError("truncated text string")
                 val n = arg.toInt()
-                val s = String(cur.b, cur.pos, n, Charsets.UTF_8)
+                val s = decodeUtf8(cur.b, cur.pos, n)
                 cur.pos += n
                 CborValue.CText(s)
             }
             4 -> {
+                if (arg > (cur.b.size - cur.pos).toULong()) throw CborError("array length exceeds remaining input")
                 val n = arg.toInt()
                 val items = ArrayList<CborValue>(n)
-                repeat(n) { items.add(dec(cur)) }
+                repeat(n) { items.add(dec(cur, depth + 1)) }
                 CborValue.CArray(items)
             }
             5 -> {
+                if (arg > (cur.b.size - cur.pos).toULong()) throw CborError("map length exceeds remaining input")
                 val n = arg.toInt()
                 val entries = ArrayList<Pair<CborValue, CborValue>>(n)
                 repeat(n) {
-                    val k = dec(cur)
-                    val value = dec(cur)
+                    val k = dec(cur, depth + 1)
+                    val value = dec(cur, depth + 1)
                     entries.add(k to value)
                 }
                 CborValue.CMap(entries)
             }
-            6 -> CborValue.CTag(arg, dec(cur))
+            6 -> CborValue.CTag(arg, dec(cur, depth + 1))
             else -> throw CborError("malformed CBOR major type")
         }
     }
@@ -582,7 +601,7 @@ fun UpdateTaskRequest.toCborValue(): CborValue {
     csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
     this.payload?.let { csilV -> csilEntries.add(CborValue.CText("payload") to CborValue.CBytes(csilV)) }
     csilEntries.add(CborValue.CText("timeout") to CborValue.CInt(this.timeout))
-    csilEntries.add(CborValue.CText("priority") to CborValue.CInt(this.priority))
+    this.priority?.let { csilV -> csilEntries.add(CborValue.CText("priority") to CborValue.CInt(csilV)) }
     csilEntries.add(CborValue.CText("new_state") to CborValue.CText(this.newState))
     csilEntries.add(CborValue.CText("current_state") to CborValue.CText(this.currentState))
     csilEntries.add(CborValue.CText("auto_target_state") to CborValue.CText(this.autoTargetState))
@@ -601,7 +620,7 @@ fun updateTaskRequestFromCborValue(cbor: CborValue): UpdateTaskRequest {
     val timeout = CsilCbor.asLong(CsilCbor.require(cbor, "timeout"))
     val newState = CsilCbor.asText(CsilCbor.require(cbor, "new_state"))
     val payload = CsilCbor.mapGet(cbor, "payload")?.let { csilV -> CsilCbor.asBytes(csilV) }
-    val priority = CsilCbor.asLong(CsilCbor.require(cbor, "priority"))
+    val priority = CsilCbor.mapGet(cbor, "priority")?.let { csilV -> CsilCbor.asLong(csilV) }
     return UpdateTaskRequest(uuid = uuid, queue = queue, currentState = currentState, autoTargetState = autoTargetState, timeout = timeout, newState = newState, payload = payload, priority = priority)
 }
 

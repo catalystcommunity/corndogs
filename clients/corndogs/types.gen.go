@@ -99,7 +99,7 @@ type UpdateTaskRequest struct {
 	Timeout         int64   `json:"timeout" yaml:"timeout"`
 	NewState        string  `json:"new_state" yaml:"new_state"`
 	Payload         *[]byte `json:"payload,omitempty" yaml:"payload,omitempty"`
-	Priority        int64   `json:"priority" yaml:"priority"`
+	Priority        *int64  `json:"priority,omitempty" yaml:"priority,omitempty"`
 }
 
 // UpdateTaskResponse represents a structured data type

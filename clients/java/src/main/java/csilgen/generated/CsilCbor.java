@@ -122,7 +122,7 @@ public final class CsilCbor {
 
     public static CborValue decode(byte[] b) {
         int[] pos = {0};
-        CborValue v = dec(b, pos);
+        CborValue v = dec(b, pos, 0);
         if (pos[0] != b.length) {
             throw new CsilCborException("csil cbor: trailing bytes");
         }
@@ -135,6 +135,12 @@ public final class CsilCbor {
         }
     }
 
+    private static void requireRemaining(byte[] b, int pos, int need) {
+        if (pos < 0 || pos > b.length || need > b.length - pos) {
+            throw new CsilCborException("csil cbor: truncated input");
+        }
+    }
+
     private static long readArg(byte[] b, int[] pos, int low) {
         if (low < 24) {
             pos[0] += 1;
@@ -142,17 +148,17 @@ public final class CsilCbor {
         }
         switch (low) {
             case 24:
-                requireLen(b, pos[0] + 2);
+                requireRemaining(b, pos[0], 2);
                 long v24 = b[pos[0] + 1] & 0xffL;
                 pos[0] += 2;
                 return v24;
             case 25:
-                requireLen(b, pos[0] + 3);
+                requireRemaining(b, pos[0], 3);
                 long v25 = ((b[pos[0] + 1] & 0xffL) << 8) | (b[pos[0] + 2] & 0xffL);
                 pos[0] += 3;
                 return v25;
             case 26: {
-                requireLen(b, pos[0] + 5);
+                requireRemaining(b, pos[0], 5);
                 long v = 0;
                 for (int i = 1; i <= 4; i++) {
                     v = (v << 8) | (b[pos[0] + i] & 0xffL);
@@ -161,7 +167,7 @@ public final class CsilCbor {
                 return v;
             }
             case 27: {
-                requireLen(b, pos[0] + 9);
+                requireRemaining(b, pos[0], 9);
                 long v = 0;
                 for (int i = 1; i <= 8; i++) {
                     v = (v << 8) | (b[pos[0] + i] & 0xffL);
@@ -174,7 +180,21 @@ public final class CsilCbor {
         }
     }
 
-    private static CborValue dec(byte[] b, int[] pos) {
+    private static String decodeUtf8(byte[] b, int off, int len) {
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(b, off, len)).toString();
+        } catch (java.nio.charset.CharacterCodingException e) {
+            throw new CsilCborException("csil cbor: invalid utf-8");
+        }
+    }
+
+    private static CborValue dec(byte[] b, int[] pos, int depth) {
+        if (depth > 64) {
+            throw new CsilCborException("csil cbor: nesting limit exceeded");
+        }
         if (pos[0] >= b.length) {
             throw new CsilCborException("csil cbor: unexpected end of input");
         }
@@ -215,6 +235,9 @@ public final class CsilCbor {
                 }
                 return new CborInt(-1 - arg);
             case 2: {
+                if (Long.compareUnsigned(arg, b.length - pos[0]) > 0) {
+                    throw new CsilCborException("csil cbor: truncated byte string");
+                }
                 int n = (int) arg;
                 requireLen(b, pos[0] + n);
                 byte[] slice = Arrays.copyOfRange(b, pos[0], pos[0] + n);
@@ -222,32 +245,41 @@ public final class CsilCbor {
                 return new CborBytes(slice);
             }
             case 3: {
+                if (Long.compareUnsigned(arg, b.length - pos[0]) > 0) {
+                    throw new CsilCborException("csil cbor: truncated text string");
+                }
                 int n = (int) arg;
                 requireLen(b, pos[0] + n);
-                String s = new String(b, pos[0], n, StandardCharsets.UTF_8);
+                String s = decodeUtf8(b, pos[0], n);
                 pos[0] += n;
                 return new CborText(s);
             }
             case 4: {
+                if (Long.compareUnsigned(arg, b.length - pos[0]) > 0) {
+                    throw new CsilCborException("csil cbor: array length exceeds remaining input");
+                }
                 int n = (int) arg;
                 List<CborValue> items = new ArrayList<>(n);
                 for (int i = 0; i < n; i++) {
-                    items.add(dec(b, pos));
+                    items.add(dec(b, pos, depth + 1));
                 }
                 return new CborArray(items);
             }
             case 5: {
+                if (Long.compareUnsigned(arg, b.length - pos[0]) > 0) {
+                    throw new CsilCborException("csil cbor: map length exceeds remaining input");
+                }
                 int n = (int) arg;
                 List<CborEntry> entries = new ArrayList<>(n);
                 for (int i = 0; i < n; i++) {
-                    CborValue k = dec(b, pos);
-                    CborValue val = dec(b, pos);
+                    CborValue k = dec(b, pos, depth + 1);
+                    CborValue val = dec(b, pos, depth + 1);
                     entries.add(new CborEntry(k, val));
                 }
                 return new CborMap(entries);
             }
             case 6:
-                return new CborTag(arg, dec(b, pos));
+                return new CborTag(arg, dec(b, pos, depth + 1));
             default:
                 throw new CsilCborException("csil cbor: unexpected major type");
         }
@@ -714,7 +746,9 @@ public final class CsilCbor {
             csilEntries.add(new CborEntry(new CborText("payload"), new CborBytes(v.payload())));
         }
         csilEntries.add(new CborEntry(new CborText("timeout"), new CborInt(v.timeout())));
-        csilEntries.add(new CborEntry(new CborText("priority"), new CborInt(v.priority())));
+        if (v.priority() != null) {
+            csilEntries.add(new CborEntry(new CborText("priority"), new CborInt(v.priority())));
+        }
         csilEntries.add(new CborEntry(new CborText("new_state"), new CborText(v.newState())));
         csilEntries.add(new CborEntry(new CborText("current_state"), new CborText(v.currentState())));
         csilEntries.add(new CborEntry(new CborText("auto_target_state"), new CborText(v.autoTargetState())));
@@ -733,7 +767,11 @@ public final class CsilCbor {
             CborValue csilField = mapGet(csilRoot, "payload");
             payload = csilField != null ? asBytes(csilField) : null;
         }
-        long priority = asI64(require(csilRoot, "priority"));
+        Long priority;
+        {
+            CborValue csilField = mapGet(csilRoot, "priority");
+            priority = csilField != null ? asI64(csilField) : null;
+        }
         return new UpdateTaskRequest(uuid, queue, currentState, autoTargetState, timeout, newState, payload, priority);
     }
 

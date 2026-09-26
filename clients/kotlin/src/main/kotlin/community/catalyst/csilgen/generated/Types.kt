@@ -153,7 +153,7 @@ data class UpdateTaskRequest(
     // wire key: new_state
     val newState: String,
     val payload: ByteArray? = null,
-    val priority: Long
+    val priority: Long? = null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

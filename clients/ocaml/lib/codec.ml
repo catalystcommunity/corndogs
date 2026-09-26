@@ -136,7 +136,7 @@ and encode_update_task_request (v : update_task_request) : Cbor.t =
          Some (Cbor.Text "queue", (Cbor.Text v.queue));
          (match v.payload with Some csil_x -> Some (Cbor.Text "payload", (Cbor.Bytes csil_x)) | None -> None);
          Some (Cbor.Text "timeout", (Cbor.int64 v.timeout));
-         Some (Cbor.Text "priority", (Cbor.int64 v.priority));
+         (match v.priority with Some csil_x -> Some (Cbor.Text "priority", (Cbor.int64 csil_x)) | None -> None);
          Some (Cbor.Text "new_state", (Cbor.Text v.new_state));
          Some (Cbor.Text "current_state", (Cbor.Text v.current_state));
          Some (Cbor.Text "auto_target_state", (Cbor.Text v.auto_target_state));
@@ -447,7 +447,7 @@ and decode_update_task_request (csil_c : Cbor.t) : update_task_request =
         queue = (Cbor.to_text (csil_req "queue"));
         payload = (match csil_field "payload" with Some csil_v -> Some (Cbor.to_bytes csil_v) | None -> None);
         timeout = (Cbor.to_i64 (csil_req "timeout"));
-        priority = (Cbor.to_i64 (csil_req "priority"));
+        priority = (match csil_field "priority" with Some csil_v -> Some (Cbor.to_i64 csil_v) | None -> None);
         new_state = (Cbor.to_text (csil_req "new_state"));
         current_state = (Cbor.to_text (csil_req "current_state"));
         auto_target_state = (Cbor.to_text (csil_req "auto_target_state"));

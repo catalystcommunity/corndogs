@@ -50,8 +50,27 @@ Claim the next task from a group of queues. The response has the same
 
 ### `UpdateTask`
 
-Update a task that has the matching `uuid`, `queue`, and `current_state`. Use
-`new_state` to change the current state. The response contains task metadata.
+Update the live task that has the matching `uuid`. The response contains task
+metadata. If no live task has the `uuid`, the response contains no task.
+
+Corndogs applies these rules to each field. Both storage backends obey the
+same rules.
+
+| Field | Absent | Present |
+| --- | --- | --- |
+| `new_state` | Not possible (required). An empty value becomes `updated`. | Replaces the current state. |
+| `auto_target_state` | Not possible (required). An empty value becomes `new_state` plus the working suffix. | Replaces the auto target state. |
+| `timeout` | Not possible (required). | Replaces the timeout. |
+| `payload` | Keeps the stored payload. Corndogs does not write the payload again. | Replaces the stored payload. An empty value stores an empty byte string. |
+| `priority` | Keeps the stored priority. | Replaces the stored priority. The value `0` is a priority, not "absent". |
+
+Each update also sets `update_time` to the current time. Claim order is
+priority descending, then `update_time` ascending. Thus an update moves the
+task to the end of its priority band.
+
+To park a task and try it again later, send only `new_state`,
+`auto_target_state`, and `timeout`. Do not send `payload` or `priority`. The
+task keeps its payload and its place above lower-priority work.
 
 ### `CompleteTask`
 
@@ -76,6 +95,21 @@ See [Task states and timeouts](../README.md#task-states-and-timeouts).
 
 ## Metric operations
 
+With the `file` backend, Corndogs keeps a count for each queue and state. Each
+task write updates the count in the same transaction. A metric operation reads
+these counts. It does not read each task. Its cost increases with the number of
+queue and state pairs, not with the number of tasks. At 300,000 live tasks, one
+`GetQueueAndStateCounts` call took approximately 2 µs with the counts. The full
+scan that it replaces took approximately 38 ms.
+
+At the first start after an upgrade, Corndogs builds the counts from one full
+scan. A clustered follower that receives writes from a leader of an older
+version counts the tasks again for each metric operation, until it starts
+again.
+
+With the `postgres` backend, a metric operation is one `GROUP BY` query on the
+tasks table.
+
 ### `GetQueues`
 
 Return the queue names and `total_task_count`.
@@ -95,6 +129,36 @@ name to its task count. `count` gives the total for the queue.
 Return `queue_and_state_counts`, which maps each queue name to its
 `QueueAndStateCounts` value. Each value contains the queue name, its total task
 count, and a count for each state.
+
+## TLS
+
+Corndogs can serve CSIL-RPC over TLS on `CORNDOGS_LISTEN`. Set both variables:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `CORNDOGS_TLS_CERT_FILE` | empty | PEM certificate chain for the server. |
+| `CORNDOGS_TLS_KEY_FILE` | empty | PEM private key for the certificate. |
+| `CORNDOGS_TLS_RELOAD_INTERVAL` | `10s` | How often Corndogs examines the two files for a change. |
+
+When both files are set, the port accepts TLS 1.2 or later only. A plaintext
+client cannot connect. The server does not ask for a client certificate.
+
+Corndogs reads the files again after they change, without a restart. It
+examines them during a TLS handshake, at most once for each interval. A
+Kubernetes Secret update (an atomic symlink swap) is a change. If the new
+files do not load, Corndogs keeps the last good certificate and logs an error.
+
+The HTTP operations port (`CORNDOGS_HTTP_LISTEN`) stays plain HTTP. The
+cluster peer port (`CORNDOGS_CLUSTER_LISTEN`) does not use TLS.
+
+Clients with TLS support:
+
+- Go: `corndogs.NewTLS(addr, cfg)` and `corndogs.NewClusterTLS(cfg, seeds...)`.
+- Rust: the `tls` cargo feature. See `clients/rust/README.md`.
+- The `corndogs timeout` and `corndogs submit-task` commands: `--tls`,
+  `--tls-ca-file`, and `--tls-server-name`.
+
+The other language clients do not have TLS support at this time.
 
 ## Health & metrics
 The HTTP operations address is `:8080` by default. Set `CORNDOGS_HTTP_LISTEN` to

@@ -2,8 +2,11 @@ package test
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -22,9 +25,26 @@ type CorndogsClient struct {
 }
 
 // GetCorndogsClient returns a client pointed at the local server's TCP CSIL-RPC
-// port (:5080).
+// port (:5080). Set CORNDOGS_TEST_TLS_CA to a PEM CA file to connect with TLS
+// and verify the server against that CA.
 func GetCorndogsClient() *CorndogsClient {
 	return &CorndogsClient{addr: "127.0.0.1:5080"}
+}
+
+func testTLSConfig() (*tls.Config, error) {
+	caFile := os.Getenv("CORNDOGS_TEST_TLS_CA")
+	if caFile == "" {
+		return nil, nil
+	}
+	pem, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil, err
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil, fmt.Errorf("no certificates in %s", caFile)
+	}
+	return &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}, nil
 }
 
 // rpcClient returns the connected RpcClient, dialing on first use. Caller holds mu.
@@ -32,7 +52,17 @@ func (c *CorndogsClient) rpcClient() (*csilrpc.RpcClient, error) {
 	if c.rpc != nil {
 		return c.rpc, nil
 	}
-	conn, err := net.DialTimeout("tcp", c.addr, 5*time.Second)
+	tlsCfg, err := testTLSConfig()
+	if err != nil {
+		return nil, err
+	}
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
+	var conn net.Conn
+	if tlsCfg != nil {
+		conn, err = tls.DialWithDialer(dialer, "tcp", c.addr, tlsCfg)
+	} else {
+		conn, err = dialer.Dial("tcp", c.addr)
+	}
 	if err != nil {
 		return nil, err
 	}

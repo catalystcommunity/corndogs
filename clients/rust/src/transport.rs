@@ -2,15 +2,22 @@
 //! persistent TCP connection, framed with the canonical 4-byte big-endian
 //! length prefix (the CSIL "StreamCarrier"). This is the single official
 //! Corndogs Rust carrier — you do not need to write one or read csilgen docs.
-//! Point [`Transport::connect`] at a corndogs server's TCP address and hand it
-//! to the generated client:
+//!
+//! ## Connect
+//!
+//! Use [`Transport::connect_with`] with an I/O timeout in production:
 //!
 //! ```no_run
 //! use corndogs::{CorndogsClient, SubmitTaskRequest};
 //! use corndogs::transport::Transport;
+//! use std::time::Duration;
 //!
-//! let tr = Transport::connect("localhost:5080").expect("connect");
-//! let stop = tr.start_heartbeat(std::time::Duration::from_secs(15)); // keep the connection alive
+//! let tr = Transport::connect_with(
+//!     "localhost:5080",
+//!     Duration::from_secs(5),        // connect timeout
+//!     Some(Duration::from_secs(10)), // deadline for each call
+//! ).expect("connect");
+//! let stop = tr.start_heartbeat(Duration::from_secs(15)); // keep the connection alive
 //! let client = CorndogsClient::new(tr);
 //! let _ = client.submit_task(SubmitTaskRequest {
 //!     queue: "emails".into(), current_state: "submitted".into(),
@@ -19,15 +26,46 @@
 //! stop.stop();
 //! ```
 //!
+//! [`Transport::connect`] and [`Transport::connect_timeout`] set no I/O
+//! deadline. A call on such a transport waits with no limit if the server
+//! stops answering while TCP stays up.
+//!
+//! [`ConnectOptions`] holds all connect settings (connect timeout, I/O
+//! timeout, and TLS with the `tls` cargo feature). Use it with
+//! [`Transport::connect_options`].
+//!
+//! ## Deadlines
+//!
+//! - The connect timeout limits the TCP connect. With TLS, it also limits the
+//!   TLS handshake.
+//! - The I/O timeout is one deadline for the full call: the re-dial (if
+//!   necessary), the request write, and the full reply read. A server that
+//!   sends bytes slowly cannot make the call go past the deadline.
+//! - When a call times out, the transport returns
+//!   [`ClientError::Transport`] with a message that contains "timed out".
+//! - After a timeout or any other I/O error, the transport drops the
+//!   connection. The next call dials a new connection. Thus a late reply to
+//!   an old call cannot become the reply to a new call.
+//! - The transport also compares the reply `id` with the request `id`. If
+//!   they are different, the transport drops the connection and returns
+//!   [`ClientError::Transport`].
+//! - [`Transport::ping`] and the heartbeat use the same deadline.
+//!
+//! ## Concurrency
+//!
+//! One `Transport` is one connection. It sends one call at a time and holds a
+//! `Mutex` for the full round trip. The deadline starts when a call gets the
+//! mutex. A caller that waits on the mutex behind a stuck call can wait up to
+//! the full deadline of the stuck call, plus its own deadline. Give each role
+//! or thread its own `Transport`, or use a small pool of them.
+//!
+//! `Transport` is cheap to `Clone`. All clones share one connection and one
+//! heartbeat. Thus you can give one clone to a `CorndogsClient` and keep
+//! another clone for a heartbeat.
+//!
 //! This carrier implements the generated [`crate::client::Transport`] trait's
-//! `call(service, op, req) -> Result<Vec<u8>, ClientError>` seam over one TCP
-//! connection: dial (lazily re-dial on failure), write a length-prefixed CBOR
-//! envelope, block for the correlated reply. Calls are serialized — one
-//! request in flight at a time, guarded by a `Mutex` — matching the sync
-//! Python `TcpTransport`. `Transport` is cheap to `Clone` (it is an `Arc`
-//! handle to shared connection state), so the same connection can be handed
-//! to a `CorndogsClient` and to a background heartbeat at once. Dependency-
-//! free: std only, no cbor crate.
+//! `call(service, op, req) -> Result<Vec<u8>, ClientError>` seam. Without the
+//! `tls` feature it has no dependencies: std only, no cbor crate.
 //!
 //! ### Why this file hand-rolls a few CBOR primitives
 //!
@@ -50,10 +88,13 @@ use std::io::{self, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::client::ClientError;
 use crate::CsilCborValue;
+
+#[cfg(feature = "tls")]
+pub use crate::tls::TlsOptions;
 
 const TAG_ENCODED_CBOR: u64 = 24; // RFC 8949 §3.4.5.1 — embedded encoded CBOR data item
 const CONTROL_SERVICE: &str = "CorndogsService";
@@ -61,8 +102,195 @@ const OP_PING: &str = "$ping"; // control-plane heartbeat op (never collides wit
 const MAX_FRAME: usize = 1025 << 20; // payload hard maximum plus RPC envelope allowance
 const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
+// --- deadline-aware socket ------------------------------------------------
+
+fn timed_out() -> io::Error {
+    io::Error::new(io::ErrorKind::TimedOut, "corndogs: timed out")
+}
+
+fn is_timeout(e: &io::Error) -> bool {
+    matches!(e.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock)
+}
+
+/// A `TcpStream` with an absolute deadline. Before each read or write it sets
+/// the socket timeout to the time that remains. Thus a peer that sends one
+/// byte at a time cannot extend the operation past the deadline. With no
+/// deadline, the socket blocks with no limit.
+struct DeadlineStream {
+    tcp: TcpStream,
+    deadline: Option<Instant>,
+}
+
+impl DeadlineStream {
+    fn new(tcp: TcpStream) -> Self {
+        Self { tcp, deadline: None }
+    }
+
+    fn set_deadline(&mut self, deadline: Option<Instant>) -> io::Result<()> {
+        if deadline.is_none() && self.deadline.is_some() {
+            self.tcp.set_read_timeout(None)?;
+            self.tcp.set_write_timeout(None)?;
+        }
+        self.deadline = deadline;
+        Ok(())
+    }
+
+    /// Returns the time left before the deadline, or a timeout error.
+    fn remaining(&self) -> io::Result<Option<Duration>> {
+        match self.deadline {
+            None => Ok(None),
+            Some(d) => {
+                let now = Instant::now();
+                if now >= d {
+                    Err(timed_out())
+                } else {
+                    Ok(Some(d - now))
+                }
+            }
+        }
+    }
+}
+
+impl Read for DeadlineStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if let Some(left) = self.remaining()? {
+            self.tcp.set_read_timeout(Some(left))?;
+        }
+        self.tcp
+            .read(buf)
+            .map_err(|e| if is_timeout(&e) { timed_out() } else { e })
+    }
+}
+
+impl Write for DeadlineStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if let Some(left) = self.remaining()? {
+            self.tcp.set_write_timeout(Some(left))?;
+        }
+        self.tcp
+            .write(buf)
+            .map_err(|e| if is_timeout(&e) { timed_out() } else { e })
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.tcp.flush()
+    }
+}
+
+/// One live connection: plain TCP, or TLS over TCP.
+enum Conn {
+    Plain(DeadlineStream),
+    #[cfg(feature = "tls")]
+    Tls(Box<rustls::StreamOwned<rustls::ClientConnection, DeadlineStream>>),
+}
+
+impl Conn {
+    fn set_deadline(&mut self, deadline: Option<Instant>) -> io::Result<()> {
+        match self {
+            Conn::Plain(s) => s.set_deadline(deadline),
+            #[cfg(feature = "tls")]
+            Conn::Tls(s) => s.sock.set_deadline(deadline),
+        }
+    }
+}
+
+impl Read for Conn {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Conn::Plain(s) => s.read(buf),
+            #[cfg(feature = "tls")]
+            Conn::Tls(s) => s.read(buf),
+        }
+    }
+}
+
+impl Write for Conn {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Conn::Plain(s) => s.write(buf),
+            #[cfg(feature = "tls")]
+            Conn::Tls(s) => s.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Conn::Plain(s) => s.flush(),
+            #[cfg(feature = "tls")]
+            Conn::Tls(s) => s.flush(),
+        }
+    }
+}
+
+// --- options ----------------------------------------------------------------
+
+/// Connect settings for [`Transport::connect_options`].
+///
+/// ```no_run
+/// use corndogs::transport::{ConnectOptions, Transport};
+/// use std::time::Duration;
+///
+/// let opts = ConnectOptions::new()
+///     .connect_timeout(Duration::from_secs(5))
+///     .io_timeout(Duration::from_secs(10));
+/// let tr = Transport::connect_options("localhost:5080", opts).expect("connect");
+/// ```
+#[derive(Clone, Debug)]
+pub struct ConnectOptions {
+    connect_timeout: Duration,
+    io_timeout: Option<Duration>,
+    #[cfg(feature = "tls")]
+    tls: Option<TlsOptions>,
+}
+
+impl Default for ConnectOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ConnectOptions {
+    /// Makes options with a 5 second connect timeout, no I/O timeout, and no
+    /// TLS.
+    pub fn new() -> Self {
+        Self {
+            connect_timeout: DEFAULT_CONNECT_TIMEOUT,
+            io_timeout: None,
+            #[cfg(feature = "tls")]
+            tls: None,
+        }
+    }
+
+    /// Sets the limit for the TCP connect and the TLS handshake.
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.connect_timeout = timeout;
+        self
+    }
+
+    /// Sets the deadline for each full call (re-dial, write, and read).
+    pub fn io_timeout(mut self, timeout: Duration) -> Self {
+        self.io_timeout = Some(timeout);
+        self
+    }
+
+    /// Sets or removes the I/O deadline. `None` means no limit.
+    pub fn io_timeout_opt(mut self, timeout: Option<Duration>) -> Self {
+        self.io_timeout = timeout;
+        self
+    }
+
+    /// Enables TLS with these options.
+    #[cfg(feature = "tls")]
+    pub fn tls(mut self, tls: TlsOptions) -> Self {
+        self.tls = Some(tls);
+        self
+    }
+}
+
+// --- connection state -------------------------------------------------------
+
 struct ConnState {
-    stream: Option<TcpStream>,
+    stream: Option<Conn>,
     next_id: u64,
 }
 
@@ -111,33 +339,100 @@ impl HeartbeatHandle {
 struct TransportInner {
     addr: String,
     connect_timeout: Duration,
+    io_timeout: Option<Duration>,
+    #[cfg(feature = "tls")]
+    tls: Option<crate::tls::TlsSetup>,
     state: Mutex<ConnState>,
     hb_stop: Mutex<Option<HeartbeatHandle>>,
 }
 
 impl TransportInner {
-    fn dial(&self) -> Result<TcpStream, ClientError> {
-        let mut addrs = self
+    /// Dials a new connection (and does the TLS handshake if TLS is on). The
+    /// connect timeout limits the dial. `call_deadline`, if set, also limits
+    /// it.
+    fn dial(&self, call_deadline: Option<Instant>) -> Result<Conn, ClientError> {
+        let mut deadline = Instant::now() + self.connect_timeout;
+        if let Some(cd) = call_deadline {
+            deadline = deadline.min(cd);
+        }
+        let addrs: Vec<_> = self
             .addr
             .to_socket_addrs()
-            .map_err(|e| ClientError::Transport(format!("corndogs: resolve {}: {e}", self.addr)))?;
-        let addr = addrs
-            .next()
-            .ok_or_else(|| ClientError::Transport(format!("corndogs: no address for {}", self.addr)))?;
-        let stream = TcpStream::connect_timeout(&addr, self.connect_timeout)
-            .map_err(|e| ClientError::Transport(e.to_string()))?;
-        stream.set_nodelay(true).ok();
-        Ok(stream)
+            .map_err(|e| ClientError::Transport(format!("corndogs: resolve {}: {e}", self.addr)))?
+            .collect();
+        if addrs.is_empty() {
+            return Err(ClientError::Transport(format!(
+                "corndogs: no address for {}",
+                self.addr
+            )));
+        }
+
+        let mut last_err: Option<io::Error> = None;
+        let mut tcp = None;
+        for addr in &addrs {
+            let now = Instant::now();
+            if now >= deadline {
+                last_err = Some(timed_out());
+                break;
+            }
+            match TcpStream::connect_timeout(addr, deadline - now) {
+                Ok(s) => {
+                    tcp = Some(s);
+                    break;
+                }
+                Err(e) => last_err = Some(if is_timeout(&e) { timed_out() } else { e }),
+            }
+        }
+        let tcp = match tcp {
+            Some(s) => s,
+            None => {
+                let e = last_err.unwrap_or_else(timed_out);
+                return Err(ClientError::Transport(format!("corndogs: connect {}: {e}", self.addr)));
+            }
+        };
+        tcp.set_nodelay(true).ok();
+        let sock = DeadlineStream::new(tcp);
+
+        #[cfg(feature = "tls")]
+        if let Some(tls) = &self.tls {
+            return self.handshake(tls, sock, deadline);
+        }
+        Ok(Conn::Plain(sock))
+    }
+
+    #[cfg(feature = "tls")]
+    fn handshake(
+        &self,
+        tls: &crate::tls::TlsSetup,
+        mut sock: DeadlineStream,
+        deadline: Instant,
+    ) -> Result<Conn, ClientError> {
+        let err = |e: io::Error| ClientError::Transport(format!("corndogs: tls handshake with {}: {e}", self.addr));
+        sock.set_deadline(Some(deadline)).map_err(err)?;
+        let mut stream = rustls::StreamOwned::new(tls.connection()?, sock);
+        while stream.conn.is_handshaking() {
+            let (rd, wr) = stream.conn.complete_io(&mut stream.sock).map_err(err)?;
+            if rd == 0 && wr == 0 && stream.conn.is_handshaking() {
+                return Err(err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "connection closed during handshake",
+                )));
+            }
+        }
+        Ok(Conn::Tls(Box::new(stream)))
     }
 
     /// Sends one request and blocks for its correlated response. Holds the
     /// connection mutex for the whole round trip: one call in flight on this
-    /// connection at a time. A write/read failure drops the connection so the
-    /// next call re-dials.
+    /// connection at a time. The I/O deadline (if set) starts when the call
+    /// gets the mutex and covers the re-dial, the write, and the read. An I/O
+    /// error, a timeout, an undecodable reply, or a reply with a different id
+    /// drops the connection so the next call re-dials.
     fn call(&self, service: &str, op: &str, req: &[u8]) -> Result<Vec<u8>, ClientError> {
         let mut state = self.state.lock().unwrap();
+        let deadline = self.io_timeout.map(|t| Instant::now() + t);
         if state.stream.is_none() {
-            state.stream = Some(self.dial()?);
+            state.stream = Some(self.dial(deadline)?);
         }
         state.next_id += 1;
         let id = state.next_id;
@@ -145,21 +440,35 @@ impl TransportInner {
 
         let outcome: io::Result<Vec<u8>> = (|| {
             let stream = state.stream.as_mut().expect("dialed above");
+            stream.set_deadline(deadline)?;
             write_frame(stream, &env)?;
-            read_frame(stream)?.ok_or_else(|| {
-                io::Error::new(io::ErrorKind::UnexpectedEof, "corndogs: connection closed")
-            })
+            read_frame(stream)?
+                .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "corndogs: connection closed"))
         })();
 
         let frame = match outcome {
             Ok(frame) => frame,
             Err(e) => {
                 state.stream = None; // torn down; the next call re-dials
+                if e.kind() == io::ErrorKind::TimedOut {
+                    let limit = self.io_timeout.unwrap_or_default();
+                    return Err(ClientError::Transport(format!(
+                        "corndogs: {service}/{op} timed out after {limit:?}"
+                    )));
+                }
                 return Err(ClientError::Transport(e.to_string()));
             }
         };
+
+        let val = match decode_cbor(&frame).and_then(|v| check_id(&v, id).map(|()| v)) {
+            Ok(v) => v,
+            Err(e) => {
+                state.stream = None; // unknown stream state; the next call re-dials
+                return Err(ClientError::Transport(format!("corndogs: bad response envelope: {e}")));
+            }
+        };
         drop(state);
-        parse_response(&frame)
+        parse_response(&val)
     }
 
     fn ping(&self) -> Result<(), ClientError> {
@@ -177,31 +486,70 @@ impl TransportInner {
 pub struct Transport(Arc<TransportInner>);
 
 impl Transport {
-    /// Dials `addr` ("host:port") and returns a ready transport.
+    /// Dials `addr` ("host:port") and returns a ready transport. It uses a
+    /// 5 second connect timeout and no I/O deadline.
     pub fn connect(addr: impl Into<String>) -> Result<Self, ClientError> {
-        Self::connect_timeout(addr, DEFAULT_CONNECT_TIMEOUT)
+        Self::connect_options(addr, ConnectOptions::new())
     }
 
-    /// Like [`Transport::connect`], with an explicit dial timeout.
+    /// Like [`Transport::connect`], with an explicit dial timeout. It sets no
+    /// I/O deadline.
     pub fn connect_timeout(addr: impl Into<String>, connect_timeout: Duration) -> Result<Self, ClientError> {
+        Self::connect_options(addr, ConnectOptions::new().connect_timeout(connect_timeout))
+    }
+
+    /// Dials `addr` with a connect timeout and an optional I/O deadline for
+    /// each call. This is the recommended form for production. See the
+    /// module docs for the deadline rules.
+    pub fn connect_with(
+        addr: impl Into<String>,
+        connect_timeout: Duration,
+        io_timeout: Option<Duration>,
+    ) -> Result<Self, ClientError> {
+        Self::connect_options(
+            addr,
+            ConnectOptions::new()
+                .connect_timeout(connect_timeout)
+                .io_timeout_opt(io_timeout),
+        )
+    }
+
+    /// Dials `addr` over TLS with a 5 second connect timeout and no I/O
+    /// deadline. Use [`Transport::connect_options`] to also set an I/O
+    /// deadline.
+    #[cfg(feature = "tls")]
+    pub fn connect_tls(addr: impl Into<String>, tls: TlsOptions) -> Result<Self, ClientError> {
+        Self::connect_options(addr, ConnectOptions::new().tls(tls))
+    }
+
+    /// Dials `addr` with all settings in `opts`.
+    pub fn connect_options(addr: impl Into<String>, opts: ConnectOptions) -> Result<Self, ClientError> {
         let addr = addr.into();
+        #[cfg(feature = "tls")]
+        let tls = match &opts.tls {
+            Some(t) => Some(t.resolve(&addr)?),
+            None => None,
+        };
         let inner = TransportInner {
             addr,
-            connect_timeout,
+            connect_timeout: opts.connect_timeout,
+            io_timeout: opts.io_timeout,
+            #[cfg(feature = "tls")]
+            tls,
             state: Mutex::new(ConnState {
                 stream: None,
                 next_id: 0,
             }),
             hb_stop: Mutex::new(None),
         };
-        let stream = inner.dial()?;
+        let stream = inner.dial(None)?;
         inner.state.lock().unwrap().stream = Some(stream);
         Ok(Transport(Arc::new(inner)))
     }
 
     /// Sends one control-plane heartbeat (`CorndogsService/$ping`) and returns
     /// an error if the server is unreachable. Cheap; keeps an idle connection
-    /// alive and detects a dead server.
+    /// alive and detects a dead server. It uses the I/O deadline.
     pub fn ping(&self) -> Result<(), ClientError> {
         self.0.ping()
     }
@@ -269,7 +617,13 @@ impl crate::client::Transport for Transport {
 
 impl std::fmt::Debug for Transport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Transport").field("addr", &self.0.addr).finish()
+        let mut d = f.debug_struct("Transport");
+        d.field("addr", &self.0.addr)
+            .field("connect_timeout", &self.0.connect_timeout)
+            .field("io_timeout", &self.0.io_timeout);
+        #[cfg(feature = "tls")]
+        d.field("tls", &self.0.tls.is_some());
+        d.finish()
     }
 }
 
@@ -292,23 +646,36 @@ fn encode_request(id: u64, service: &str, op: &str, req: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Decodes one response envelope and returns the inner payload bytes, or a
-/// `ClientError` for a non-zero transport status or a `"ServiceError"` variant
-/// (decoded via the generated [`crate::decode_service_error`]).
-fn parse_response(frame: &[u8]) -> Result<Vec<u8>, ClientError> {
-    let val = decode_cbor(frame)
-        .map_err(|e| ClientError::Transport(format!("corndogs: decode response envelope: {e}")))?;
+/// Checks that a response envelope answers request `expected`. The server
+/// echoes the request id. Only a transport error for an undecodable request
+/// (status != 0) can have no id.
+fn check_id(val: &CsilCborValue, expected: u64) -> Result<(), String> {
+    match map_get(val, "id") {
+        Some(CsilCborValue::Uint(got)) if *got == expected => Ok(()),
+        Some(CsilCborValue::Uint(got)) => Err(format!("response id {got} does not match request id {expected}")),
+        Some(_) => Err("response id is not an unsigned integer".to_string()),
+        None => match map_get(val, "status").and_then(as_i64) {
+            Some(status) if status != 0 => Ok(()),
+            _ => Err(format!("response has no id (request id {expected})")),
+        },
+    }
+}
 
-    if let Some(status) = map_get(&val, "status").and_then(as_i64) {
+/// Interprets one decoded response envelope and returns the inner payload
+/// bytes, or a `ClientError` for a non-zero transport status or a
+/// `"ServiceError"` variant (decoded via the generated
+/// [`crate::decode_service_error`]).
+fn parse_response(val: &CsilCborValue) -> Result<Vec<u8>, ClientError> {
+    if let Some(status) = map_get(val, "status").and_then(as_i64) {
         if status != 0 {
-            let msg = map_get(&val, "error").and_then(as_text).unwrap_or_default();
+            let msg = map_get(val, "error").and_then(as_text).unwrap_or_default();
             return Err(ClientError::Transport(format!(
                 "corndogs: transport status {status}: {msg}"
             )));
         }
     }
 
-    let payload = match map_get(&val, "payload") {
+    let payload = match map_get(val, "payload") {
         None => return Ok(Vec::new()), // control replies (e.g. $pong) may carry no payload
         Some(p) => p,
     };
@@ -318,7 +685,7 @@ fn parse_response(frame: &[u8]) -> Result<Vec<u8>, ClientError> {
     }
     .ok_or_else(|| ClientError::Transport("corndogs: response payload is not a byte string".to_string()))?;
 
-    if let Some(variant) = map_get(&val, "variant").and_then(as_text) {
+    if let Some(variant) = map_get(val, "variant").and_then(as_text) {
         if variant == "ServiceError" {
             return match crate::decode_service_error(&inner) {
                 Ok(se) => Err(ClientError::Service {
@@ -533,7 +900,7 @@ fn write_frame(w: &mut impl Write, payload: &[u8]) -> io::Result<()> {
     }
     w.write_all(&(payload.len() as u32).to_be_bytes())?;
     w.write_all(payload)?;
-    Ok(())
+    w.flush() // TLS: push the buffered records to the socket
 }
 
 /// Reads one length-prefixed frame. Returns `Ok(None)` on a clean EOF at a

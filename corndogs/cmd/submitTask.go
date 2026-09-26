@@ -2,14 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"net"
 
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/spf13/cobra"
 )
 
 func newSubmitTaskCommand() *cobra.Command {
-	var address, port string
+	var conn rpcFlags
 	var queue, currentState, autoTargetState, payload string
 	var timeout, priority int64
 	cmd := &cobra.Command{
@@ -25,7 +24,11 @@ func newSubmitTaskCommand() *cobra.Command {
 				Payload:         []byte(payload),
 				Priority:        priority,
 			}
-			resp, err := api.New(net.JoinHostPort(address, port)).SubmitTask(cmd.Context(), req)
+			client, err := conn.client()
+			if err != nil {
+				return err
+			}
+			resp, err := client.SubmitTask(cmd.Context(), req)
 			if err != nil {
 				return fmt.Errorf("submit task: %w", err)
 			}
@@ -36,8 +39,7 @@ func newSubmitTaskCommand() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringVarP(&address, "address", "a", "127.0.0.1", "RPC host name or IP address")
-	cmd.Flags().StringVarP(&port, "port", "p", "5080", "RPC port")
+	conn.register(cmd)
 	cmd.Flags().StringVarP(&queue, "queue", "q", "", "Queue name (server default if empty)")
 	cmd.Flags().StringVarP(&currentState, "current-state", "c", "", "Initial state (server default if empty)")
 	cmd.Flags().StringVarP(&autoTargetState, "auto-target-state", "t", "", "State to use when a worker claims the task")

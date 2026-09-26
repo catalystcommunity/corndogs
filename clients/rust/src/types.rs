@@ -97,7 +97,7 @@ pub struct UpdateTaskRequest {
     pub timeout: i64,
     pub new_state: String,
     pub payload: Option<Vec<u8>>,
-    pub priority: i64,
+    pub priority: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

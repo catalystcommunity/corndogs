@@ -167,6 +167,48 @@ func TestPayloadUpdatePresence(t *testing.T) {
 	}
 }
 
+func TestPriorityUpdatePresence(t *testing.T) {
+	for _, backend := range backends {
+		t.Run(backend, func(t *testing.T) {
+			withFakeClock(t)
+			s, cleanup := newStore(t, backend, SyncNever)
+			defer cleanup()
+
+			sub, err := s.SubmitTask(ctx(), &api.SubmitTaskRequest{
+				Queue: "q", CurrentState: "submitted", AutoTargetState: "working",
+				Timeout: -1, Payload: []byte("p"), Priority: 5,
+			})
+			require.NoError(t, err)
+
+			// An absent priority keeps the stored priority.
+			upd, err := s.UpdateTask(ctx(), &api.UpdateTaskRequest{
+				Uuid: sub.Task.Uuid, Queue: "q", NewState: "parked", AutoTargetState: "parked-working",
+			})
+			require.NoError(t, err)
+			require.Equal(t, int64(5), upd.Task.Priority)
+
+			// The kept priority still orders the claim above a newer, lower task.
+			_, err = s.SubmitTask(ctx(), &api.SubmitTaskRequest{
+				Queue: "q", CurrentState: "parked", AutoTargetState: "parked-working",
+				Timeout: -1, Payload: []byte("low"), Priority: 2,
+			})
+			require.NoError(t, err)
+			got, err := s.GetNextTask(ctx(), &api.GetNextTaskRequest{Queue: "q", CurrentState: "parked"})
+			require.NoError(t, err)
+			require.Equal(t, sub.Task.Uuid, got.Delivery.Task.Uuid)
+
+			// A present priority replaces the stored priority, zero included.
+			zero := int64(0)
+			upd, err = s.UpdateTask(ctx(), &api.UpdateTaskRequest{
+				Uuid: sub.Task.Uuid, Queue: "q", NewState: "parked", AutoTargetState: "parked-working",
+				Priority: &zero,
+			})
+			require.NoError(t, err)
+			require.Equal(t, int64(0), upd.Task.Priority)
+		})
+	}
+}
+
 func TestGetNextTaskOverride(t *testing.T) {
 	for _, backend := range backends {
 		t.Run(backend, func(t *testing.T) {

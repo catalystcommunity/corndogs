@@ -92,6 +92,18 @@ CompleteTaskResponse = Data.define(:task) do
   end
 end
 
+# UpdateTask finds the live task by uuid and writes it again.
+# - new_state, auto_target_state, and timeout replace the stored values on
+# every update. The server supplies defaults for empty state fields.
+# - payload is optional. If it is absent, the stored payload does not change,
+# and the server does not write it again. If it is present, it replaces the
+# stored payload. A present, empty payload stores an empty byte string.
+# - priority is optional. If it is absent, the stored priority does not change.
+# If it is present, it replaces the stored priority.
+# - update_time becomes the current time. Claim order is priority descending,
+# then update_time ascending, so an update moves the task to the end of its
+# priority band.
+# Both storage backends obey these rules.
 # uuid [String]
 # queue [String]
 # current_state [String]
@@ -101,7 +113,7 @@ end
 # payload [String]
 # priority [Integer]
 UpdateTaskRequest = Data.define(:uuid, :queue, :current_state, :auto_target_state, :timeout, :new_state, :payload, :priority) do
-  def initialize(uuid:, queue:, current_state:, auto_target_state:, timeout:, new_state:, priority:, payload: nil)
+  def initialize(uuid:, queue:, current_state:, auto_target_state:, timeout:, new_state:, payload: nil, priority: nil)
     super
   end
 end

@@ -90,6 +90,20 @@ export interface CompleteTaskResponse {
   task?: Task;
 }
 
+/**
+ * UpdateTask finds the live task by uuid and writes it again.
+ * - new_state, auto_target_state, and timeout replace the stored values on
+ * every update. The server supplies defaults for empty state fields.
+ * - payload is optional. If it is absent, the stored payload does not change,
+ * and the server does not write it again. If it is present, it replaces the
+ * stored payload. A present, empty payload stores an empty byte string.
+ * - priority is optional. If it is absent, the stored priority does not change.
+ * If it is present, it replaces the stored priority.
+ * - update_time becomes the current time. Claim order is priority descending,
+ * then update_time ascending, so an update moves the task to the end of its
+ * priority band.
+ * Both storage backends obey these rules.
+ */
 export interface UpdateTaskRequest {
   uuid: string;
   queue: string;
@@ -98,7 +112,7 @@ export interface UpdateTaskRequest {
   timeout: number;
   newState: string;
   payload?: Uint8Array;
-  priority: number;
+  priority?: number;
 }
 
 export interface UpdateTaskResponse {

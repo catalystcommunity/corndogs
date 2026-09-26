@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"sync"
@@ -36,7 +37,11 @@ func serveCSILRPCTCP(ln net.Listener, svc api.CorndogsService) {
 }
 
 func serveConn(conn net.Conn, routes map[string]rpcHandlerFunc) {
-	if tc, ok := conn.(*net.TCPConn); ok {
+	raw := conn
+	if tc, ok := conn.(*tls.Conn); ok {
+		raw = tc.NetConn()
+	}
+	if tc, ok := raw.(*net.TCPConn); ok {
 		_ = tc.SetKeepAlive(true)
 	}
 	defer conn.Close()

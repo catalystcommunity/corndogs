@@ -98,6 +98,33 @@ STORAGE_BACKEND=postgres DATABASE_HOST=localhost DATABASE_USER=postgres \
 
 See [storage-backends.md](./storage-backends.md) for the full env-var reference.
 
+## TLS
+
+Set `tls.enabled=true` and `tls.secretName` to serve the RPC port with TLS. The
+Secret must have the type `kubernetes.io/tls`, with `tls.crt` and `tls.key`.
+cert-manager makes a Secret of this type. The certificate must be valid for
+each name that clients use, for example `corndogs.<namespace>.svc`.
+
+```sh
+helm install corndogs ./helm_chart/chart \
+  --set tls.enabled=true \
+  --set tls.secretName=corndogs-tls \
+  --set tls.caKey=ca.crt
+```
+
+The chart mounts the whole Secret. When the Secret changes, the kubelet updates
+the files, and Corndogs loads the new certificate without a restart. Do not
+mount the files with `subPath`, because the kubelet does not update a `subPath`
+mount.
+
+The timeout CronJob connects with TLS when `tls.enabled=true`. If `tls.caKey`
+is set, the CronJob verifies the server with that CA from the Secret. If it is
+empty, the CronJob uses the system roots. Set `tls.serverName` when the
+certificate does not contain the CronJob address.
+
+For a process outside Kubernetes, see
+[the TLS settings](../corndogs/APIDOCS.md#tls).
+
 ## Payload limit
 
 The Helm value `appconfig.maxPayloadBytes` sets the maximum payload size. The

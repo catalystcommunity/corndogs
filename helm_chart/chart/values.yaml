@@ -119,6 +119,26 @@ timeoutCron:
   # restartPolicy: Never
 
 
+# tls serves the CSIL-RPC port (5080) with TLS only. The ops port (8080:
+# /healthz, /metrics) stays plain HTTP.
+#   secretName     : a kubernetes.io/tls Secret with tls.crt and tls.key, for
+#                    example from cert-manager. The certificate must be valid
+#                    for each name that clients use (the Service DNS names).
+#   reloadInterval : how often Corndogs examines the files for a new
+#                    certificate. A Secret update needs no pod restart.
+#   caKey          : a key in the same Secret that holds the CA certificate
+#                    (cert-manager writes ca.crt). The timeout CronJob uses it
+#                    to verify the server. Empty: the system roots.
+#   serverName     : the name that the timeout CronJob verifies in the server
+#                    certificate. Empty: the CronJob address.
+tls:
+  enabled: false
+  secretName: ""
+  mountPath: /etc/corndogs/tls
+  reloadInterval: 10s
+  caKey: ""
+  serverName: ""
+
 # storage selects the backend:
 #   postgres (default) : the shared, horizontally-scalable backend.
 #   file               : an embedded, single-process bbolt backend, with no

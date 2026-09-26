@@ -215,7 +215,7 @@ func TestUpdatePriorityUp(t *testing.T) {
 	updateTaskRequest := &api.UpdateTaskRequest{
 		Uuid:     submitTaskResponse.Task.Uuid,
 		Queue:    "testQueue" + testID,
-		Priority: 1,
+		Priority: ptrInt64(1),
 	}
 	updateTaskResponse, err := corndogsClient.UpdateTask(context.Background(), updateTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
@@ -253,7 +253,7 @@ func TestUpdatePriorityDown(t *testing.T) {
 	updateTaskRequest := &api.UpdateTaskRequest{
 		Uuid:     submitTaskResponse.Task.Uuid,
 		Queue:    "testQueue" + testID,
-		Priority: -1,
+		Priority: ptrInt64(-1),
 	}
 	updateTaskResponse, err := corndogsClient.UpdateTask(context.Background(), updateTaskRequest)
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
@@ -265,6 +265,7 @@ func TestUpdatePriorityDown(t *testing.T) {
 	require.NotEmpty(t, updateTaskResponse.Task.Uuid, "uuid should not be empty")
 }
 
+// An UpdateTask that does not send a priority keeps the stored priority.
 func TestUpdatePriorityNotSpecified(t *testing.T) {
 	testID := GetTestID()
 	corndogsClient := GetCorndogsClient()
@@ -296,8 +297,10 @@ func TestUpdatePriorityNotSpecified(t *testing.T) {
 	require.Nil(t, err, fmt.Sprintf("error should be nil. error: \n%v", err))
 	require.NotNil(t, updateTaskResponse.Task, "Task in response was nil")
 	require.Equal(t, updateTaskRequest.Queue, updateTaskResponse.Task.Queue, "Queue name is not equal")
-	require.Equal(t, int64(0), updateTaskResponse.Task.Priority, "Priority not updated")
+	require.Equal(t, int64(1), updateTaskResponse.Task.Priority, "absent priority must keep the stored value")
 	require.NotEmpty(t, updateTaskResponse.Task.SubmitTime, "submit_time should not be empty")
 	require.NotEmpty(t, updateTaskResponse.Task.UpdateTime, "update_time should not be empty")
 	require.NotEmpty(t, updateTaskResponse.Task.Uuid, "uuid should not be empty")
 }
+
+func ptrInt64(v int64) *int64 { return &v }

@@ -21,3 +21,7 @@ pub use client_async::*;
 // (the generated seam trait) already claims that name there — so it lives at
 // `corndogs::transport::Transport`. See src/transport.rs for the full design.
 pub mod transport;
+
+// TLS options for the transport. Behind the `tls` cargo feature (rustls + ring).
+#[cfg(feature = "tls")]
+pub mod tls;

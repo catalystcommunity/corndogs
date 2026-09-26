@@ -55,6 +55,14 @@ spec:
               value: {{ .Values.appconfig.maxPayloadBytes | quote }}
             - name: STORAGE_BACKEND
               value: {{ .Values.storage.backend | quote }}
+            {{- if .Values.tls.enabled }}
+            - name: CORNDOGS_TLS_CERT_FILE
+              value: {{ printf "%s/tls.crt" .Values.tls.mountPath | quote }}
+            - name: CORNDOGS_TLS_KEY_FILE
+              value: {{ printf "%s/tls.key" .Values.tls.mountPath | quote }}
+            - name: CORNDOGS_TLS_RELOAD_INTERVAL
+              value: {{ .Values.tls.reloadInterval | quote }}
+            {{- end }}
             {{- if eq .Values.storage.backend "file" }}
             - name: CORNDOGS_FILESTORE_DIR
               value: {{ .Values.storage.file.dir | quote }}
@@ -156,17 +164,33 @@ spec:
             failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if eq .Values.storage.backend "file" }}
+          {{- if or (eq .Values.storage.backend "file") .Values.tls.enabled }}
           volumeMounts:
+            {{- if eq .Values.storage.backend "file" }}
             - name: data
               mountPath: {{ .Values.storage.file.dir }}
             {{- if .Values.storage.file.persistence.audit.enabled }}
             - name: audit
               mountPath: {{ .Values.storage.file.persistence.audit.mountPath }}
             {{- end }}
+            {{- end }}
+            {{- if .Values.tls.enabled }}
+            # Mount the whole Secret, not a subPath: the kubelet updates a
+            # subPath mount never, so a renewed certificate would not arrive.
+            - name: tls
+              mountPath: {{ .Values.tls.mountPath }}
+              readOnly: true
+            {{- end }}
           {{- end }}
-      {{- if eq .Values.storage.backend "file" }}
+      {{- if or (eq .Values.storage.backend "file") .Values.tls.enabled }}
       volumes:
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.secretName }}
+        {{- end }}
+      {{- end }}
+      {{- if eq .Values.storage.backend "file" }}
         - name: data
           {{- if .Values.storage.file.persistence.enabled }}
           persistentVolumeClaim:
