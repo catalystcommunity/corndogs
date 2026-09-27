@@ -1,0 +1,66 @@
+# Releases after a merge to main.
+#
+# The server node runs first. It releases the server when commits under
+# corndogs/ call for a release, and it sets the chart appVersion on main. The
+# chart node runs after it, on the new main. It releases the chart for a feat
+# or fix commit under helm_chart/, and also when appVersion changed since the
+# last chart release. Thus each server release also gives a chart that points
+# at it.
+#
+# The nodes run one after the other, so they never push Chart.yaml at the
+# same time. The chart node runs even if the server node fails
+# (condition: always), so a chart change is not blocked by a server failure.
+#
+# These nodes read secrets. They are not in the pull request workflow,
+# because a pull request that changes .reactorcide/ runs under a profile that
+# denies secrets. The secret grants match the node names; keep them.
+id: corndogs-release
+name: Corndogs Release
+description: "Release the server image, then the Helm chart, after a merge to main."
+
+on:
+  events:
+    - pull_request_merged
+  branches:
+    - main
+
+paths:
+  include:
+    - "corndogs/**"
+    - "csil/**"
+    - "clients/corndogs/**"
+    - "helm_chart/**"
+
+jobs:
+  corndogs-release-server:
+    image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
+    command: "runnerlib run --job-command true"
+    working_dir: /job
+    timeout: 1800
+    priority: 15
+    capabilities:
+      - docker
+    disable_run_local: true
+    environment:
+      CORNDOGS_JOB: release-server
+      REGISTRY: "containers.catalystsquad.com"
+      IMAGE_PATH: "public/catalystcommunity/corndogs"
+      REGISTRY_USER: "${secret:catalystcommunity/registry:user}"
+      REGISTRY_PASSWORD: "${secret:catalystcommunity/registry:password}"
+      GITHUB_PAT: "${secret:catalystcommunity/ci:githubpat}"
+
+  corndogs-release-helm:
+    depends_on:
+      - corndogs-release-server
+    condition: always
+    image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
+    command: "runnerlib run --job-command true"
+    working_dir: /job
+    timeout: 1200
+    priority: 15
+    disable_run_local: true
+    environment:
+      CORNDOGS_JOB: release-helm
+      CHARTS_REPO: "catalystcommunity/charts"
+      GITHUB_PAT: "${secret:catalystcommunity/ci:githubpat}"
+      CHARTS_GITHUB_PAT: "${secret:catalystcommunity/ci:githubpat}"
