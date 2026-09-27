@@ -24,12 +24,17 @@ on:
   branches:
     - main
 
+# A change under .reactorcide/ also runs this workflow. Each node decides by
+# itself whether a release is necessary, so a CI-only merge releases nothing
+# unless a release is due. This also lets a fix to the release code run the
+# release again: a retry of a failed run uses the CI files of that run.
 paths:
   include:
     - "corndogs/**"
     - "csil/**"
     - "clients/corndogs/**"
     - "helm_chart/**"
+    - ".reactorcide/**"
 
 jobs:
   corndogs-release-server:
