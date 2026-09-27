@@ -33,9 +33,14 @@ runs every check.
 
 ## Releases
 
-`corndogs-release-server` runs first. If commits under `corndogs/` call for a
-release, it builds and pushes the image, sets the chart `appVersion` on main,
-tags that commit `corndogs/vX.Y.Z`, and makes the GitHub release.
+`corndogs-release-server` runs first. It reads the commits since the last
+`corndogs/vX.Y.Z` tag that touch `corndogs/`, `csil/`, or `clients/corndogs/`.
+The server image compiles all three: the CSIL contract and the generated Go
+module. `fix` and `perf` give a patch release, `feat` a minor release, and
+`!` or `BREAKING CHANGE` a major release. Then it builds and pushes the image,
+sets the chart `appVersion` on main, tags that commit, and makes the GitHub
+release. The plugin computes this version itself (`next_release_tag`),
+because `semver-tags --directories` tags each directory separately.
 
 `corndogs-release-helm` runs next, on the new main, even if the server node
 failed. It releases the chart (`helm_chart/vX.Y.Z`) for a `feat` or `fix`

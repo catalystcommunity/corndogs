@@ -119,6 +119,25 @@ class Versions(unittest.TestCase):
         self.assertIsNone(P.last_json_object("nothing here"))
 
 
+class ServerRelease(unittest.TestCase):
+    def test_bump_rules(self):
+        self.assertIsNone(P.release_bump([("ci: x", ""), ("docs: y", ""), ("chore(deps): z", "")]))
+        self.assertEqual(P.release_bump([("fix: a", "")]), "patch")
+        self.assertEqual(P.release_bump([("perf(store): a", "")]), "patch")
+        self.assertEqual(P.release_bump([("fix: a", ""), ("feat(api): b", "")]), "minor")
+        self.assertEqual(P.release_bump([("feat!: a", "")]), "major")
+        self.assertEqual(P.release_bump([("fix: a", "BREAKING CHANGE: wire format")]), "major")
+        self.assertIsNone(P.release_bump([("Updated some stuff", "")]))
+
+    def test_bump_tag(self):
+        self.assertEqual(P.bump_tag("corndogs/v0.7.5", "patch"), "corndogs/v0.7.6")
+        self.assertEqual(P.bump_tag("corndogs/v0.7.5", "minor"), "corndogs/v0.8.0")
+        self.assertEqual(P.bump_tag("corndogs/v0.7.5", "major"), "corndogs/v1.0.0")
+
+    def test_server_paths_cover_what_the_image_compiles(self):
+        self.assertEqual(set(P.SERVER_RELEASE_PATHS), {"corndogs", "csil", "clients/corndogs"})
+
+
 class ChartRelease(unittest.TestCase):
     def test_semver_result_wins(self):
         self.assertEqual(P.chart_release_tag("helm_chart/v0.6.0", "helm_chart/v0.5.5",
