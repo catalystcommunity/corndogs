@@ -90,21 +90,25 @@ crane push /tmp/image.tar "${IMAGE}:latest"
 rm /tmp/image.tar
 
 echo "=== bump chart appVersion to ${VERSION}, commit, tag the commit, push ==="
-# Create the bump commit FIRST, then tag it, so ${NEW_TAG} points at the commit
-# that becomes HEAD of main. The retry loop serializes against a concurrent
-# release-helm push (it also commits Chart.yaml, a different line). The branch
-# and tag are pushed in one --atomic push so the tag never lands without its commit.
-sed -i "s/^appVersion: .*/appVersion: \"${VERSION}\"/" helm_chart/chart/Chart.yaml
-git add helm_chart/chart/Chart.yaml
-git commit -m "ci: bump corndogs appVersion to ${VERSION}" || echo "nothing to commit (appVersion already ${VERSION})"
+# Create the bump commit, then tag it, so ${NEW_TAG} points at the commit that
+# becomes HEAD of main. release-helm can push a Chart.yaml change at the same
+# time. Its `version` line is next to our `appVersion` line, so a rebase of our
+# commit onto it conflicts. Thus each attempt does not rebase: it checks out
+# the current origin/main, applies the one-line change again, and commits.
+# `git checkout` stops if the tree has changes, so it cannot discard work. The
+# branch and tag go in one --atomic push, so the tag never lands without its
+# commit.
+bump_chart() {
+  git fetch origin main
+  git checkout --detach FETCH_HEAD
+  sed -i "s/^appVersion: .*/appVersion: \"${VERSION}\"/" helm_chart/chart/Chart.yaml
+  git add helm_chart/chart/Chart.yaml
+  git commit -m "ci: bump corndogs appVersion to ${VERSION}" || echo "nothing to commit (appVersion already ${VERSION})"
+}
 
 pushed=false
 for attempt in $(seq 1 5); do
-  if ! git pull --rebase origin main; then
-    git rebase --abort 2>/dev/null || true
-    sleep $((attempt * 3)); continue
-  fi
-  # Point the tag at the final (possibly rebased) HEAD just before pushing.
+  bump_chart
   git tag -f "${NEW_TAG}"
   if git push --atomic origin "HEAD:main" "refs/tags/${NEW_TAG}"; then
     pushed=true

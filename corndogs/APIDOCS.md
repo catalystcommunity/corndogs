@@ -74,14 +74,16 @@ task keeps its payload and its place above lower-priority work.
 
 ### `CompleteTask`
 
-Complete a task that has the matching `uuid`, `queue`, and `current_state`.
-Corndogs sets both states to `completed` and archives the task. The response
+Complete the live task that has the matching `uuid`. Corndogs does not compare
+`queue` or `current_state`. Corndogs sets both states to `completed` and archives
+the task. The response
 contains the archived task metadata.
 
 ### `CancelTask`
 
-Cancel a task that has the matching `uuid`, `queue`, and `current_state`.
-Corndogs sets both states to `canceled` and archives the task. The response
+Cancel the live task that has the matching `uuid`. Corndogs does not compare
+`queue` or `current_state`. Corndogs sets both states to `canceled` and archives
+the task. The response
 contains the archived task metadata.
 
 ### `CleanUpTimedOut`
