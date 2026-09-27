@@ -12,7 +12,7 @@
 # release, run this script, and commit the result.
 set -euo pipefail
 
-CSILGEN_RELEASE="csilgen/v0.2.8"
+CSILGEN_RELEASE="csilgen/v0.2.9"
 
 # Go is generated separately because the server also uses its service interface.
 LANGUAGES=(rust typescript python java csharp c swift kotlin zig ocaml elixir ruby dart)
