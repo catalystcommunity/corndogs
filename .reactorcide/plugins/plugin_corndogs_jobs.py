@@ -64,6 +64,15 @@ CONVENTIONAL_SUBJECT = re.compile(
 
 SEMVER_TAG = re.compile(r"^(?P<prefix>.+/)v(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$")
 
+# The paths whose commits release the server. The server image compiles all of
+# them: the CSIL contract and the generated Go module (a replace directive in
+# corndogs/go.mod). semver-tags cannot combine directories into one tag: it
+# tags each directory by its last path segment. Thus the server version is
+# computed here (next_release_tag).
+SERVER_RELEASE_PATHS = ("corndogs", "csil", "clients/corndogs")
+RELEASE_TYPES = {"feat": "minor", "fix": "patch", "perf": "patch"}
+SUBJECT_TYPE = re.compile(r"^(?P<type>[a-z]+)(\([^()]+\))?(?P<breaking>!)?: ")
+
 # The paths that make each pull request check run. A change under
 # .reactorcide/ runs every check, because it can change how any check works.
 CI_PATHS = (".reactorcide/",)
@@ -658,6 +667,60 @@ def _semver_next(root: Path, directory: str) -> Optional[str]:
     return tag
 
 
+def release_bump(commits: Sequence[Tuple[str, str]]) -> Optional[str]:
+    """The version part to bump for (subject, body) commits, or None.
+
+    The Conventional Commits rules that semver-tags uses: "!" after the type,
+    or "BREAKING CHANGE" in the body, bumps major; feat bumps minor; fix and
+    perf bump patch. Other types release nothing.
+    """
+    order = {"patch": 1, "minor": 2, "major": 3}
+    bump: Optional[str] = None
+    for subject, body in commits:
+        match = SUBJECT_TYPE.match(subject)
+        if not match:
+            continue
+        if match["breaking"] or "BREAKING CHANGE" in body or "BREAKING-CHANGE" in body:
+            part: Optional[str] = "major"
+        else:
+            part = RELEASE_TYPES.get(match["type"])
+        if part and (bump is None or order[part] > order[bump]):
+            bump = part
+    return bump
+
+
+def bump_tag(tag: str, part: str) -> str:
+    match = SEMVER_TAG.match(tag)
+    if not match:
+        raise ValueError(f"not a release tag: {tag!r}")
+    major, minor, patch = int(match["major"]), int(match["minor"]), int(match["patch"])
+    if part == "major":
+        major, minor, patch = major + 1, 0, 0
+    elif part == "minor":
+        minor, patch = minor + 1, 0
+    else:
+        patch += 1
+    return f"{match['prefix']}v{major}.{minor}.{patch}"
+
+
+def next_release_tag(root: Path, prefix: str, paths: Sequence[str]) -> Optional[str]:
+    """The next ``prefix`` tag for release commits under any of ``paths``."""
+    tags = _run(["git", "tag", "--list", f"{prefix}v*"], cwd=root, capture=True).stdout.split()
+    last = latest_tag(tags, prefix)
+    if last is None:
+        raise RuntimeError(f"no {prefix}v* tag exists; create the first one by hand")
+    listed = _run(["git", "log", "--no-merges", "--format=%s%x1f%b%x1e", f"{last}..HEAD", "--", *paths],
+                  cwd=root, capture=True)
+    commits = []
+    for record in listed.stdout.split("\x1e"):
+        subject, _, body = record.strip("\n").partition("\x1f")
+        if subject:
+            commits.append((subject, body))
+    bump = release_bump(commits)
+    log_stdout(f"{len(commits)} commits under {', '.join(paths)} since {last}; bump: {bump or 'none'}")
+    return bump_tag(last, bump) if bump else None
+
+
 def tag_version(tag: str) -> str:
     match = SEMVER_TAG.match(tag)
     if not match:
@@ -779,7 +842,7 @@ def _write_registry_auth(registry: str) -> None:
 
 
 def _release_server(root: Path) -> None:
-    """Release the server when commits under corndogs/ call for a release.
+    """Release the server when commits under SERVER_RELEASE_PATHS call for it.
 
     Order: compute the version, build and push the image, then commit the
     chart appVersion, tag that commit, and push both. The tag goes last
@@ -787,9 +850,10 @@ def _release_server(root: Path) -> None:
     """
     repository = _require("REACTORCIDE_REPO")
     _configure_git(root, repository)
-    tag = _semver_next(root, "corndogs")
+    tag = next_release_tag(root, "corndogs/", SERVER_RELEASE_PATHS)
     if tag is None:
-        log_stdout("No server release: no feat or fix commit under corndogs/ since the last tag")
+        log_stdout("No server release: no feat, fix, or perf commit under "
+                   f"{', '.join(p + '/' for p in SERVER_RELEASE_PATHS)} since the last tag")
         return
     version = tag_version(tag)
     registry = _require("REGISTRY")
