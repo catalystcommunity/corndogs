@@ -1,6 +1,16 @@
+# Pull request checks. One workflow holds every check.
+#
+# Reactorcide filters paths for a whole workflow only. Thus this workflow has
+# no path filter, and each check examines the changed files itself (see
+# CHECK_PATHS in .reactorcide/plugins/plugin_corndogs_jobs.py). A check with
+# no relevant change logs the reason and succeeds. A change under
+# .reactorcide/ runs every check.
+#
+# Each node runs the corndogs plugin. CORNDOGS_JOB selects the job. Keep the
+# workflow id: the coordinator CI policy names it.
 id: corndogs-pr
 name: Corndogs PR
-description: "Validate commit messages for pull requests."
+description: "Check commits, the server, the clients, the generated code, and the chart."
 
 on:
   events:
@@ -11,4 +21,55 @@ on:
 
 jobs:
   corndogs-conventional-commits:
-    job_file: conventional-commits.yaml
+    image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
+    command: "runnerlib run --job-command true"
+    working_dir: /job
+    timeout: 300
+    priority: 10
+    environment:
+      CORNDOGS_JOB: conventional-commits
+
+  corndogs-test-server:
+    image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
+    command: "runnerlib run --job-command true"
+    working_dir: /job
+    timeout: 1800
+    priority: 10
+    environment:
+      CORNDOGS_JOB: test-server
+
+  corndogs-client-tests:
+    image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
+    command: "runnerlib run --job-command true"
+    working_dir: /job
+    timeout: 900
+    priority: 10
+    environment:
+      CORNDOGS_JOB: client-tests
+
+  corndogs-csil-gen-check:
+    image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
+    command: "runnerlib run --job-command true"
+    working_dir: /job
+    timeout: 900
+    priority: 10
+    environment:
+      CORNDOGS_JOB: csil-gen-check
+
+  corndogs-helm-validate:
+    image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
+    command: "runnerlib run --job-command true"
+    working_dir: /job
+    timeout: 600
+    priority: 10
+    environment:
+      CORNDOGS_JOB: helm-validate
+
+  corndogs-ci-tests:
+    image: containers.catalystsquad.com/public/reactorcide/runnerbase:latest
+    command: "runnerlib run --job-command true"
+    working_dir: /job
+    timeout: 300
+    priority: 10
+    environment:
+      CORNDOGS_JOB: ci-tests

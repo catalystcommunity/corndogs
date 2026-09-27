@@ -3,11 +3,13 @@
 # Generate the transport-neutral client code. Corndogs supplies its TCP transport
 # and README for each language.
 #
-# Use this csilgen release so that generation is reproducible. Install the CLI
-# and generator bundle with the supported installer. Confirm that its
-# `Installed GitHub Release` line matches CSILGEN_RELEASE before generation:
-#   <csilgen>/tools.sh install-all
-#   ./csil/generate.sh
+# Use this csilgen release so that generation is reproducible. CI installs
+# exactly this release from its GitHub release assets (see
+# .reactorcide/plugins/plugin_corndogs_jobs.py, _install_csilgen) and fails if
+# the committed clients differ. csilgen's own `tools.sh install-all` installs
+# the NEWEST release, which can differ from this pin. Check `csilgen --version`
+# before generation. To move the pin, change CSILGEN_RELEASE, install that
+# release, run this script, and commit the result.
 set -euo pipefail
 
 CSILGEN_RELEASE="csilgen/v0.2.8"
