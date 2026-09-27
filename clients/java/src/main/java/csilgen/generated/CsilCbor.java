@@ -191,6 +191,12 @@ public final class CsilCbor {
         }
     }
 
+    /** Bounds the elements a decoded array or map reserves before it reads
+     * them. The declared length is checked against the remaining input, but one input
+     * byte can become a much larger value, so reserving the full declared length lets a
+     * small frame reserve a large multiple of its size at every nesting level. */
+    private static final int PREALLOC_LIMIT = 1024;
+
     private static CborValue dec(byte[] b, int[] pos, int depth) {
         if (depth > 64) {
             throw new CsilCborException("csil cbor: nesting limit exceeded");
@@ -259,7 +265,7 @@ public final class CsilCbor {
                     throw new CsilCborException("csil cbor: array length exceeds remaining input");
                 }
                 int n = (int) arg;
-                List<CborValue> items = new ArrayList<>(n);
+                List<CborValue> items = new ArrayList<>(Math.min(n, PREALLOC_LIMIT));
                 for (int i = 0; i < n; i++) {
                     items.add(dec(b, pos, depth + 1));
                 }
@@ -270,7 +276,7 @@ public final class CsilCbor {
                     throw new CsilCborException("csil cbor: map length exceeds remaining input");
                 }
                 int n = (int) arg;
-                List<CborEntry> entries = new ArrayList<>(n);
+                List<CborEntry> entries = new ArrayList<>(Math.min(n, PREALLOC_LIMIT));
                 for (int i = 0; i < n; i++) {
                     CborValue k = dec(b, pos, depth + 1);
                     CborValue val = dec(b, pos, depth + 1);

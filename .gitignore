@@ -84,3 +84,6 @@ zig-out/
 pubspec.lock
 # Swift
 .build/
+
+# reactorcide run-local output
+reactorcide-workflow-summary.json

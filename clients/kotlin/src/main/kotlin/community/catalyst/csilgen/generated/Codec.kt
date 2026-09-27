@@ -166,6 +166,12 @@ object CsilCbor {
         throw CborError("invalid UTF-8 text string")
     }
 
+    // PREALLOC_LIMIT bounds the elements a decoded array or map reserves before it reads
+    // them. The declared length is checked against the remaining input, but one input
+    // byte can become a much larger value, so reserving the full declared length lets a
+    // small frame reserve a large multiple of its size at every nesting level.
+    private const val PREALLOC_LIMIT = 1024
+
     private fun dec(cur: Cursor, depth: Int): CborValue {
         if (depth > 64) throw CborError("CBOR nesting limit exceeded")
         if (cur.pos >= cur.b.size) throw CborError("unexpected end of CBOR input")
@@ -221,14 +227,14 @@ object CsilCbor {
             4 -> {
                 if (arg > (cur.b.size - cur.pos).toULong()) throw CborError("array length exceeds remaining input")
                 val n = arg.toInt()
-                val items = ArrayList<CborValue>(n)
+                val items = ArrayList<CborValue>(minOf(n, PREALLOC_LIMIT))
                 repeat(n) { items.add(dec(cur, depth + 1)) }
                 CborValue.CArray(items)
             }
             5 -> {
                 if (arg > (cur.b.size - cur.pos).toULong()) throw CborError("map length exceeds remaining input")
                 val n = arg.toInt()
-                val entries = ArrayList<Pair<CborValue, CborValue>>(n)
+                val entries = ArrayList<Pair<CborValue, CborValue>>(minOf(n, PREALLOC_LIMIT))
                 repeat(n) {
                     val k = dec(cur, depth + 1)
                     val value = dec(cur, depth + 1)
