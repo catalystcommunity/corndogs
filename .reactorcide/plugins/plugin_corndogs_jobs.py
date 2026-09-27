@@ -198,12 +198,23 @@ def _fetch_text(url: str) -> str:
         return response.read().decode()
 
 
+def tar_member(tar: tarfile.TarFile, member: str) -> tarfile.TarInfo:
+    """Find a regular file in an archive, with or without a leading "./".
+
+    Release archives differ: semver-tags stores "./semver-tags", crane
+    stores "crane". ``TarFile.extractfile`` matches the stored name exactly.
+    """
+    wanted = member.removeprefix("./")
+    for info in tar.getmembers():
+        if info.isfile() and info.name.removeprefix("./") == wanted:
+            return info
+    raise RuntimeError(f"{member} is not in {tar.name}")
+
+
 def _install_from_tar(name: str, archive: Path, member: str) -> Path:
     target = _local_bin() / name
     with tarfile.open(archive) as tar:
-        extracted = tar.extractfile(member)
-        if extracted is None:
-            raise RuntimeError(f"{member} is not in {archive.name}")
+        extracted = tar.extractfile(tar_member(tar, member))
         target.write_bytes(extracted.read())
     target.chmod(0o755)
     archive.unlink()

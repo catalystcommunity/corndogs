@@ -152,6 +152,39 @@ class ChartFields(unittest.TestCase):
             P.set_chart_field("name: x\n", "appVersion", "1.0.0")
 
 
+class TarMembers(unittest.TestCase):
+    """Release archives store a tool as "name" or as "./name"."""
+
+    def _archive(self, stored: str):
+        import io
+        import tarfile
+
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+            data = b"#!/bin/sh\n"
+            info = tarfile.TarInfo(stored)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+        buf.seek(0)
+        return tarfile.open(fileobj=buf, mode="r:gz")
+
+    def test_finds_member_with_and_without_dot_slash(self):
+        for stored in ("semver-tags", "./semver-tags"):
+            for asked in ("semver-tags", "./semver-tags"):
+                with self.subTest(stored=stored, asked=asked):
+                    with self._archive(stored) as tar:
+                        self.assertEqual(P.tar_member(tar, asked).name, stored)
+
+    def test_nested_member(self):
+        with self._archive("./linux-amd64/helm") as tar:
+            self.assertEqual(P.tar_member(tar, "linux-amd64/helm").name, "./linux-amd64/helm")
+
+    def test_missing_member_is_an_error(self):
+        with self._archive("other") as tar:
+            with self.assertRaises(RuntimeError):
+                P.tar_member(tar, "semver-tags")
+
+
 class Workflows(unittest.TestCase):
     """The workflow files and the plugin must agree on the job names."""
 

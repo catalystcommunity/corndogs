@@ -43,6 +43,11 @@ commit under `helm_chart/`. It also releases a patch when `appVersion`
 changed since the last chart release, so each server release gives a chart
 that points at it. It pushes the package to `catalystcommunity/charts`.
 
+The release workflow runs after a merge that changes `corndogs/`, `csil/`,
+`clients/corndogs/`, `helm_chart/`, or `.reactorcide/`. A retry of a failed
+run uses the CI files of that run. Thus to run a fixed release plugin, merge
+the fix: its merge runs the release again.
+
 The two nodes run one after the other, so they never push `Chart.yaml` at the
 same time. Each push attempt starts from the current main and edits the line
 again. It never rebases, because the `version` and `appVersion` lines are
