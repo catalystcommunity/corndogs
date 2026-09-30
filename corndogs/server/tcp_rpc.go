@@ -3,11 +3,13 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
 
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/clustering"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/csilrpc"
 	zlog "github.com/rs/zerolog/log"
@@ -136,6 +138,12 @@ func dispatchRPC(ctx context.Context, routes map[string]rpcHandlerFunc, req *csi
 	}()
 	if herr != nil {
 		zlog.Error().Err(herr).Str("op", req.Op).Msg("csil-rpc/tcp handler error")
+		// Status 7 (unavailable) means that the server did not apply the
+		// request, so a client can retry it. Status 6 (internal) makes no such
+		// promise: a client treats the outcome as uncertain.
+		if errors.Is(herr, clustering.ErrNoQuorum) {
+			return csilrpc.Transport(csilrpc.StatusUnavailable, herr.Error())
+		}
 		return csilrpc.Transport(csilrpc.StatusInternal, herr.Error())
 	}
 	return csilrpc.Reply(variant, out)

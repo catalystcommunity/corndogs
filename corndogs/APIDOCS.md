@@ -9,9 +9,11 @@ clients.
 Corndogs treats each payload as opaque bytes. Corndogs does not encode, decode,
 or inspect these bytes.
 
-Only `GetNextTask` and `GetNextTaskGroup` return payload bytes. These operations
-return a `TaskDelivery`. A delivery contains task metadata and the payload.
-Other operations return task metadata without the payload.
+Only the claim operations return payload bytes: `GetNextTask` and
+`GetNextTaskGroup` return a `TaskDelivery`, and `ClaimGuardedTask` and
+`ClaimGuardedTaskGroup` return a `GuardedDelivery`. A delivery contains task
+metadata and the payload. Other operations return task metadata without the
+payload.
 
 `UpdateTaskRequest.payload` is optional. If the field is absent, Corndogs keeps
 the stored payload. If the field is present and empty, Corndogs replaces the
@@ -94,6 +96,67 @@ queue. The response gives the number of changed tasks in `timed_out`.
 See [Task states and timeouts](../README.md#task-states-and-timeouts).
 
 ---
+
+## Resilience operations
+
+Server 0.8.0 adds operations for safe retries and stale-worker protection.
+[docs/resilience.md](../docs/resilience.md) gives the full contract, the
+server policies, the client retry rules, and the upgrade steps. A server
+before 0.8.0 returns transport status 2 (unknown operation) for them.
+
+The server can reject legacy mutations by policy
+(`CORNDOGS_SUBMISSION_KEY_POLICY`, `CORNDOGS_TASK_GUARD_POLICY`). The default
+is `compatibility`, which accepts them. Rejections and contract errors are
+`ServiceError` replies. The codes are in the resilience document.
+
+### `GetServerInfo`
+
+Get the server version, the features that the server enforces
+(`submission-keys-v1`, `task-guards-v1`), the two policies, and the receipt
+retention in seconds.
+
+### `SubmitKeyedTask`
+
+Submit a task at most once for each `(queue, submission_key)`. The same key
+and request return the first receipt with `replayed = true`. A different
+request with the same key returns code 4. Set `guarded = true` to put the task
+under task guards. The `queue` must not be empty.
+
+### `LookupSubmission`
+
+Get the receipt of a `(queue, submission_key)` and the current task. It does
+not change data.
+
+### `ClaimGuardedTask`
+
+Claim the next task like `GetNextTask`. The response contains the payload and
+the task `revision`. A retry with the same `operation_id` returns the same
+claim while it still holds the task.
+
+### `ClaimGuardedTaskGroup`
+
+Claim the best task across a set of queues like `GetNextTaskGroup`, with the
+`ClaimGuardedTask` rules.
+
+### `UpdateGuardedTask`
+
+`UpdateTask` with an atomic guard: `uuid`, `queue`, `expected_revision`, and
+the optional `expected_state` must match. Otherwise it returns code 5. The
+payload and priority rules are the same as for `UpdateTask`.
+
+### `CompleteGuardedTask` and `CancelGuardedTask`
+
+Archive the task with the same guard. A task that waits without a worker needs
+no claim: send its current revision.
+
+### `GetGuardedTask`
+
+Get a live or archived task with its revision, its guard flag, and a terminal
+flag.
+
+### `LookupOperation`
+
+Get the receipt of a guarded claim or mutation by `operation_id`.
 
 ## Metric operations
 

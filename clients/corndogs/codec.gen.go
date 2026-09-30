@@ -1992,6 +1992,1674 @@ func DecodeGetQueueAndStateCountsResponse(csilData []byte) (GetQueueAndStateCoun
 	return csilDecGetQueueAndStateCountsResponse(csilRoot)
 }
 
+// csilEncGetServerInfoRequest builds the canonical CBOR value tree for a GetServerInfoRequest.
+func csilEncGetServerInfoRequest(csilV GetServerInfoRequest) cborValue {
+	csilEntries := make(cborMap, 0, 0)
+	return csilEntries
+}
+
+// csilDecGetServerInfoRequest reconstructs a GetServerInfoRequest from a decoded CBOR value tree.
+func csilDecGetServerInfoRequest(csilRoot cborValue) (GetServerInfoRequest, error) {
+	var csilOut GetServerInfoRequest
+	return csilOut, nil
+}
+
+// EncodeGetServerInfoRequest encodes a GetServerInfoRequest to canonical CSIL CBOR bytes.
+func EncodeGetServerInfoRequest(csilV GetServerInfoRequest) []byte {
+	return cborEncode(csilEncGetServerInfoRequest(csilV))
+}
+
+// DecodeGetServerInfoRequest decodes canonical CSIL CBOR bytes into a GetServerInfoRequest.
+func DecodeGetServerInfoRequest(csilData []byte) (GetServerInfoRequest, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero GetServerInfoRequest
+		return csilZero, csilErr
+	}
+	return csilDecGetServerInfoRequest(csilRoot)
+}
+
+// csilEncGetServerInfoResponse builds the canonical CBOR value tree for a GetServerInfoResponse.
+func csilEncGetServerInfoResponse(csilV GetServerInfoResponse) cborValue {
+	csilEntries := make(cborMap, 0, 5)
+	csilEntries = append(csilEntries, cborEntry{cborText("features"), cborEncArray(csilV.Features, func(csilElem string) cborValue { return cborText(csilElem) })})
+	csilEntries = append(csilEntries, cborEntry{cborText("server_version"), cborText(csilV.ServerVersion)})
+	csilEntries = append(csilEntries, cborEntry{cborText("task_guard_policy"), cborText(csilV.TaskGuardPolicy)})
+	csilEntries = append(csilEntries, cborEntry{cborText("submission_key_policy"), cborText(csilV.SubmissionKeyPolicy)})
+	csilEntries = append(csilEntries, cborEntry{cborText("receipt_retention_seconds"), cborInt(csilV.ReceiptRetentionSeconds)})
+	return csilEntries
+}
+
+// csilDecGetServerInfoResponse reconstructs a GetServerInfoResponse from a decoded CBOR value tree.
+func csilDecGetServerInfoResponse(csilRoot cborValue) (GetServerInfoResponse, error) {
+	var csilOut GetServerInfoResponse
+	{
+		csilField, csilErr := cborRequire(csilRoot, "server_version")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ServerVersion = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "features")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (func(csilV cborValue) ([]string, error) { return cborDecArray(csilV, cborAsText) })(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Features = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "submission_key_policy")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.SubmissionKeyPolicy = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "task_guard_policy")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.TaskGuardPolicy = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "receipt_retention_seconds")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ReceiptRetentionSeconds = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeGetServerInfoResponse encodes a GetServerInfoResponse to canonical CSIL CBOR bytes.
+func EncodeGetServerInfoResponse(csilV GetServerInfoResponse) []byte {
+	return cborEncode(csilEncGetServerInfoResponse(csilV))
+}
+
+// DecodeGetServerInfoResponse decodes canonical CSIL CBOR bytes into a GetServerInfoResponse.
+func DecodeGetServerInfoResponse(csilData []byte) (GetServerInfoResponse, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero GetServerInfoResponse
+		return csilZero, csilErr
+	}
+	return csilDecGetServerInfoResponse(csilRoot)
+}
+
+// csilEncGuardedTask builds the canonical CBOR value tree for a GuardedTask.
+func csilEncGuardedTask(csilV GuardedTask) cborValue {
+	csilEntries := make(cborMap, 0, 4)
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("guarded"), cborBool(csilV.Guarded)})
+	csilEntries = append(csilEntries, cborEntry{cborText("revision"), cborInt(csilV.Revision)})
+	csilEntries = append(csilEntries, cborEntry{cborText("terminal"), cborBool(csilV.Terminal)})
+	return csilEntries
+}
+
+// csilDecGuardedTask reconstructs a GuardedTask from a decoded CBOR value tree.
+func csilDecGuardedTask(csilRoot cborValue) (GuardedTask, error) {
+	var csilOut GuardedTask
+	{
+		csilField, csilErr := cborRequire(csilRoot, "task")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (csilDecTask)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Task = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "guarded")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBool)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Guarded = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "revision")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Revision = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "terminal")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBool)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Terminal = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeGuardedTask encodes a GuardedTask to canonical CSIL CBOR bytes.
+func EncodeGuardedTask(csilV GuardedTask) []byte {
+	return cborEncode(csilEncGuardedTask(csilV))
+}
+
+// DecodeGuardedTask decodes canonical CSIL CBOR bytes into a GuardedTask.
+func DecodeGuardedTask(csilData []byte) (GuardedTask, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero GuardedTask
+		return csilZero, csilErr
+	}
+	return csilDecGuardedTask(csilRoot)
+}
+
+// csilEncSubmissionReceipt builds the canonical CBOR value tree for a SubmissionReceipt.
+func csilEncSubmissionReceipt(csilV SubmissionReceipt) cborValue {
+	csilEntries := make(cborMap, 0, 6)
+	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
+	csilEntries = append(csilEntries, cborEntry{cborText("guarded"), cborBool(csilV.Guarded)})
+	csilEntries = append(csilEntries, cborEntry{cborText("task_uuid"), cborText(csilV.TaskUuid)})
+	csilEntries = append(csilEntries, cborEntry{cborText("expires_at"), cborInt(csilV.ExpiresAt)})
+	csilEntries = append(csilEntries, cborEntry{cborText("accepted_at"), cborInt(csilV.AcceptedAt)})
+	csilEntries = append(csilEntries, cborEntry{cborText("submission_key"), cborText(csilV.SubmissionKey)})
+	return csilEntries
+}
+
+// csilDecSubmissionReceipt reconstructs a SubmissionReceipt from a decoded CBOR value tree.
+func csilDecSubmissionReceipt(csilRoot cborValue) (SubmissionReceipt, error) {
+	var csilOut SubmissionReceipt
+	{
+		csilField, csilErr := cborRequire(csilRoot, "queue")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Queue = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "submission_key")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.SubmissionKey = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "task_uuid")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.TaskUuid = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "accepted_at")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.AcceptedAt = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "expires_at")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ExpiresAt = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "guarded")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBool)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Guarded = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeSubmissionReceipt encodes a SubmissionReceipt to canonical CSIL CBOR bytes.
+func EncodeSubmissionReceipt(csilV SubmissionReceipt) []byte {
+	return cborEncode(csilEncSubmissionReceipt(csilV))
+}
+
+// DecodeSubmissionReceipt decodes canonical CSIL CBOR bytes into a SubmissionReceipt.
+func DecodeSubmissionReceipt(csilData []byte) (SubmissionReceipt, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero SubmissionReceipt
+		return csilZero, csilErr
+	}
+	return csilDecSubmissionReceipt(csilRoot)
+}
+
+// csilEncSubmitKeyedTaskRequest builds the canonical CBOR value tree for a SubmitKeyedTaskRequest.
+func csilEncSubmitKeyedTaskRequest(csilV SubmitKeyedTaskRequest) cborValue {
+	csilEntries := make(cborMap, 0, 8)
+	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
+	csilEntries = append(csilEntries, cborEntry{cborText("guarded"), cborBool(csilV.Guarded)})
+	csilEntries = append(csilEntries, cborEntry{cborText("payload"), cborBytes(csilV.Payload)})
+	csilEntries = append(csilEntries, cborEntry{cborText("timeout"), cborInt(csilV.Timeout)})
+	csilEntries = append(csilEntries, cborEntry{cborText("priority"), cborInt(csilV.Priority)})
+	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
+	csilEntries = append(csilEntries, cborEntry{cborText("submission_key"), cborText(csilV.SubmissionKey)})
+	csilEntries = append(csilEntries, cborEntry{cborText("auto_target_state"), cborText(csilV.AutoTargetState)})
+	return csilEntries
+}
+
+// csilDecSubmitKeyedTaskRequest reconstructs a SubmitKeyedTaskRequest from a decoded CBOR value tree.
+func csilDecSubmitKeyedTaskRequest(csilRoot cborValue) (SubmitKeyedTaskRequest, error) {
+	var csilOut SubmitKeyedTaskRequest
+	{
+		csilField, csilErr := cborRequire(csilRoot, "submission_key")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.SubmissionKey = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "guarded")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBool)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Guarded = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "queue")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Queue = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "current_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.CurrentState = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "auto_target_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.AutoTargetState = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "timeout")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Timeout = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "payload")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBytes)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Payload = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "priority")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Priority = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeSubmitKeyedTaskRequest encodes a SubmitKeyedTaskRequest to canonical CSIL CBOR bytes.
+func EncodeSubmitKeyedTaskRequest(csilV SubmitKeyedTaskRequest) []byte {
+	return cborEncode(csilEncSubmitKeyedTaskRequest(csilV))
+}
+
+// DecodeSubmitKeyedTaskRequest decodes canonical CSIL CBOR bytes into a SubmitKeyedTaskRequest.
+func DecodeSubmitKeyedTaskRequest(csilData []byte) (SubmitKeyedTaskRequest, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero SubmitKeyedTaskRequest
+		return csilZero, csilErr
+	}
+	return csilDecSubmitKeyedTaskRequest(csilRoot)
+}
+
+// csilEncSubmitKeyedTaskResponse builds the canonical CBOR value tree for a SubmitKeyedTaskResponse.
+func csilEncSubmitKeyedTaskResponse(csilV SubmitKeyedTaskResponse) cborValue {
+	csilEntries := make(cborMap, 0, 3)
+	if csilV.Task != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask((*csilV.Task))})
+	}
+	csilEntries = append(csilEntries, cborEntry{cborText("receipt"), csilEncSubmissionReceipt(csilV.Receipt)})
+	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
+	return csilEntries
+}
+
+// csilDecSubmitKeyedTaskResponse reconstructs a SubmitKeyedTaskResponse from a decoded CBOR value tree.
+func csilDecSubmitKeyedTaskResponse(csilRoot cborValue) (SubmitKeyedTaskResponse, error) {
+	var csilOut SubmitKeyedTaskResponse
+	{
+		csilField, csilErr := cborRequire(csilRoot, "receipt")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (csilDecSubmissionReceipt)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Receipt = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "replayed")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBool)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Replayed = csilVal
+	}
+	if csilField, csilOk := cborMapGet(csilRoot, "task"); csilOk {
+		csilVal, csilErr := (csilDecGuardedTask)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Task = &csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeSubmitKeyedTaskResponse encodes a SubmitKeyedTaskResponse to canonical CSIL CBOR bytes.
+func EncodeSubmitKeyedTaskResponse(csilV SubmitKeyedTaskResponse) []byte {
+	return cborEncode(csilEncSubmitKeyedTaskResponse(csilV))
+}
+
+// DecodeSubmitKeyedTaskResponse decodes canonical CSIL CBOR bytes into a SubmitKeyedTaskResponse.
+func DecodeSubmitKeyedTaskResponse(csilData []byte) (SubmitKeyedTaskResponse, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero SubmitKeyedTaskResponse
+		return csilZero, csilErr
+	}
+	return csilDecSubmitKeyedTaskResponse(csilRoot)
+}
+
+// csilEncLookupSubmissionRequest builds the canonical CBOR value tree for a LookupSubmissionRequest.
+func csilEncLookupSubmissionRequest(csilV LookupSubmissionRequest) cborValue {
+	csilEntries := make(cborMap, 0, 2)
+	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
+	csilEntries = append(csilEntries, cborEntry{cborText("submission_key"), cborText(csilV.SubmissionKey)})
+	return csilEntries
+}
+
+// csilDecLookupSubmissionRequest reconstructs a LookupSubmissionRequest from a decoded CBOR value tree.
+func csilDecLookupSubmissionRequest(csilRoot cborValue) (LookupSubmissionRequest, error) {
+	var csilOut LookupSubmissionRequest
+	{
+		csilField, csilErr := cborRequire(csilRoot, "queue")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Queue = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "submission_key")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.SubmissionKey = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeLookupSubmissionRequest encodes a LookupSubmissionRequest to canonical CSIL CBOR bytes.
+func EncodeLookupSubmissionRequest(csilV LookupSubmissionRequest) []byte {
+	return cborEncode(csilEncLookupSubmissionRequest(csilV))
+}
+
+// DecodeLookupSubmissionRequest decodes canonical CSIL CBOR bytes into a LookupSubmissionRequest.
+func DecodeLookupSubmissionRequest(csilData []byte) (LookupSubmissionRequest, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero LookupSubmissionRequest
+		return csilZero, csilErr
+	}
+	return csilDecLookupSubmissionRequest(csilRoot)
+}
+
+// csilEncLookupSubmissionResponse builds the canonical CBOR value tree for a LookupSubmissionResponse.
+func csilEncLookupSubmissionResponse(csilV LookupSubmissionResponse) cborValue {
+	csilEntries := make(cborMap, 0, 2)
+	if csilV.Task != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask((*csilV.Task))})
+	}
+	if csilV.Receipt != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("receipt"), csilEncSubmissionReceipt((*csilV.Receipt))})
+	}
+	return csilEntries
+}
+
+// csilDecLookupSubmissionResponse reconstructs a LookupSubmissionResponse from a decoded CBOR value tree.
+func csilDecLookupSubmissionResponse(csilRoot cborValue) (LookupSubmissionResponse, error) {
+	var csilOut LookupSubmissionResponse
+	if csilField, csilOk := cborMapGet(csilRoot, "receipt"); csilOk {
+		csilVal, csilErr := (csilDecSubmissionReceipt)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Receipt = &csilVal
+	}
+	if csilField, csilOk := cborMapGet(csilRoot, "task"); csilOk {
+		csilVal, csilErr := (csilDecGuardedTask)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Task = &csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeLookupSubmissionResponse encodes a LookupSubmissionResponse to canonical CSIL CBOR bytes.
+func EncodeLookupSubmissionResponse(csilV LookupSubmissionResponse) []byte {
+	return cborEncode(csilEncLookupSubmissionResponse(csilV))
+}
+
+// DecodeLookupSubmissionResponse decodes canonical CSIL CBOR bytes into a LookupSubmissionResponse.
+func DecodeLookupSubmissionResponse(csilData []byte) (LookupSubmissionResponse, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero LookupSubmissionResponse
+		return csilZero, csilErr
+	}
+	return csilDecLookupSubmissionResponse(csilRoot)
+}
+
+// csilEncClaimGuardedTaskRequest builds the canonical CBOR value tree for a ClaimGuardedTaskRequest.
+func csilEncClaimGuardedTaskRequest(csilV ClaimGuardedTaskRequest) cborValue {
+	csilEntries := make(cborMap, 0, 6)
+	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
+	csilEntries = append(csilEntries, cborEntry{cborText("operation_id"), cborText(csilV.OperationId)})
+	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
+	csilEntries = append(csilEntries, cborEntry{cborText("override_timeout"), cborInt(csilV.OverrideTimeout)})
+	csilEntries = append(csilEntries, cborEntry{cborText("override_current_state"), cborText(csilV.OverrideCurrentState)})
+	csilEntries = append(csilEntries, cborEntry{cborText("override_auto_target_state"), cborText(csilV.OverrideAutoTargetState)})
+	return csilEntries
+}
+
+// csilDecClaimGuardedTaskRequest reconstructs a ClaimGuardedTaskRequest from a decoded CBOR value tree.
+func csilDecClaimGuardedTaskRequest(csilRoot cborValue) (ClaimGuardedTaskRequest, error) {
+	var csilOut ClaimGuardedTaskRequest
+	{
+		csilField, csilErr := cborRequire(csilRoot, "operation_id")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OperationId = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "queue")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Queue = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "current_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.CurrentState = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "override_timeout")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OverrideTimeout = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "override_current_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OverrideCurrentState = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "override_auto_target_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OverrideAutoTargetState = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeClaimGuardedTaskRequest encodes a ClaimGuardedTaskRequest to canonical CSIL CBOR bytes.
+func EncodeClaimGuardedTaskRequest(csilV ClaimGuardedTaskRequest) []byte {
+	return cborEncode(csilEncClaimGuardedTaskRequest(csilV))
+}
+
+// DecodeClaimGuardedTaskRequest decodes canonical CSIL CBOR bytes into a ClaimGuardedTaskRequest.
+func DecodeClaimGuardedTaskRequest(csilData []byte) (ClaimGuardedTaskRequest, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero ClaimGuardedTaskRequest
+		return csilZero, csilErr
+	}
+	return csilDecClaimGuardedTaskRequest(csilRoot)
+}
+
+// csilEncGuardedDelivery builds the canonical CBOR value tree for a GuardedDelivery.
+func csilEncGuardedDelivery(csilV GuardedDelivery) cborValue {
+	csilEntries := make(cborMap, 0, 2)
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("payload"), cborBytes(csilV.Payload)})
+	return csilEntries
+}
+
+// csilDecGuardedDelivery reconstructs a GuardedDelivery from a decoded CBOR value tree.
+func csilDecGuardedDelivery(csilRoot cborValue) (GuardedDelivery, error) {
+	var csilOut GuardedDelivery
+	{
+		csilField, csilErr := cborRequire(csilRoot, "task")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (csilDecGuardedTask)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Task = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "payload")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBytes)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Payload = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeGuardedDelivery encodes a GuardedDelivery to canonical CSIL CBOR bytes.
+func EncodeGuardedDelivery(csilV GuardedDelivery) []byte {
+	return cborEncode(csilEncGuardedDelivery(csilV))
+}
+
+// DecodeGuardedDelivery decodes canonical CSIL CBOR bytes into a GuardedDelivery.
+func DecodeGuardedDelivery(csilData []byte) (GuardedDelivery, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero GuardedDelivery
+		return csilZero, csilErr
+	}
+	return csilDecGuardedDelivery(csilRoot)
+}
+
+// csilEncClaimGuardedTaskResponse builds the canonical CBOR value tree for a ClaimGuardedTaskResponse.
+func csilEncClaimGuardedTaskResponse(csilV ClaimGuardedTaskResponse) cborValue {
+	csilEntries := make(cborMap, 0, 2)
+	if csilV.Delivery != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilEncGuardedDelivery((*csilV.Delivery))})
+	}
+	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
+	return csilEntries
+}
+
+// csilDecClaimGuardedTaskResponse reconstructs a ClaimGuardedTaskResponse from a decoded CBOR value tree.
+func csilDecClaimGuardedTaskResponse(csilRoot cborValue) (ClaimGuardedTaskResponse, error) {
+	var csilOut ClaimGuardedTaskResponse
+	if csilField, csilOk := cborMapGet(csilRoot, "delivery"); csilOk {
+		csilVal, csilErr := (csilDecGuardedDelivery)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Delivery = &csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "replayed")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBool)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Replayed = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeClaimGuardedTaskResponse encodes a ClaimGuardedTaskResponse to canonical CSIL CBOR bytes.
+func EncodeClaimGuardedTaskResponse(csilV ClaimGuardedTaskResponse) []byte {
+	return cborEncode(csilEncClaimGuardedTaskResponse(csilV))
+}
+
+// DecodeClaimGuardedTaskResponse decodes canonical CSIL CBOR bytes into a ClaimGuardedTaskResponse.
+func DecodeClaimGuardedTaskResponse(csilData []byte) (ClaimGuardedTaskResponse, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero ClaimGuardedTaskResponse
+		return csilZero, csilErr
+	}
+	return csilDecClaimGuardedTaskResponse(csilRoot)
+}
+
+// csilEncClaimGuardedTaskGroupRequest builds the canonical CBOR value tree for a ClaimGuardedTaskGroupRequest.
+func csilEncClaimGuardedTaskGroupRequest(csilV ClaimGuardedTaskGroupRequest) cborValue {
+	csilEntries := make(cborMap, 0, 6)
+	csilEntries = append(csilEntries, cborEntry{cborText("queues"), cborEncArray(csilV.Queues, func(csilElem string) cborValue { return cborText(csilElem) })})
+	csilEntries = append(csilEntries, cborEntry{cborText("operation_id"), cborText(csilV.OperationId)})
+	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
+	csilEntries = append(csilEntries, cborEntry{cborText("override_timeout"), cborInt(csilV.OverrideTimeout)})
+	csilEntries = append(csilEntries, cborEntry{cborText("override_current_state"), cborText(csilV.OverrideCurrentState)})
+	csilEntries = append(csilEntries, cborEntry{cborText("override_auto_target_state"), cborText(csilV.OverrideAutoTargetState)})
+	return csilEntries
+}
+
+// csilDecClaimGuardedTaskGroupRequest reconstructs a ClaimGuardedTaskGroupRequest from a decoded CBOR value tree.
+func csilDecClaimGuardedTaskGroupRequest(csilRoot cborValue) (ClaimGuardedTaskGroupRequest, error) {
+	var csilOut ClaimGuardedTaskGroupRequest
+	{
+		csilField, csilErr := cborRequire(csilRoot, "operation_id")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OperationId = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "queues")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (func(csilV cborValue) ([]string, error) { return cborDecArray(csilV, cborAsText) })(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Queues = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "current_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.CurrentState = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "override_timeout")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OverrideTimeout = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "override_current_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OverrideCurrentState = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "override_auto_target_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OverrideAutoTargetState = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeClaimGuardedTaskGroupRequest encodes a ClaimGuardedTaskGroupRequest to canonical CSIL CBOR bytes.
+func EncodeClaimGuardedTaskGroupRequest(csilV ClaimGuardedTaskGroupRequest) []byte {
+	return cborEncode(csilEncClaimGuardedTaskGroupRequest(csilV))
+}
+
+// DecodeClaimGuardedTaskGroupRequest decodes canonical CSIL CBOR bytes into a ClaimGuardedTaskGroupRequest.
+func DecodeClaimGuardedTaskGroupRequest(csilData []byte) (ClaimGuardedTaskGroupRequest, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero ClaimGuardedTaskGroupRequest
+		return csilZero, csilErr
+	}
+	return csilDecClaimGuardedTaskGroupRequest(csilRoot)
+}
+
+// csilEncClaimGuardedTaskGroupResponse builds the canonical CBOR value tree for a ClaimGuardedTaskGroupResponse.
+func csilEncClaimGuardedTaskGroupResponse(csilV ClaimGuardedTaskGroupResponse) cborValue {
+	csilEntries := make(cborMap, 0, 2)
+	if csilV.Delivery != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilEncGuardedDelivery((*csilV.Delivery))})
+	}
+	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
+	return csilEntries
+}
+
+// csilDecClaimGuardedTaskGroupResponse reconstructs a ClaimGuardedTaskGroupResponse from a decoded CBOR value tree.
+func csilDecClaimGuardedTaskGroupResponse(csilRoot cborValue) (ClaimGuardedTaskGroupResponse, error) {
+	var csilOut ClaimGuardedTaskGroupResponse
+	if csilField, csilOk := cborMapGet(csilRoot, "delivery"); csilOk {
+		csilVal, csilErr := (csilDecGuardedDelivery)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Delivery = &csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "replayed")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBool)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Replayed = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeClaimGuardedTaskGroupResponse encodes a ClaimGuardedTaskGroupResponse to canonical CSIL CBOR bytes.
+func EncodeClaimGuardedTaskGroupResponse(csilV ClaimGuardedTaskGroupResponse) []byte {
+	return cborEncode(csilEncClaimGuardedTaskGroupResponse(csilV))
+}
+
+// DecodeClaimGuardedTaskGroupResponse decodes canonical CSIL CBOR bytes into a ClaimGuardedTaskGroupResponse.
+func DecodeClaimGuardedTaskGroupResponse(csilData []byte) (ClaimGuardedTaskGroupResponse, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero ClaimGuardedTaskGroupResponse
+		return csilZero, csilErr
+	}
+	return csilDecClaimGuardedTaskGroupResponse(csilRoot)
+}
+
+// csilEncUpdateGuardedTaskRequest builds the canonical CBOR value tree for a UpdateGuardedTaskRequest.
+func csilEncUpdateGuardedTaskRequest(csilV UpdateGuardedTaskRequest) cborValue {
+	csilEntries := make(cborMap, 0, 10)
+	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
+	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
+	if csilV.Payload != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("payload"), cborBytes((*csilV.Payload))})
+	}
+	csilEntries = append(csilEntries, cborEntry{cborText("timeout"), cborInt(csilV.Timeout)})
+	if csilV.Priority != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("priority"), cborInt((*csilV.Priority))})
+	}
+	csilEntries = append(csilEntries, cborEntry{cborText("new_state"), cborText(csilV.NewState)})
+	csilEntries = append(csilEntries, cborEntry{cborText("operation_id"), cborText(csilV.OperationId)})
+	if csilV.ExpectedState != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("expected_state"), cborText((*csilV.ExpectedState))})
+	}
+	csilEntries = append(csilEntries, cborEntry{cborText("auto_target_state"), cborText(csilV.AutoTargetState)})
+	csilEntries = append(csilEntries, cborEntry{cborText("expected_revision"), cborInt(csilV.ExpectedRevision)})
+	return csilEntries
+}
+
+// csilDecUpdateGuardedTaskRequest reconstructs a UpdateGuardedTaskRequest from a decoded CBOR value tree.
+func csilDecUpdateGuardedTaskRequest(csilRoot cborValue) (UpdateGuardedTaskRequest, error) {
+	var csilOut UpdateGuardedTaskRequest
+	{
+		csilField, csilErr := cborRequire(csilRoot, "operation_id")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OperationId = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "uuid")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Uuid = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "queue")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Queue = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "expected_revision")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ExpectedRevision = csilVal
+	}
+	if csilField, csilOk := cborMapGet(csilRoot, "expected_state"); csilOk {
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ExpectedState = &csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "new_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.NewState = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "auto_target_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.AutoTargetState = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "timeout")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Timeout = csilVal
+	}
+	if csilField, csilOk := cborMapGet(csilRoot, "payload"); csilOk {
+		csilVal, csilErr := (cborAsBytes)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Payload = &csilVal
+	}
+	if csilField, csilOk := cborMapGet(csilRoot, "priority"); csilOk {
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Priority = &csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeUpdateGuardedTaskRequest encodes a UpdateGuardedTaskRequest to canonical CSIL CBOR bytes.
+func EncodeUpdateGuardedTaskRequest(csilV UpdateGuardedTaskRequest) []byte {
+	return cborEncode(csilEncUpdateGuardedTaskRequest(csilV))
+}
+
+// DecodeUpdateGuardedTaskRequest decodes canonical CSIL CBOR bytes into a UpdateGuardedTaskRequest.
+func DecodeUpdateGuardedTaskRequest(csilData []byte) (UpdateGuardedTaskRequest, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero UpdateGuardedTaskRequest
+		return csilZero, csilErr
+	}
+	return csilDecUpdateGuardedTaskRequest(csilRoot)
+}
+
+// csilEncUpdateGuardedTaskResponse builds the canonical CBOR value tree for a UpdateGuardedTaskResponse.
+func csilEncUpdateGuardedTaskResponse(csilV UpdateGuardedTaskResponse) cborValue {
+	csilEntries := make(cborMap, 0, 2)
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
+	return csilEntries
+}
+
+// csilDecUpdateGuardedTaskResponse reconstructs a UpdateGuardedTaskResponse from a decoded CBOR value tree.
+func csilDecUpdateGuardedTaskResponse(csilRoot cborValue) (UpdateGuardedTaskResponse, error) {
+	var csilOut UpdateGuardedTaskResponse
+	{
+		csilField, csilErr := cborRequire(csilRoot, "task")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (csilDecGuardedTask)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Task = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "replayed")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBool)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Replayed = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeUpdateGuardedTaskResponse encodes a UpdateGuardedTaskResponse to canonical CSIL CBOR bytes.
+func EncodeUpdateGuardedTaskResponse(csilV UpdateGuardedTaskResponse) []byte {
+	return cborEncode(csilEncUpdateGuardedTaskResponse(csilV))
+}
+
+// DecodeUpdateGuardedTaskResponse decodes canonical CSIL CBOR bytes into a UpdateGuardedTaskResponse.
+func DecodeUpdateGuardedTaskResponse(csilData []byte) (UpdateGuardedTaskResponse, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero UpdateGuardedTaskResponse
+		return csilZero, csilErr
+	}
+	return csilDecUpdateGuardedTaskResponse(csilRoot)
+}
+
+// csilEncCompleteGuardedTaskRequest builds the canonical CBOR value tree for a CompleteGuardedTaskRequest.
+func csilEncCompleteGuardedTaskRequest(csilV CompleteGuardedTaskRequest) cborValue {
+	csilEntries := make(cborMap, 0, 5)
+	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
+	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
+	csilEntries = append(csilEntries, cborEntry{cborText("operation_id"), cborText(csilV.OperationId)})
+	if csilV.ExpectedState != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("expected_state"), cborText((*csilV.ExpectedState))})
+	}
+	csilEntries = append(csilEntries, cborEntry{cborText("expected_revision"), cborInt(csilV.ExpectedRevision)})
+	return csilEntries
+}
+
+// csilDecCompleteGuardedTaskRequest reconstructs a CompleteGuardedTaskRequest from a decoded CBOR value tree.
+func csilDecCompleteGuardedTaskRequest(csilRoot cborValue) (CompleteGuardedTaskRequest, error) {
+	var csilOut CompleteGuardedTaskRequest
+	{
+		csilField, csilErr := cborRequire(csilRoot, "operation_id")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OperationId = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "uuid")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Uuid = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "queue")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Queue = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "expected_revision")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ExpectedRevision = csilVal
+	}
+	if csilField, csilOk := cborMapGet(csilRoot, "expected_state"); csilOk {
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ExpectedState = &csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeCompleteGuardedTaskRequest encodes a CompleteGuardedTaskRequest to canonical CSIL CBOR bytes.
+func EncodeCompleteGuardedTaskRequest(csilV CompleteGuardedTaskRequest) []byte {
+	return cborEncode(csilEncCompleteGuardedTaskRequest(csilV))
+}
+
+// DecodeCompleteGuardedTaskRequest decodes canonical CSIL CBOR bytes into a CompleteGuardedTaskRequest.
+func DecodeCompleteGuardedTaskRequest(csilData []byte) (CompleteGuardedTaskRequest, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero CompleteGuardedTaskRequest
+		return csilZero, csilErr
+	}
+	return csilDecCompleteGuardedTaskRequest(csilRoot)
+}
+
+// csilEncCompleteGuardedTaskResponse builds the canonical CBOR value tree for a CompleteGuardedTaskResponse.
+func csilEncCompleteGuardedTaskResponse(csilV CompleteGuardedTaskResponse) cborValue {
+	csilEntries := make(cborMap, 0, 2)
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
+	return csilEntries
+}
+
+// csilDecCompleteGuardedTaskResponse reconstructs a CompleteGuardedTaskResponse from a decoded CBOR value tree.
+func csilDecCompleteGuardedTaskResponse(csilRoot cborValue) (CompleteGuardedTaskResponse, error) {
+	var csilOut CompleteGuardedTaskResponse
+	{
+		csilField, csilErr := cborRequire(csilRoot, "task")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (csilDecGuardedTask)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Task = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "replayed")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBool)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Replayed = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeCompleteGuardedTaskResponse encodes a CompleteGuardedTaskResponse to canonical CSIL CBOR bytes.
+func EncodeCompleteGuardedTaskResponse(csilV CompleteGuardedTaskResponse) []byte {
+	return cborEncode(csilEncCompleteGuardedTaskResponse(csilV))
+}
+
+// DecodeCompleteGuardedTaskResponse decodes canonical CSIL CBOR bytes into a CompleteGuardedTaskResponse.
+func DecodeCompleteGuardedTaskResponse(csilData []byte) (CompleteGuardedTaskResponse, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero CompleteGuardedTaskResponse
+		return csilZero, csilErr
+	}
+	return csilDecCompleteGuardedTaskResponse(csilRoot)
+}
+
+// csilEncCancelGuardedTaskRequest builds the canonical CBOR value tree for a CancelGuardedTaskRequest.
+func csilEncCancelGuardedTaskRequest(csilV CancelGuardedTaskRequest) cborValue {
+	csilEntries := make(cborMap, 0, 5)
+	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
+	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
+	csilEntries = append(csilEntries, cborEntry{cborText("operation_id"), cborText(csilV.OperationId)})
+	if csilV.ExpectedState != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("expected_state"), cborText((*csilV.ExpectedState))})
+	}
+	csilEntries = append(csilEntries, cborEntry{cborText("expected_revision"), cborInt(csilV.ExpectedRevision)})
+	return csilEntries
+}
+
+// csilDecCancelGuardedTaskRequest reconstructs a CancelGuardedTaskRequest from a decoded CBOR value tree.
+func csilDecCancelGuardedTaskRequest(csilRoot cborValue) (CancelGuardedTaskRequest, error) {
+	var csilOut CancelGuardedTaskRequest
+	{
+		csilField, csilErr := cborRequire(csilRoot, "operation_id")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OperationId = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "uuid")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Uuid = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "queue")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Queue = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "expected_revision")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ExpectedRevision = csilVal
+	}
+	if csilField, csilOk := cborMapGet(csilRoot, "expected_state"); csilOk {
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ExpectedState = &csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeCancelGuardedTaskRequest encodes a CancelGuardedTaskRequest to canonical CSIL CBOR bytes.
+func EncodeCancelGuardedTaskRequest(csilV CancelGuardedTaskRequest) []byte {
+	return cborEncode(csilEncCancelGuardedTaskRequest(csilV))
+}
+
+// DecodeCancelGuardedTaskRequest decodes canonical CSIL CBOR bytes into a CancelGuardedTaskRequest.
+func DecodeCancelGuardedTaskRequest(csilData []byte) (CancelGuardedTaskRequest, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero CancelGuardedTaskRequest
+		return csilZero, csilErr
+	}
+	return csilDecCancelGuardedTaskRequest(csilRoot)
+}
+
+// csilEncCancelGuardedTaskResponse builds the canonical CBOR value tree for a CancelGuardedTaskResponse.
+func csilEncCancelGuardedTaskResponse(csilV CancelGuardedTaskResponse) cborValue {
+	csilEntries := make(cborMap, 0, 2)
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
+	return csilEntries
+}
+
+// csilDecCancelGuardedTaskResponse reconstructs a CancelGuardedTaskResponse from a decoded CBOR value tree.
+func csilDecCancelGuardedTaskResponse(csilRoot cborValue) (CancelGuardedTaskResponse, error) {
+	var csilOut CancelGuardedTaskResponse
+	{
+		csilField, csilErr := cborRequire(csilRoot, "task")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (csilDecGuardedTask)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Task = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "replayed")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsBool)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Replayed = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeCancelGuardedTaskResponse encodes a CancelGuardedTaskResponse to canonical CSIL CBOR bytes.
+func EncodeCancelGuardedTaskResponse(csilV CancelGuardedTaskResponse) []byte {
+	return cborEncode(csilEncCancelGuardedTaskResponse(csilV))
+}
+
+// DecodeCancelGuardedTaskResponse decodes canonical CSIL CBOR bytes into a CancelGuardedTaskResponse.
+func DecodeCancelGuardedTaskResponse(csilData []byte) (CancelGuardedTaskResponse, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero CancelGuardedTaskResponse
+		return csilZero, csilErr
+	}
+	return csilDecCancelGuardedTaskResponse(csilRoot)
+}
+
+// csilEncGetGuardedTaskRequest builds the canonical CBOR value tree for a GetGuardedTaskRequest.
+func csilEncGetGuardedTaskRequest(csilV GetGuardedTaskRequest) cborValue {
+	csilEntries := make(cborMap, 0, 2)
+	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
+	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
+	return csilEntries
+}
+
+// csilDecGetGuardedTaskRequest reconstructs a GetGuardedTaskRequest from a decoded CBOR value tree.
+func csilDecGetGuardedTaskRequest(csilRoot cborValue) (GetGuardedTaskRequest, error) {
+	var csilOut GetGuardedTaskRequest
+	{
+		csilField, csilErr := cborRequire(csilRoot, "uuid")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Uuid = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "queue")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Queue = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeGetGuardedTaskRequest encodes a GetGuardedTaskRequest to canonical CSIL CBOR bytes.
+func EncodeGetGuardedTaskRequest(csilV GetGuardedTaskRequest) []byte {
+	return cborEncode(csilEncGetGuardedTaskRequest(csilV))
+}
+
+// DecodeGetGuardedTaskRequest decodes canonical CSIL CBOR bytes into a GetGuardedTaskRequest.
+func DecodeGetGuardedTaskRequest(csilData []byte) (GetGuardedTaskRequest, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero GetGuardedTaskRequest
+		return csilZero, csilErr
+	}
+	return csilDecGetGuardedTaskRequest(csilRoot)
+}
+
+// csilEncGetGuardedTaskResponse builds the canonical CBOR value tree for a GetGuardedTaskResponse.
+func csilEncGetGuardedTaskResponse(csilV GetGuardedTaskResponse) cborValue {
+	csilEntries := make(cborMap, 0, 1)
+	if csilV.Task != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask((*csilV.Task))})
+	}
+	return csilEntries
+}
+
+// csilDecGetGuardedTaskResponse reconstructs a GetGuardedTaskResponse from a decoded CBOR value tree.
+func csilDecGetGuardedTaskResponse(csilRoot cborValue) (GetGuardedTaskResponse, error) {
+	var csilOut GetGuardedTaskResponse
+	if csilField, csilOk := cborMapGet(csilRoot, "task"); csilOk {
+		csilVal, csilErr := (csilDecGuardedTask)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Task = &csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeGetGuardedTaskResponse encodes a GetGuardedTaskResponse to canonical CSIL CBOR bytes.
+func EncodeGetGuardedTaskResponse(csilV GetGuardedTaskResponse) []byte {
+	return cborEncode(csilEncGetGuardedTaskResponse(csilV))
+}
+
+// DecodeGetGuardedTaskResponse decodes canonical CSIL CBOR bytes into a GetGuardedTaskResponse.
+func DecodeGetGuardedTaskResponse(csilData []byte) (GetGuardedTaskResponse, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero GetGuardedTaskResponse
+		return csilZero, csilErr
+	}
+	return csilDecGetGuardedTaskResponse(csilRoot)
+}
+
+// csilEncOperationReceipt builds the canonical CBOR value tree for a OperationReceipt.
+func csilEncOperationReceipt(csilV OperationReceipt) cborValue {
+	csilEntries := make(cborMap, 0, 8)
+	csilEntries = append(csilEntries, cborEntry{cborText("at"), cborInt(csilV.At)})
+	csilEntries = append(csilEntries, cborEntry{cborText("op"), cborText(csilV.Op)})
+	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
+	csilEntries = append(csilEntries, cborEntry{cborText("task_uuid"), cborText(csilV.TaskUuid)})
+	csilEntries = append(csilEntries, cborEntry{cborText("expires_at"), cborInt(csilV.ExpiresAt)})
+	csilEntries = append(csilEntries, cborEntry{cborText("operation_id"), cborText(csilV.OperationId)})
+	csilEntries = append(csilEntries, cborEntry{cborText("result_state"), cborText(csilV.ResultState)})
+	csilEntries = append(csilEntries, cborEntry{cborText("result_revision"), cborInt(csilV.ResultRevision)})
+	return csilEntries
+}
+
+// csilDecOperationReceipt reconstructs a OperationReceipt from a decoded CBOR value tree.
+func csilDecOperationReceipt(csilRoot cborValue) (OperationReceipt, error) {
+	var csilOut OperationReceipt
+	{
+		csilField, csilErr := cborRequire(csilRoot, "operation_id")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OperationId = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "op")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Op = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "task_uuid")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.TaskUuid = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "queue")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Queue = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "result_revision")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ResultRevision = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "result_state")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ResultState = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "at")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.At = csilVal
+	}
+	{
+		csilField, csilErr := cborRequire(csilRoot, "expires_at")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsI64)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.ExpiresAt = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeOperationReceipt encodes a OperationReceipt to canonical CSIL CBOR bytes.
+func EncodeOperationReceipt(csilV OperationReceipt) []byte {
+	return cborEncode(csilEncOperationReceipt(csilV))
+}
+
+// DecodeOperationReceipt decodes canonical CSIL CBOR bytes into a OperationReceipt.
+func DecodeOperationReceipt(csilData []byte) (OperationReceipt, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero OperationReceipt
+		return csilZero, csilErr
+	}
+	return csilDecOperationReceipt(csilRoot)
+}
+
+// csilEncLookupOperationRequest builds the canonical CBOR value tree for a LookupOperationRequest.
+func csilEncLookupOperationRequest(csilV LookupOperationRequest) cborValue {
+	csilEntries := make(cborMap, 0, 1)
+	csilEntries = append(csilEntries, cborEntry{cborText("operation_id"), cborText(csilV.OperationId)})
+	return csilEntries
+}
+
+// csilDecLookupOperationRequest reconstructs a LookupOperationRequest from a decoded CBOR value tree.
+func csilDecLookupOperationRequest(csilRoot cborValue) (LookupOperationRequest, error) {
+	var csilOut LookupOperationRequest
+	{
+		csilField, csilErr := cborRequire(csilRoot, "operation_id")
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilVal, csilErr := (cborAsText)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.OperationId = csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeLookupOperationRequest encodes a LookupOperationRequest to canonical CSIL CBOR bytes.
+func EncodeLookupOperationRequest(csilV LookupOperationRequest) []byte {
+	return cborEncode(csilEncLookupOperationRequest(csilV))
+}
+
+// DecodeLookupOperationRequest decodes canonical CSIL CBOR bytes into a LookupOperationRequest.
+func DecodeLookupOperationRequest(csilData []byte) (LookupOperationRequest, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero LookupOperationRequest
+		return csilZero, csilErr
+	}
+	return csilDecLookupOperationRequest(csilRoot)
+}
+
+// csilEncLookupOperationResponse builds the canonical CBOR value tree for a LookupOperationResponse.
+func csilEncLookupOperationResponse(csilV LookupOperationResponse) cborValue {
+	csilEntries := make(cborMap, 0, 1)
+	if csilV.Receipt != nil {
+		csilEntries = append(csilEntries, cborEntry{cborText("receipt"), csilEncOperationReceipt((*csilV.Receipt))})
+	}
+	return csilEntries
+}
+
+// csilDecLookupOperationResponse reconstructs a LookupOperationResponse from a decoded CBOR value tree.
+func csilDecLookupOperationResponse(csilRoot cborValue) (LookupOperationResponse, error) {
+	var csilOut LookupOperationResponse
+	if csilField, csilOk := cborMapGet(csilRoot, "receipt"); csilOk {
+		csilVal, csilErr := (csilDecOperationReceipt)(csilField)
+		if csilErr != nil {
+			return csilOut, csilErr
+		}
+		csilOut.Receipt = &csilVal
+	}
+	return csilOut, nil
+}
+
+// EncodeLookupOperationResponse encodes a LookupOperationResponse to canonical CSIL CBOR bytes.
+func EncodeLookupOperationResponse(csilV LookupOperationResponse) []byte {
+	return cborEncode(csilEncLookupOperationResponse(csilV))
+}
+
+// DecodeLookupOperationResponse decodes canonical CSIL CBOR bytes into a LookupOperationResponse.
+func DecodeLookupOperationResponse(csilData []byte) (LookupOperationResponse, error) {
+	csilRoot, csilErr := cborDecode(csilData)
+	if csilErr != nil {
+		var csilZero LookupOperationResponse
+		return csilZero, csilErr
+	}
+	return csilDecLookupOperationResponse(csilRoot)
+}
+
 // csilEncServiceError builds the canonical CBOR value tree for a ServiceError.
 func csilEncServiceError(csilV ServiceError) cborValue {
 	csilEntries := make(cborMap, 0, 2)

@@ -35,6 +35,9 @@ type TCPTransport struct {
 	stop     chan struct{}
 	stopOnce sync.Once
 	dialWG   sync.WaitGroup
+
+	inMu sync.Mutex
+	in   map[net.Conn]struct{} // accepted peer connections, closed by Close
 }
 
 const clusterMaxFrame = 256 << 20 // snapshots can be large
@@ -67,6 +70,7 @@ func NewTCPTransport(self, listenOn string, peerAddr map[string]string, rpcAddr 
 		rpcAddrs: map[string]string{},
 		out:      map[string]chan Frame{},
 		subs:     map[net.Conn]*csilrpc.StreamCarrier{},
+		in:       map[net.Conn]struct{}{},
 		stop:     make(chan struct{}),
 	}
 }
@@ -206,6 +210,23 @@ func (t *TCPTransport) acceptLoop() {
 // the transport and data frames to the engine. A FrameSubscribe turns the
 // connection into a topology-push channel.
 func (t *TCPTransport) readConn(conn net.Conn) {
+	// Track the connection so Close ends it. Otherwise a peer keeps writing to a
+	// connection that delivers to a stopped engine and never reconnects.
+	t.inMu.Lock()
+	select {
+	case <-t.stop:
+		t.inMu.Unlock()
+		conn.Close()
+		return
+	default:
+	}
+	t.in[conn] = struct{}{}
+	t.inMu.Unlock()
+	defer func() {
+		t.inMu.Lock()
+		delete(t.in, conn)
+		t.inMu.Unlock()
+	}()
 	enableKeepAlive(conn)
 	carrier, err := csilrpc.NewStreamCarrierWithMaxFrame(conn, t.maxFrame)
 	if err != nil {
@@ -317,9 +338,14 @@ func (t *TCPTransport) sleep(d time.Duration) (stopped bool) {
 	}
 }
 
-// Close stops the transport.
+// Close stops the transport and closes its listener and accepted connections.
 func (t *TCPTransport) Close() {
+	t.inMu.Lock()
 	t.stopOnce.Do(func() { close(t.stop) })
+	for conn := range t.in {
+		conn.Close()
+	}
+	t.inMu.Unlock()
 	if t.ln != nil {
 		t.ln.Close()
 	}

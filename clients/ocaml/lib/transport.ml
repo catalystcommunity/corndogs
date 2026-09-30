@@ -210,15 +210,17 @@ let call (t : t) ~(service : string) ~(op : string) ~(payload : bytes) : (bytes,
           match read_frame fd with
           | None ->
             reset t;
-            Error "corndogs: connection closed"
+            Error "corndogs: outcome uncertain: connection closed"
           | Some resp -> parse_response resp
         with
+        (* The request may have reached the server. It is not sent again:
+           a legacy mutation could run twice. *)
         | Failure m ->
           reset t;
           Error m
         | Unix.Unix_error (e, fn, _) ->
           reset t;
-          Error (Printf.sprintf "corndogs: %s: %s" fn (Unix.error_message e))))
+          Error (Printf.sprintf "corndogs: outcome uncertain: %s: %s" fn (Unix.error_message e))))
 
 (* --- heartbeat: one-shot, sync (blocking), and async (background thread) - *)
 

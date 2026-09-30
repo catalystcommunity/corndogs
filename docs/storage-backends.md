@@ -159,6 +159,20 @@ file. If you need multiple replicas, use `postgres`.
 
 ---
 
+## Resilience data (0.8.0)
+
+Both backends store task revisions, guarded tasks, and receipts in the same
+transaction as the task write. See [Resilience contract](./resilience.md).
+
+| Backend | Where | Migration |
+| --- | --- | --- |
+| postgres | Columns `revision` and `guarded` in `tasks` and `archived_tasks`; tables `submission_receipts` and `operation_receipts` | Goose migration `00005_resilience.sql` at startup; no table rewrite |
+| file | Bucket `gtasks` for guarded tasks; buckets `submissions`, `operations`, `receipt-expiry` | Buckets are created at startup; old task records read as revision 0 |
+
+Receipts grow with the request rate multiplied by `CORNDOGS_RECEIPT_RETENTION`.
+A background job deletes expired receipts every minute. Include the receipts
+in backups: they are part of the database.
+
 ## Rough performance (illustrative)
 
 `GetNextTask` drain, single queue, concurrent workers, on one machine. Numbers

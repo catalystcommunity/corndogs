@@ -245,6 +245,256 @@ and encode_get_queue_and_state_counts_response (v : get_queue_and_state_counts_r
          Some (Cbor.Text "queue_and_state_counts", (Cbor.Map (List.map (fun (csil_k, csil_v) -> ((Cbor.Text csil_k), (encode_queue_and_state_counts csil_v))) v.queue_and_state_counts)));
        ])
 
+and encode_get_server_info_request (_v : get_server_info_request) : Cbor.t = Cbor.Map []
+
+and encode_get_server_info_response (v : get_server_info_response) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "features", (Cbor.Array (List.map (fun csil_e -> (Cbor.Text csil_e)) v.features)));
+         Some (Cbor.Text "server_version", (Cbor.Text v.server_version));
+         Some (Cbor.Text "task_guard_policy", (Cbor.Text v.task_guard_policy));
+         Some (Cbor.Text "submission_key_policy", (Cbor.Text v.submission_key_policy));
+         Some (Cbor.Text "receipt_retention_seconds", (Cbor.int64 v.receipt_retention_seconds));
+       ])
+
+and encode_guarded_task (v : guarded_task) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "task", (encode_task v.task));
+         Some (Cbor.Text "guarded", (Cbor.Bool v.guarded));
+         Some (Cbor.Text "revision", (Cbor.int64 v.revision));
+         Some (Cbor.Text "terminal", (Cbor.Bool v.terminal));
+       ])
+
+and encode_submission_receipt (v : submission_receipt) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "queue", (Cbor.Text v.queue));
+         Some (Cbor.Text "guarded", (Cbor.Bool v.guarded));
+         Some (Cbor.Text "task_uuid", (Cbor.Text v.task_uuid));
+         Some (Cbor.Text "expires_at", (Cbor.int64 v.expires_at));
+         Some (Cbor.Text "accepted_at", (Cbor.int64 v.accepted_at));
+         Some (Cbor.Text "submission_key", (Cbor.Text v.submission_key));
+       ])
+
+and encode_submit_keyed_task_request (v : submit_keyed_task_request) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "queue", (Cbor.Text v.queue));
+         Some (Cbor.Text "guarded", (Cbor.Bool v.guarded));
+         Some (Cbor.Text "payload", (Cbor.Bytes v.payload));
+         Some (Cbor.Text "timeout", (Cbor.int64 v.timeout));
+         Some (Cbor.Text "priority", (Cbor.int64 v.priority));
+         Some (Cbor.Text "current_state", (Cbor.Text v.current_state));
+         Some (Cbor.Text "submission_key", (Cbor.Text v.submission_key));
+         Some (Cbor.Text "auto_target_state", (Cbor.Text v.auto_target_state));
+       ])
+
+and encode_submit_keyed_task_response (v : submit_keyed_task_response) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         (match v.task with Some csil_x -> Some (Cbor.Text "task", (encode_guarded_task csil_x)) | None -> None);
+         Some (Cbor.Text "receipt", (encode_submission_receipt v.receipt));
+         Some (Cbor.Text "replayed", (Cbor.Bool v.replayed));
+       ])
+
+and encode_lookup_submission_request (v : lookup_submission_request) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "queue", (Cbor.Text v.queue));
+         Some (Cbor.Text "submission_key", (Cbor.Text v.submission_key));
+       ])
+
+and encode_lookup_submission_response (v : lookup_submission_response) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         (match v.task with Some csil_x -> Some (Cbor.Text "task", (encode_guarded_task csil_x)) | None -> None);
+         (match v.receipt with Some csil_x -> Some (Cbor.Text "receipt", (encode_submission_receipt csil_x)) | None -> None);
+       ])
+
+and encode_claim_guarded_task_request (v : claim_guarded_task_request) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "queue", (Cbor.Text v.queue));
+         Some (Cbor.Text "operation_id", (Cbor.Text v.operation_id));
+         Some (Cbor.Text "current_state", (Cbor.Text v.current_state));
+         Some (Cbor.Text "override_timeout", (Cbor.int64 v.override_timeout));
+         Some (Cbor.Text "override_current_state", (Cbor.Text v.override_current_state));
+         Some (Cbor.Text "override_auto_target_state", (Cbor.Text v.override_auto_target_state));
+       ])
+
+and encode_guarded_delivery (v : guarded_delivery) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "task", (encode_guarded_task v.task));
+         Some (Cbor.Text "payload", (Cbor.Bytes v.payload));
+       ])
+
+and encode_claim_guarded_task_response (v : claim_guarded_task_response) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         (match v.delivery with Some csil_x -> Some (Cbor.Text "delivery", (encode_guarded_delivery csil_x)) | None -> None);
+         Some (Cbor.Text "replayed", (Cbor.Bool v.replayed));
+       ])
+
+and encode_claim_guarded_task_group_request (v : claim_guarded_task_group_request) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "queues", (Cbor.Array (List.map (fun csil_e -> (Cbor.Text csil_e)) v.queues)));
+         Some (Cbor.Text "operation_id", (Cbor.Text v.operation_id));
+         Some (Cbor.Text "current_state", (Cbor.Text v.current_state));
+         Some (Cbor.Text "override_timeout", (Cbor.int64 v.override_timeout));
+         Some (Cbor.Text "override_current_state", (Cbor.Text v.override_current_state));
+         Some (Cbor.Text "override_auto_target_state", (Cbor.Text v.override_auto_target_state));
+       ])
+
+and encode_claim_guarded_task_group_response (v : claim_guarded_task_group_response) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         (match v.delivery with Some csil_x -> Some (Cbor.Text "delivery", (encode_guarded_delivery csil_x)) | None -> None);
+         Some (Cbor.Text "replayed", (Cbor.Bool v.replayed));
+       ])
+
+and encode_update_guarded_task_request (v : update_guarded_task_request) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "uuid", (Cbor.Text v.uuid));
+         Some (Cbor.Text "queue", (Cbor.Text v.queue));
+         (match v.payload with Some csil_x -> Some (Cbor.Text "payload", (Cbor.Bytes csil_x)) | None -> None);
+         Some (Cbor.Text "timeout", (Cbor.int64 v.timeout));
+         (match v.priority with Some csil_x -> Some (Cbor.Text "priority", (Cbor.int64 csil_x)) | None -> None);
+         Some (Cbor.Text "new_state", (Cbor.Text v.new_state));
+         Some (Cbor.Text "operation_id", (Cbor.Text v.operation_id));
+         (match v.expected_state with Some csil_x -> Some (Cbor.Text "expected_state", (Cbor.Text csil_x)) | None -> None);
+         Some (Cbor.Text "auto_target_state", (Cbor.Text v.auto_target_state));
+         Some (Cbor.Text "expected_revision", (Cbor.int64 v.expected_revision));
+       ])
+
+and encode_update_guarded_task_response (v : update_guarded_task_response) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "task", (encode_guarded_task v.task));
+         Some (Cbor.Text "replayed", (Cbor.Bool v.replayed));
+       ])
+
+and encode_complete_guarded_task_request (v : complete_guarded_task_request) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "uuid", (Cbor.Text v.uuid));
+         Some (Cbor.Text "queue", (Cbor.Text v.queue));
+         Some (Cbor.Text "operation_id", (Cbor.Text v.operation_id));
+         (match v.expected_state with Some csil_x -> Some (Cbor.Text "expected_state", (Cbor.Text csil_x)) | None -> None);
+         Some (Cbor.Text "expected_revision", (Cbor.int64 v.expected_revision));
+       ])
+
+and encode_complete_guarded_task_response (v : complete_guarded_task_response) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "task", (encode_guarded_task v.task));
+         Some (Cbor.Text "replayed", (Cbor.Bool v.replayed));
+       ])
+
+and encode_cancel_guarded_task_request (v : cancel_guarded_task_request) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "uuid", (Cbor.Text v.uuid));
+         Some (Cbor.Text "queue", (Cbor.Text v.queue));
+         Some (Cbor.Text "operation_id", (Cbor.Text v.operation_id));
+         (match v.expected_state with Some csil_x -> Some (Cbor.Text "expected_state", (Cbor.Text csil_x)) | None -> None);
+         Some (Cbor.Text "expected_revision", (Cbor.int64 v.expected_revision));
+       ])
+
+and encode_cancel_guarded_task_response (v : cancel_guarded_task_response) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "task", (encode_guarded_task v.task));
+         Some (Cbor.Text "replayed", (Cbor.Bool v.replayed));
+       ])
+
+and encode_get_guarded_task_request (v : get_guarded_task_request) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "uuid", (Cbor.Text v.uuid));
+         Some (Cbor.Text "queue", (Cbor.Text v.queue));
+       ])
+
+and encode_get_guarded_task_response (v : get_guarded_task_response) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         (match v.task with Some csil_x -> Some (Cbor.Text "task", (encode_guarded_task csil_x)) | None -> None);
+       ])
+
+and encode_operation_receipt (v : operation_receipt) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "at", (Cbor.int64 v.at));
+         Some (Cbor.Text "op", (Cbor.Text v.op));
+         Some (Cbor.Text "queue", (Cbor.Text v.queue));
+         Some (Cbor.Text "task_uuid", (Cbor.Text v.task_uuid));
+         Some (Cbor.Text "expires_at", (Cbor.int64 v.expires_at));
+         Some (Cbor.Text "operation_id", (Cbor.Text v.operation_id));
+         Some (Cbor.Text "result_state", (Cbor.Text v.result_state));
+         Some (Cbor.Text "result_revision", (Cbor.int64 v.result_revision));
+       ])
+
+and encode_lookup_operation_request (v : lookup_operation_request) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         Some (Cbor.Text "operation_id", (Cbor.Text v.operation_id));
+       ])
+
+and encode_lookup_operation_response (v : lookup_operation_response) : Cbor.t =
+  Cbor.Map
+    (List.filter_map
+       (fun x -> x)
+       [
+         (match v.receipt with Some csil_x -> Some (Cbor.Text "receipt", (encode_operation_receipt csil_x)) | None -> None);
+       ])
+
 and encode_service_error (v : service_error) : Cbor.t =
   Cbor.Map
     (List.filter_map
@@ -615,6 +865,372 @@ and decode_get_queue_and_state_counts_response (csil_c : Cbor.t) : get_queue_and
       }
   | _ -> failwith "csilgen: expected map for get_queue_and_state_counts_response"
 
+and decode_get_server_info_request (csil_c : Cbor.t) : get_server_info_request =
+  match csil_c with Cbor.Map _ -> () | _ -> failwith "csilgen: expected map for get_server_info_request"
+
+and decode_get_server_info_response (csil_c : Cbor.t) : get_server_info_response =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        features = (match (csil_req "features") with Cbor.Array csil_xs -> List.map (fun csil_e -> (Cbor.to_text csil_e)) csil_xs | _ -> failwith "csilgen: expected array");
+        server_version = (Cbor.to_text (csil_req "server_version"));
+        task_guard_policy = (Cbor.to_text (csil_req "task_guard_policy"));
+        submission_key_policy = (Cbor.to_text (csil_req "submission_key_policy"));
+        receipt_retention_seconds = (Cbor.to_i64 (csil_req "receipt_retention_seconds"));
+      }
+  | _ -> failwith "csilgen: expected map for get_server_info_response"
+
+and decode_guarded_task (csil_c : Cbor.t) : guarded_task =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        task = (decode_task (csil_req "task"));
+        guarded = (Cbor.to_bool (csil_req "guarded"));
+        revision = (Cbor.to_i64 (csil_req "revision"));
+        terminal = (Cbor.to_bool (csil_req "terminal"));
+      }
+  | _ -> failwith "csilgen: expected map for guarded_task"
+
+and decode_submission_receipt (csil_c : Cbor.t) : submission_receipt =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        queue = (Cbor.to_text (csil_req "queue"));
+        guarded = (Cbor.to_bool (csil_req "guarded"));
+        task_uuid = (Cbor.to_text (csil_req "task_uuid"));
+        expires_at = (Cbor.to_i64 (csil_req "expires_at"));
+        accepted_at = (Cbor.to_i64 (csil_req "accepted_at"));
+        submission_key = (Cbor.to_text (csil_req "submission_key"));
+      }
+  | _ -> failwith "csilgen: expected map for submission_receipt"
+
+and decode_submit_keyed_task_request (csil_c : Cbor.t) : submit_keyed_task_request =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        queue = (Cbor.to_text (csil_req "queue"));
+        guarded = (Cbor.to_bool (csil_req "guarded"));
+        payload = (Cbor.to_bytes (csil_req "payload"));
+        timeout = (Cbor.to_i64 (csil_req "timeout"));
+        priority = (Cbor.to_i64 (csil_req "priority"));
+        current_state = (Cbor.to_text (csil_req "current_state"));
+        submission_key = (Cbor.to_text (csil_req "submission_key"));
+        auto_target_state = (Cbor.to_text (csil_req "auto_target_state"));
+      }
+  | _ -> failwith "csilgen: expected map for submit_keyed_task_request"
+
+and decode_submit_keyed_task_response (csil_c : Cbor.t) : submit_keyed_task_response =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        task = (match csil_field "task" with Some csil_v -> Some (decode_guarded_task csil_v) | None -> None);
+        receipt = (decode_submission_receipt (csil_req "receipt"));
+        replayed = (Cbor.to_bool (csil_req "replayed"));
+      }
+  | _ -> failwith "csilgen: expected map for submit_keyed_task_response"
+
+and decode_lookup_submission_request (csil_c : Cbor.t) : lookup_submission_request =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        queue = (Cbor.to_text (csil_req "queue"));
+        submission_key = (Cbor.to_text (csil_req "submission_key"));
+      }
+  | _ -> failwith "csilgen: expected map for lookup_submission_request"
+
+and decode_lookup_submission_response (csil_c : Cbor.t) : lookup_submission_response =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        task = (match csil_field "task" with Some csil_v -> Some (decode_guarded_task csil_v) | None -> None);
+        receipt = (match csil_field "receipt" with Some csil_v -> Some (decode_submission_receipt csil_v) | None -> None);
+      }
+  | _ -> failwith "csilgen: expected map for lookup_submission_response"
+
+and decode_claim_guarded_task_request (csil_c : Cbor.t) : claim_guarded_task_request =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        queue = (Cbor.to_text (csil_req "queue"));
+        operation_id = (Cbor.to_text (csil_req "operation_id"));
+        current_state = (Cbor.to_text (csil_req "current_state"));
+        override_timeout = (Cbor.to_i64 (csil_req "override_timeout"));
+        override_current_state = (Cbor.to_text (csil_req "override_current_state"));
+        override_auto_target_state = (Cbor.to_text (csil_req "override_auto_target_state"));
+      }
+  | _ -> failwith "csilgen: expected map for claim_guarded_task_request"
+
+and decode_guarded_delivery (csil_c : Cbor.t) : guarded_delivery =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        task = (decode_guarded_task (csil_req "task"));
+        payload = (Cbor.to_bytes (csil_req "payload"));
+      }
+  | _ -> failwith "csilgen: expected map for guarded_delivery"
+
+and decode_claim_guarded_task_response (csil_c : Cbor.t) : claim_guarded_task_response =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        delivery = (match csil_field "delivery" with Some csil_v -> Some (decode_guarded_delivery csil_v) | None -> None);
+        replayed = (Cbor.to_bool (csil_req "replayed"));
+      }
+  | _ -> failwith "csilgen: expected map for claim_guarded_task_response"
+
+and decode_claim_guarded_task_group_request (csil_c : Cbor.t) : claim_guarded_task_group_request =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        queues = (match (csil_req "queues") with Cbor.Array csil_xs -> List.map (fun csil_e -> (Cbor.to_text csil_e)) csil_xs | _ -> failwith "csilgen: expected array");
+        operation_id = (Cbor.to_text (csil_req "operation_id"));
+        current_state = (Cbor.to_text (csil_req "current_state"));
+        override_timeout = (Cbor.to_i64 (csil_req "override_timeout"));
+        override_current_state = (Cbor.to_text (csil_req "override_current_state"));
+        override_auto_target_state = (Cbor.to_text (csil_req "override_auto_target_state"));
+      }
+  | _ -> failwith "csilgen: expected map for claim_guarded_task_group_request"
+
+and decode_claim_guarded_task_group_response (csil_c : Cbor.t) : claim_guarded_task_group_response =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        delivery = (match csil_field "delivery" with Some csil_v -> Some (decode_guarded_delivery csil_v) | None -> None);
+        replayed = (Cbor.to_bool (csil_req "replayed"));
+      }
+  | _ -> failwith "csilgen: expected map for claim_guarded_task_group_response"
+
+and decode_update_guarded_task_request (csil_c : Cbor.t) : update_guarded_task_request =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        uuid = (Cbor.to_text (csil_req "uuid"));
+        queue = (Cbor.to_text (csil_req "queue"));
+        payload = (match csil_field "payload" with Some csil_v -> Some (Cbor.to_bytes csil_v) | None -> None);
+        timeout = (Cbor.to_i64 (csil_req "timeout"));
+        priority = (match csil_field "priority" with Some csil_v -> Some (Cbor.to_i64 csil_v) | None -> None);
+        new_state = (Cbor.to_text (csil_req "new_state"));
+        operation_id = (Cbor.to_text (csil_req "operation_id"));
+        expected_state = (match csil_field "expected_state" with Some csil_v -> Some (Cbor.to_text csil_v) | None -> None);
+        auto_target_state = (Cbor.to_text (csil_req "auto_target_state"));
+        expected_revision = (Cbor.to_i64 (csil_req "expected_revision"));
+      }
+  | _ -> failwith "csilgen: expected map for update_guarded_task_request"
+
+and decode_update_guarded_task_response (csil_c : Cbor.t) : update_guarded_task_response =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        task = (decode_guarded_task (csil_req "task"));
+        replayed = (Cbor.to_bool (csil_req "replayed"));
+      }
+  | _ -> failwith "csilgen: expected map for update_guarded_task_response"
+
+and decode_complete_guarded_task_request (csil_c : Cbor.t) : complete_guarded_task_request =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        uuid = (Cbor.to_text (csil_req "uuid"));
+        queue = (Cbor.to_text (csil_req "queue"));
+        operation_id = (Cbor.to_text (csil_req "operation_id"));
+        expected_state = (match csil_field "expected_state" with Some csil_v -> Some (Cbor.to_text csil_v) | None -> None);
+        expected_revision = (Cbor.to_i64 (csil_req "expected_revision"));
+      }
+  | _ -> failwith "csilgen: expected map for complete_guarded_task_request"
+
+and decode_complete_guarded_task_response (csil_c : Cbor.t) : complete_guarded_task_response =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        task = (decode_guarded_task (csil_req "task"));
+        replayed = (Cbor.to_bool (csil_req "replayed"));
+      }
+  | _ -> failwith "csilgen: expected map for complete_guarded_task_response"
+
+and decode_cancel_guarded_task_request (csil_c : Cbor.t) : cancel_guarded_task_request =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        uuid = (Cbor.to_text (csil_req "uuid"));
+        queue = (Cbor.to_text (csil_req "queue"));
+        operation_id = (Cbor.to_text (csil_req "operation_id"));
+        expected_state = (match csil_field "expected_state" with Some csil_v -> Some (Cbor.to_text csil_v) | None -> None);
+        expected_revision = (Cbor.to_i64 (csil_req "expected_revision"));
+      }
+  | _ -> failwith "csilgen: expected map for cancel_guarded_task_request"
+
+and decode_cancel_guarded_task_response (csil_c : Cbor.t) : cancel_guarded_task_response =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        task = (decode_guarded_task (csil_req "task"));
+        replayed = (Cbor.to_bool (csil_req "replayed"));
+      }
+  | _ -> failwith "csilgen: expected map for cancel_guarded_task_response"
+
+and decode_get_guarded_task_request (csil_c : Cbor.t) : get_guarded_task_request =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        uuid = (Cbor.to_text (csil_req "uuid"));
+        queue = (Cbor.to_text (csil_req "queue"));
+      }
+  | _ -> failwith "csilgen: expected map for get_guarded_task_request"
+
+and decode_get_guarded_task_response (csil_c : Cbor.t) : get_guarded_task_response =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        task = (match csil_field "task" with Some csil_v -> Some (decode_guarded_task csil_v) | None -> None);
+      }
+  | _ -> failwith "csilgen: expected map for get_guarded_task_response"
+
+and decode_operation_receipt (csil_c : Cbor.t) : operation_receipt =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        at = (Cbor.to_i64 (csil_req "at"));
+        op = (Cbor.to_text (csil_req "op"));
+        queue = (Cbor.to_text (csil_req "queue"));
+        task_uuid = (Cbor.to_text (csil_req "task_uuid"));
+        expires_at = (Cbor.to_i64 (csil_req "expires_at"));
+        operation_id = (Cbor.to_text (csil_req "operation_id"));
+        result_state = (Cbor.to_text (csil_req "result_state"));
+        result_revision = (Cbor.to_i64 (csil_req "result_revision"));
+      }
+  | _ -> failwith "csilgen: expected map for operation_receipt"
+
+and decode_lookup_operation_request (csil_c : Cbor.t) : lookup_operation_request =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        operation_id = (Cbor.to_text (csil_req "operation_id"));
+      }
+  | _ -> failwith "csilgen: expected map for lookup_operation_request"
+
+and decode_lookup_operation_response (csil_c : Cbor.t) : lookup_operation_response =
+  match csil_c with
+  | Cbor.Map csil_kvs ->
+      let csil_field k = List.assoc_opt (Cbor.Text k) csil_kvs in
+      let csil_req k =
+        match csil_field k with Some v -> v | None -> failwith ("csilgen: missing field " ^ k)
+      in
+      ignore csil_req;
+      {
+        receipt = (match csil_field "receipt" with Some csil_v -> Some (decode_operation_receipt csil_v) | None -> None);
+      }
+  | _ -> failwith "csilgen: expected map for lookup_operation_response"
+
 and decode_service_error (csil_c : Cbor.t) : service_error =
   match csil_c with
   | Cbor.Map csil_kvs ->
@@ -736,6 +1352,102 @@ let decode_get_queue_and_state_counts_request_bytes (b : bytes) : get_queue_and_
 let encode_get_queue_and_state_counts_response_bytes (v : get_queue_and_state_counts_response) : bytes = Cbor.encode (encode_get_queue_and_state_counts_response v)
 let decode_get_queue_and_state_counts_response_bytes (b : bytes) : get_queue_and_state_counts_response =
   match Cbor.decode b with Ok c -> decode_get_queue_and_state_counts_response c | Error e -> failwith e
+
+let encode_get_server_info_request_bytes (v : get_server_info_request) : bytes = Cbor.encode (encode_get_server_info_request v)
+let decode_get_server_info_request_bytes (b : bytes) : get_server_info_request =
+  match Cbor.decode b with Ok c -> decode_get_server_info_request c | Error e -> failwith e
+
+let encode_get_server_info_response_bytes (v : get_server_info_response) : bytes = Cbor.encode (encode_get_server_info_response v)
+let decode_get_server_info_response_bytes (b : bytes) : get_server_info_response =
+  match Cbor.decode b with Ok c -> decode_get_server_info_response c | Error e -> failwith e
+
+let encode_guarded_task_bytes (v : guarded_task) : bytes = Cbor.encode (encode_guarded_task v)
+let decode_guarded_task_bytes (b : bytes) : guarded_task =
+  match Cbor.decode b with Ok c -> decode_guarded_task c | Error e -> failwith e
+
+let encode_submission_receipt_bytes (v : submission_receipt) : bytes = Cbor.encode (encode_submission_receipt v)
+let decode_submission_receipt_bytes (b : bytes) : submission_receipt =
+  match Cbor.decode b with Ok c -> decode_submission_receipt c | Error e -> failwith e
+
+let encode_submit_keyed_task_request_bytes (v : submit_keyed_task_request) : bytes = Cbor.encode (encode_submit_keyed_task_request v)
+let decode_submit_keyed_task_request_bytes (b : bytes) : submit_keyed_task_request =
+  match Cbor.decode b with Ok c -> decode_submit_keyed_task_request c | Error e -> failwith e
+
+let encode_submit_keyed_task_response_bytes (v : submit_keyed_task_response) : bytes = Cbor.encode (encode_submit_keyed_task_response v)
+let decode_submit_keyed_task_response_bytes (b : bytes) : submit_keyed_task_response =
+  match Cbor.decode b with Ok c -> decode_submit_keyed_task_response c | Error e -> failwith e
+
+let encode_lookup_submission_request_bytes (v : lookup_submission_request) : bytes = Cbor.encode (encode_lookup_submission_request v)
+let decode_lookup_submission_request_bytes (b : bytes) : lookup_submission_request =
+  match Cbor.decode b with Ok c -> decode_lookup_submission_request c | Error e -> failwith e
+
+let encode_lookup_submission_response_bytes (v : lookup_submission_response) : bytes = Cbor.encode (encode_lookup_submission_response v)
+let decode_lookup_submission_response_bytes (b : bytes) : lookup_submission_response =
+  match Cbor.decode b with Ok c -> decode_lookup_submission_response c | Error e -> failwith e
+
+let encode_claim_guarded_task_request_bytes (v : claim_guarded_task_request) : bytes = Cbor.encode (encode_claim_guarded_task_request v)
+let decode_claim_guarded_task_request_bytes (b : bytes) : claim_guarded_task_request =
+  match Cbor.decode b with Ok c -> decode_claim_guarded_task_request c | Error e -> failwith e
+
+let encode_guarded_delivery_bytes (v : guarded_delivery) : bytes = Cbor.encode (encode_guarded_delivery v)
+let decode_guarded_delivery_bytes (b : bytes) : guarded_delivery =
+  match Cbor.decode b with Ok c -> decode_guarded_delivery c | Error e -> failwith e
+
+let encode_claim_guarded_task_response_bytes (v : claim_guarded_task_response) : bytes = Cbor.encode (encode_claim_guarded_task_response v)
+let decode_claim_guarded_task_response_bytes (b : bytes) : claim_guarded_task_response =
+  match Cbor.decode b with Ok c -> decode_claim_guarded_task_response c | Error e -> failwith e
+
+let encode_claim_guarded_task_group_request_bytes (v : claim_guarded_task_group_request) : bytes = Cbor.encode (encode_claim_guarded_task_group_request v)
+let decode_claim_guarded_task_group_request_bytes (b : bytes) : claim_guarded_task_group_request =
+  match Cbor.decode b with Ok c -> decode_claim_guarded_task_group_request c | Error e -> failwith e
+
+let encode_claim_guarded_task_group_response_bytes (v : claim_guarded_task_group_response) : bytes = Cbor.encode (encode_claim_guarded_task_group_response v)
+let decode_claim_guarded_task_group_response_bytes (b : bytes) : claim_guarded_task_group_response =
+  match Cbor.decode b with Ok c -> decode_claim_guarded_task_group_response c | Error e -> failwith e
+
+let encode_update_guarded_task_request_bytes (v : update_guarded_task_request) : bytes = Cbor.encode (encode_update_guarded_task_request v)
+let decode_update_guarded_task_request_bytes (b : bytes) : update_guarded_task_request =
+  match Cbor.decode b with Ok c -> decode_update_guarded_task_request c | Error e -> failwith e
+
+let encode_update_guarded_task_response_bytes (v : update_guarded_task_response) : bytes = Cbor.encode (encode_update_guarded_task_response v)
+let decode_update_guarded_task_response_bytes (b : bytes) : update_guarded_task_response =
+  match Cbor.decode b with Ok c -> decode_update_guarded_task_response c | Error e -> failwith e
+
+let encode_complete_guarded_task_request_bytes (v : complete_guarded_task_request) : bytes = Cbor.encode (encode_complete_guarded_task_request v)
+let decode_complete_guarded_task_request_bytes (b : bytes) : complete_guarded_task_request =
+  match Cbor.decode b with Ok c -> decode_complete_guarded_task_request c | Error e -> failwith e
+
+let encode_complete_guarded_task_response_bytes (v : complete_guarded_task_response) : bytes = Cbor.encode (encode_complete_guarded_task_response v)
+let decode_complete_guarded_task_response_bytes (b : bytes) : complete_guarded_task_response =
+  match Cbor.decode b with Ok c -> decode_complete_guarded_task_response c | Error e -> failwith e
+
+let encode_cancel_guarded_task_request_bytes (v : cancel_guarded_task_request) : bytes = Cbor.encode (encode_cancel_guarded_task_request v)
+let decode_cancel_guarded_task_request_bytes (b : bytes) : cancel_guarded_task_request =
+  match Cbor.decode b with Ok c -> decode_cancel_guarded_task_request c | Error e -> failwith e
+
+let encode_cancel_guarded_task_response_bytes (v : cancel_guarded_task_response) : bytes = Cbor.encode (encode_cancel_guarded_task_response v)
+let decode_cancel_guarded_task_response_bytes (b : bytes) : cancel_guarded_task_response =
+  match Cbor.decode b with Ok c -> decode_cancel_guarded_task_response c | Error e -> failwith e
+
+let encode_get_guarded_task_request_bytes (v : get_guarded_task_request) : bytes = Cbor.encode (encode_get_guarded_task_request v)
+let decode_get_guarded_task_request_bytes (b : bytes) : get_guarded_task_request =
+  match Cbor.decode b with Ok c -> decode_get_guarded_task_request c | Error e -> failwith e
+
+let encode_get_guarded_task_response_bytes (v : get_guarded_task_response) : bytes = Cbor.encode (encode_get_guarded_task_response v)
+let decode_get_guarded_task_response_bytes (b : bytes) : get_guarded_task_response =
+  match Cbor.decode b with Ok c -> decode_get_guarded_task_response c | Error e -> failwith e
+
+let encode_operation_receipt_bytes (v : operation_receipt) : bytes = Cbor.encode (encode_operation_receipt v)
+let decode_operation_receipt_bytes (b : bytes) : operation_receipt =
+  match Cbor.decode b with Ok c -> decode_operation_receipt c | Error e -> failwith e
+
+let encode_lookup_operation_request_bytes (v : lookup_operation_request) : bytes = Cbor.encode (encode_lookup_operation_request v)
+let decode_lookup_operation_request_bytes (b : bytes) : lookup_operation_request =
+  match Cbor.decode b with Ok c -> decode_lookup_operation_request c | Error e -> failwith e
+
+let encode_lookup_operation_response_bytes (v : lookup_operation_response) : bytes = Cbor.encode (encode_lookup_operation_response v)
+let decode_lookup_operation_response_bytes (b : bytes) : lookup_operation_response =
+  match Cbor.decode b with Ok c -> decode_lookup_operation_response c | Error e -> failwith e
 
 let encode_service_error_bytes (v : service_error) : bytes = Cbor.encode (encode_service_error v)
 let decode_service_error_bytes (b : bytes) : service_error =

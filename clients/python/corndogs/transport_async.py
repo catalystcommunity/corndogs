@@ -86,7 +86,7 @@ class AsyncTcpTransport:
         self._writer = None
         for fut in pending.values():
             if not fut.done():
-                fut.set_exception(TransportError(f"connection lost: {cause}"))
+                fut.set_exception(TransportError(f"outcome uncertain: connection lost: {cause}"))
 
     async def call(self, service: str, method: str, req: bytes) -> bytes:
         await self._ensure()
@@ -108,7 +108,7 @@ class AsyncTcpTransport:
             await self._writer.drain()
         except OSError as exc:
             self._pending.pop(mid, None)
-            raise TransportError(str(exc)) from None
+            raise TransportError(f"outcome uncertain: {exc}") from None
         frame = await fut
         return _parse_response(frame)
 

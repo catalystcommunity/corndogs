@@ -52,5 +52,35 @@ class CorndogsAsyncClient(private val transport: AsyncTransport) {
     suspend fun getQueueAndStateCounts(request: GetQueueAndStateCountsRequest): GetQueueAndStateCountsResponse {
         return decode<GetQueueAndStateCountsResponse>(transport.call("CorndogsService", "GetQueueAndStateCounts", encode(request)))
     }
+    suspend fun getServerInfo(request: GetServerInfoRequest): GetServerInfoResponse {
+        return decode<GetServerInfoResponse>(transport.call("CorndogsService", "GetServerInfo", encode(request)))
+    }
+    suspend fun submitKeyedTask(request: SubmitKeyedTaskRequest): SubmitKeyedTaskResponse {
+        return decode<SubmitKeyedTaskResponse>(transport.call("CorndogsService", "SubmitKeyedTask", encode(request)))
+    }
+    suspend fun lookupSubmission(request: LookupSubmissionRequest): LookupSubmissionResponse {
+        return decode<LookupSubmissionResponse>(transport.call("CorndogsService", "LookupSubmission", encode(request)))
+    }
+    suspend fun claimGuardedTask(request: ClaimGuardedTaskRequest): ClaimGuardedTaskResponse {
+        return decode<ClaimGuardedTaskResponse>(transport.call("CorndogsService", "ClaimGuardedTask", encode(request)))
+    }
+    suspend fun claimGuardedTaskGroup(request: ClaimGuardedTaskGroupRequest): ClaimGuardedTaskGroupResponse {
+        return decode<ClaimGuardedTaskGroupResponse>(transport.call("CorndogsService", "ClaimGuardedTaskGroup", encode(request)))
+    }
+    suspend fun updateGuardedTask(request: UpdateGuardedTaskRequest): UpdateGuardedTaskResponse {
+        return decode<UpdateGuardedTaskResponse>(transport.call("CorndogsService", "UpdateGuardedTask", encode(request)))
+    }
+    suspend fun completeGuardedTask(request: CompleteGuardedTaskRequest): CompleteGuardedTaskResponse {
+        return decode<CompleteGuardedTaskResponse>(transport.call("CorndogsService", "CompleteGuardedTask", encode(request)))
+    }
+    suspend fun cancelGuardedTask(request: CancelGuardedTaskRequest): CancelGuardedTaskResponse {
+        return decode<CancelGuardedTaskResponse>(transport.call("CorndogsService", "CancelGuardedTask", encode(request)))
+    }
+    suspend fun getGuardedTask(request: GetGuardedTaskRequest): GetGuardedTaskResponse {
+        return decode<GetGuardedTaskResponse>(transport.call("CorndogsService", "GetGuardedTask", encode(request)))
+    }
+    suspend fun lookupOperation(request: LookupOperationRequest): LookupOperationResponse {
+        return decode<LookupOperationResponse>(transport.call("CorndogsService", "LookupOperation", encode(request)))
+    }
 }
 

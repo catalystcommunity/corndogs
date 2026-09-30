@@ -3,6 +3,7 @@ package filestore
 import (
 	"bytes"
 	"encoding/binary"
+	"sort"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -87,10 +88,16 @@ func rebuildCounts(db *bolt.DB) error {
 			return err
 		}
 		counts := map[string]uint64{}
-		c := tx.Bucket(bucketTasks).Cursor()
-		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			q, st := parseKeyQueueState(k)
-			counts[string(countKey(q, st))]++
+		for _, name := range [][]byte{bucketTasks, bucketGuarded} {
+			b := tx.Bucket(name)
+			if b == nil {
+				continue
+			}
+			c := b.Cursor()
+			for k, _ := c.First(); k != nil; k, _ = c.Next() {
+				q, st := parseKeyQueueState(k)
+				counts[string(countKey(q, st))]++
+			}
 		}
 		for k, n := range counts {
 			val := make([]byte, 8)
@@ -127,7 +134,7 @@ func batchKeepsCounts(b MutationBatch) bool {
 	tasks, counts := false, false
 	for _, m := range b.Mutations {
 		switch {
-		case bytes.Equal(m.Bucket, bucketTasks):
+		case bytes.Equal(m.Bucket, bucketTasks), bytes.Equal(m.Bucket, bucketGuarded):
 			tasks = true
 		case bytes.Equal(m.Bucket, bucketCounts):
 			counts = true
@@ -150,9 +157,27 @@ func forEachCount(tx *bolt.Tx, prefix []byte, fn func(queue, state string, n int
 		}
 		return
 	}
-	c := tx.Bucket(bucketTasks).Cursor()
-	for k, _ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
-		q, st := parseKeyQueueState(k)
-		fn(q, st, 1)
+	// Without counts, merge the two live buckets so the calls stay in key order.
+	tally := map[string]int64{}
+	var keys []string
+	for _, name := range [][]byte{bucketTasks, bucketGuarded} {
+		b := tx.Bucket(name)
+		if b == nil {
+			continue
+		}
+		c := b.Cursor()
+		for k, _ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
+			q, st := parseKeyQueueState(k)
+			ck := string(countKey(q, st))
+			if _, ok := tally[ck]; !ok {
+				keys = append(keys, ck)
+			}
+			tally[ck]++
+		}
+	}
+	sort.Strings(keys)
+	for _, ck := range keys {
+		q, st := parseCountKey([]byte(ck))
+		fn(q, st, tally[ck])
 	}
 }

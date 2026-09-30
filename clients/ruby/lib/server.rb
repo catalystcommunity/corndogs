@@ -64,4 +64,54 @@ class CorndogsHandlers
   def get_queue_and_state_counts(req)
     raise NotImplementedError, "CorndogsHandlers#get_queue_and_state_counts"
   end
+
+  # GetServerInfo
+  def get_server_info(req)
+    raise NotImplementedError, "CorndogsHandlers#get_server_info"
+  end
+
+  # SubmitKeyedTask
+  def submit_keyed_task(req)
+    raise NotImplementedError, "CorndogsHandlers#submit_keyed_task"
+  end
+
+  # LookupSubmission
+  def lookup_submission(req)
+    raise NotImplementedError, "CorndogsHandlers#lookup_submission"
+  end
+
+  # ClaimGuardedTask
+  def claim_guarded_task(req)
+    raise NotImplementedError, "CorndogsHandlers#claim_guarded_task"
+  end
+
+  # ClaimGuardedTaskGroup
+  def claim_guarded_task_group(req)
+    raise NotImplementedError, "CorndogsHandlers#claim_guarded_task_group"
+  end
+
+  # UpdateGuardedTask
+  def update_guarded_task(req)
+    raise NotImplementedError, "CorndogsHandlers#update_guarded_task"
+  end
+
+  # CompleteGuardedTask
+  def complete_guarded_task(req)
+    raise NotImplementedError, "CorndogsHandlers#complete_guarded_task"
+  end
+
+  # CancelGuardedTask
+  def cancel_guarded_task(req)
+    raise NotImplementedError, "CorndogsHandlers#cancel_guarded_task"
+  end
+
+  # GetGuardedTask
+  def get_guarded_task(req)
+    raise NotImplementedError, "CorndogsHandlers#get_guarded_task"
+  end
+
+  # LookupOperation
+  def lookup_operation(req)
+    raise NotImplementedError, "CorndogsHandlers#lookup_operation"
+  end
 end

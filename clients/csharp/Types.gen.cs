@@ -244,6 +244,276 @@ public sealed record GetQueueAndStateCountsResponse
     public required QueueAndStateCountsMap QueueAndStateCounts { get; init; }
 }
 
+public sealed record GetServerInfoRequest
+{
+}
+
+public sealed record GetServerInfoResponse
+{
+    // CBOR key: server_version
+    public required string ServerVersion { get; init; }
+    // CBOR key: features
+    public required System.Collections.Generic.List<string> Features { get; init; }
+    // CBOR key: submission_key_policy
+    public required string SubmissionKeyPolicy { get; init; }
+    // CBOR key: task_guard_policy
+    public required string TaskGuardPolicy { get; init; }
+    // CBOR key: receipt_retention_seconds
+    public required long ReceiptRetentionSeconds { get; init; }
+}
+
+public sealed record GuardedTask
+{
+    // CBOR key: task
+    public required Task Task { get; init; }
+    // CBOR key: guarded
+    public required bool Guarded { get; init; }
+    // CBOR key: revision
+    public required long Revision { get; init; }
+    // CBOR key: terminal
+    public required bool Terminal { get; init; }
+}
+
+public sealed record SubmissionReceipt
+{
+    // CBOR key: queue
+    public required string Queue { get; init; }
+    // CBOR key: submission_key
+    public required string SubmissionKey { get; init; }
+    // CBOR key: task_uuid
+    public required string TaskUuid { get; init; }
+    // CBOR key: accepted_at
+    public required long AcceptedAt { get; init; }
+    // CBOR key: expires_at
+    public required long ExpiresAt { get; init; }
+    // CBOR key: guarded
+    public required bool Guarded { get; init; }
+}
+
+public sealed record SubmitKeyedTaskRequest
+{
+    // CBOR key: submission_key
+    public required string SubmissionKey { get; init; }
+    // CBOR key: guarded
+    public required bool Guarded { get; init; }
+    // CBOR key: queue
+    public required string Queue { get; init; }
+    // CBOR key: current_state
+    public required string CurrentState { get; init; }
+    // CBOR key: auto_target_state
+    public required string AutoTargetState { get; init; }
+    // CBOR key: timeout
+    public required long Timeout { get; init; }
+    // CBOR key: payload
+    public required byte[] Payload { get; init; }
+    // CBOR key: priority
+    public required long Priority { get; init; }
+}
+
+public sealed record SubmitKeyedTaskResponse
+{
+    // CBOR key: receipt
+    public required SubmissionReceipt Receipt { get; init; }
+    // CBOR key: replayed
+    public required bool Replayed { get; init; }
+    // CBOR key: task
+    public GuardedTask? Task { get; init; }
+}
+
+public sealed record LookupSubmissionRequest
+{
+    // CBOR key: queue
+    public required string Queue { get; init; }
+    // CBOR key: submission_key
+    public required string SubmissionKey { get; init; }
+}
+
+public sealed record LookupSubmissionResponse
+{
+    // CBOR key: receipt
+    public SubmissionReceipt? Receipt { get; init; }
+    // CBOR key: task
+    public GuardedTask? Task { get; init; }
+}
+
+public sealed record ClaimGuardedTaskRequest
+{
+    // CBOR key: operation_id
+    public required string OperationId { get; init; }
+    // CBOR key: queue
+    public required string Queue { get; init; }
+    // CBOR key: current_state
+    public required string CurrentState { get; init; }
+    // CBOR key: override_timeout
+    public required long OverrideTimeout { get; init; }
+    // CBOR key: override_current_state
+    public required string OverrideCurrentState { get; init; }
+    // CBOR key: override_auto_target_state
+    public required string OverrideAutoTargetState { get; init; }
+}
+
+public sealed record GuardedDelivery
+{
+    // CBOR key: task
+    public required GuardedTask Task { get; init; }
+    // CBOR key: payload
+    public required byte[] Payload { get; init; }
+}
+
+public sealed record ClaimGuardedTaskResponse
+{
+    // CBOR key: delivery
+    public GuardedDelivery? Delivery { get; init; }
+    // CBOR key: replayed
+    public required bool Replayed { get; init; }
+}
+
+public sealed record ClaimGuardedTaskGroupRequest
+{
+    // CBOR key: operation_id
+    public required string OperationId { get; init; }
+    // CBOR key: queues
+    public required System.Collections.Generic.List<string> Queues { get; init; }
+    // CBOR key: current_state
+    public required string CurrentState { get; init; }
+    // CBOR key: override_timeout
+    public required long OverrideTimeout { get; init; }
+    // CBOR key: override_current_state
+    public required string OverrideCurrentState { get; init; }
+    // CBOR key: override_auto_target_state
+    public required string OverrideAutoTargetState { get; init; }
+}
+
+public sealed record ClaimGuardedTaskGroupResponse
+{
+    // CBOR key: delivery
+    public GuardedDelivery? Delivery { get; init; }
+    // CBOR key: replayed
+    public required bool Replayed { get; init; }
+}
+
+public sealed record UpdateGuardedTaskRequest
+{
+    // CBOR key: operation_id
+    public required string OperationId { get; init; }
+    // CBOR key: uuid
+    public required string Uuid { get; init; }
+    // CBOR key: queue
+    public required string Queue { get; init; }
+    // CBOR key: expected_revision
+    public required long ExpectedRevision { get; init; }
+    // CBOR key: expected_state
+    public string? ExpectedState { get; init; }
+    // CBOR key: new_state
+    public required string NewState { get; init; }
+    // CBOR key: auto_target_state
+    public required string AutoTargetState { get; init; }
+    // CBOR key: timeout
+    public required long Timeout { get; init; }
+    // CBOR key: payload
+    public byte[]? Payload { get; init; }
+    // CBOR key: priority
+    public long? Priority { get; init; }
+}
+
+public sealed record UpdateGuardedTaskResponse
+{
+    // CBOR key: task
+    public required GuardedTask Task { get; init; }
+    // CBOR key: replayed
+    public required bool Replayed { get; init; }
+}
+
+public sealed record CompleteGuardedTaskRequest
+{
+    // CBOR key: operation_id
+    public required string OperationId { get; init; }
+    // CBOR key: uuid
+    public required string Uuid { get; init; }
+    // CBOR key: queue
+    public required string Queue { get; init; }
+    // CBOR key: expected_revision
+    public required long ExpectedRevision { get; init; }
+    // CBOR key: expected_state
+    public string? ExpectedState { get; init; }
+}
+
+public sealed record CompleteGuardedTaskResponse
+{
+    // CBOR key: task
+    public required GuardedTask Task { get; init; }
+    // CBOR key: replayed
+    public required bool Replayed { get; init; }
+}
+
+public sealed record CancelGuardedTaskRequest
+{
+    // CBOR key: operation_id
+    public required string OperationId { get; init; }
+    // CBOR key: uuid
+    public required string Uuid { get; init; }
+    // CBOR key: queue
+    public required string Queue { get; init; }
+    // CBOR key: expected_revision
+    public required long ExpectedRevision { get; init; }
+    // CBOR key: expected_state
+    public string? ExpectedState { get; init; }
+}
+
+public sealed record CancelGuardedTaskResponse
+{
+    // CBOR key: task
+    public required GuardedTask Task { get; init; }
+    // CBOR key: replayed
+    public required bool Replayed { get; init; }
+}
+
+public sealed record GetGuardedTaskRequest
+{
+    // CBOR key: uuid
+    public required string Uuid { get; init; }
+    // CBOR key: queue
+    public required string Queue { get; init; }
+}
+
+public sealed record GetGuardedTaskResponse
+{
+    // CBOR key: task
+    public GuardedTask? Task { get; init; }
+}
+
+public sealed record OperationReceipt
+{
+    // CBOR key: operation_id
+    public required string OperationId { get; init; }
+    // CBOR key: op
+    public required string Op { get; init; }
+    // CBOR key: task_uuid
+    public required string TaskUuid { get; init; }
+    // CBOR key: queue
+    public required string Queue { get; init; }
+    // CBOR key: result_revision
+    public required long ResultRevision { get; init; }
+    // CBOR key: result_state
+    public required string ResultState { get; init; }
+    // CBOR key: at
+    public required long At { get; init; }
+    // CBOR key: expires_at
+    public required long ExpiresAt { get; init; }
+}
+
+public sealed record LookupOperationRequest
+{
+    // CBOR key: operation_id
+    public required string OperationId { get; init; }
+}
+
+public sealed record LookupOperationResponse
+{
+    // CBOR key: receipt
+    public OperationReceipt? Receipt { get; init; }
+}
+
 public sealed record ServiceError
 {
     // CBOR key: code

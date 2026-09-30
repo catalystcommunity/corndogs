@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 )
@@ -11,7 +12,8 @@ import (
 // CSIL-RPC (csilgen docs/csil-rpc-transport.md): the application payload is a
 // tag-24-wrapped CBOR of the request/response type.
 const (
-	rpcServiceName = "CorndogsService" // wire service name = the verbatim CSIL `service` block name (what generated clients send)
+	rpcServiceName      = "CorndogsService" // wire service name = the verbatim CSIL `service` block name (what generated clients send)
+	serviceErrorVariant = "ServiceError"
 )
 
 // rpcHandlerFunc decodes a request payload, invokes a service method, and returns
@@ -37,6 +39,12 @@ func rpcRoute[Req any, Resp any](
 		}
 		resp, err := fn(ctx, req)
 		if err != nil {
+			// A ServiceError is the operation's error arm: status 0 with the
+			// ServiceError variant, which every generated client decodes.
+			var se *api.ServiceError
+			if errors.As(err, &se) {
+				return serviceErrorVariant, api.EncodeServiceError(*se), nil
+			}
 			return "", nil, err
 		}
 		return variant, encode(resp), nil
@@ -59,5 +67,16 @@ func buildRPCRoutes(svc api.CorndogsService) map[string]rpcHandlerFunc {
 		"GetQueueTaskCounts":     rpcRoute(svc.GetQueueTaskCounts, api.DecodeGetQueueTaskCountsRequest, api.EncodeGetQueueTaskCountsResponse, "GetQueueTaskCountsResponse"),
 		"GetTaskStateCounts":     rpcRoute(svc.GetTaskStateCounts, api.DecodeGetTaskStateCountsRequest, api.EncodeGetTaskStateCountsResponse, "GetTaskStateCountsResponse"),
 		"GetQueueAndStateCounts": rpcRoute(svc.GetQueueAndStateCounts, api.DecodeGetQueueAndStateCountsRequest, api.EncodeGetQueueAndStateCountsResponse, "GetQueueAndStateCountsResponse"),
+		// Resilience contract (0.8.0).
+		"GetServerInfo":         rpcRoute(svc.GetServerInfo, api.DecodeGetServerInfoRequest, api.EncodeGetServerInfoResponse, "GetServerInfoResponse"),
+		"SubmitKeyedTask":       rpcRoute(svc.SubmitKeyedTask, api.DecodeSubmitKeyedTaskRequest, api.EncodeSubmitKeyedTaskResponse, "SubmitKeyedTaskResponse"),
+		"LookupSubmission":      rpcRoute(svc.LookupSubmission, api.DecodeLookupSubmissionRequest, api.EncodeLookupSubmissionResponse, "LookupSubmissionResponse"),
+		"ClaimGuardedTask":      rpcRoute(svc.ClaimGuardedTask, api.DecodeClaimGuardedTaskRequest, api.EncodeClaimGuardedTaskResponse, "ClaimGuardedTaskResponse"),
+		"ClaimGuardedTaskGroup": rpcRoute(svc.ClaimGuardedTaskGroup, api.DecodeClaimGuardedTaskGroupRequest, api.EncodeClaimGuardedTaskGroupResponse, "ClaimGuardedTaskGroupResponse"),
+		"UpdateGuardedTask":     rpcRoute(svc.UpdateGuardedTask, api.DecodeUpdateGuardedTaskRequest, api.EncodeUpdateGuardedTaskResponse, "UpdateGuardedTaskResponse"),
+		"CompleteGuardedTask":   rpcRoute(svc.CompleteGuardedTask, api.DecodeCompleteGuardedTaskRequest, api.EncodeCompleteGuardedTaskResponse, "CompleteGuardedTaskResponse"),
+		"CancelGuardedTask":     rpcRoute(svc.CancelGuardedTask, api.DecodeCancelGuardedTaskRequest, api.EncodeCancelGuardedTaskResponse, "CancelGuardedTaskResponse"),
+		"GetGuardedTask":        rpcRoute(svc.GetGuardedTask, api.DecodeGetGuardedTaskRequest, api.EncodeGetGuardedTaskResponse, "GetGuardedTaskResponse"),
+		"LookupOperation":       rpcRoute(svc.LookupOperation, api.DecodeLookupOperationRequest, api.EncodeLookupOperationResponse, "LookupOperationResponse"),
 	}
 }

@@ -32,6 +32,17 @@ The server can serve TLS. The Go client (`corndogs.NewTLS`) and the Rust client
 (the `tls` cargo feature) support TLS. The other clients do not support TLS at
 this time.
 
+
+## Resilience operations
+
+Every client includes the resilience operations of Corndogs 0.8.0: keyed
+submissions (`SubmitKeyedTask`, `LookupSubmission`) and task guards
+(`ClaimGuardedTask`, `UpdateGuardedTask`, `CompleteGuardedTask`, and the other
+guarded operations). The transports do not send a request again after it was
+possibly sent. They report such a failure as "outcome uncertain". Each language
+README shows an example. See [docs/resilience.md](../docs/resilience.md) for the
+contract, the server policies, and the upgrade steps.
+
 ## Generated and maintained files
 
 The generation script replaces generated types, codecs, and service methods.

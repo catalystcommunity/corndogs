@@ -197,4 +197,144 @@ defmodule Csilgen.Generated.CorndogsClient do
 
     Csilgen.Generated.GetQueueAndStateCountsResponse.from_cbor(resp)
   end
+
+  @spec get_server_info(t(), Csilgen.Generated.GetServerInfoRequest.t()) ::
+          Csilgen.Generated.GetServerInfoResponse.t()
+  def get_server_info(%__MODULE__{transport: transport}, req) do
+    resp =
+      Csilgen.Generated.Transport.call(
+        transport,
+        "CorndogsService",
+        "GetServerInfo",
+        Csilgen.Generated.GetServerInfoRequest.to_cbor(req)
+      )
+
+    Csilgen.Generated.GetServerInfoResponse.from_cbor(resp)
+  end
+
+  @spec submit_keyed_task(t(), Csilgen.Generated.SubmitKeyedTaskRequest.t()) ::
+          Csilgen.Generated.SubmitKeyedTaskResponse.t()
+  def submit_keyed_task(%__MODULE__{transport: transport}, req) do
+    resp =
+      Csilgen.Generated.Transport.call(
+        transport,
+        "CorndogsService",
+        "SubmitKeyedTask",
+        Csilgen.Generated.SubmitKeyedTaskRequest.to_cbor(req)
+      )
+
+    Csilgen.Generated.SubmitKeyedTaskResponse.from_cbor(resp)
+  end
+
+  @spec lookup_submission(t(), Csilgen.Generated.LookupSubmissionRequest.t()) ::
+          Csilgen.Generated.LookupSubmissionResponse.t()
+  def lookup_submission(%__MODULE__{transport: transport}, req) do
+    resp =
+      Csilgen.Generated.Transport.call(
+        transport,
+        "CorndogsService",
+        "LookupSubmission",
+        Csilgen.Generated.LookupSubmissionRequest.to_cbor(req)
+      )
+
+    Csilgen.Generated.LookupSubmissionResponse.from_cbor(resp)
+  end
+
+  @spec claim_guarded_task(t(), Csilgen.Generated.ClaimGuardedTaskRequest.t()) ::
+          Csilgen.Generated.ClaimGuardedTaskResponse.t()
+  def claim_guarded_task(%__MODULE__{transport: transport}, req) do
+    resp =
+      Csilgen.Generated.Transport.call(
+        transport,
+        "CorndogsService",
+        "ClaimGuardedTask",
+        Csilgen.Generated.ClaimGuardedTaskRequest.to_cbor(req)
+      )
+
+    Csilgen.Generated.ClaimGuardedTaskResponse.from_cbor(resp)
+  end
+
+  @spec claim_guarded_task_group(t(), Csilgen.Generated.ClaimGuardedTaskGroupRequest.t()) ::
+          Csilgen.Generated.ClaimGuardedTaskGroupResponse.t()
+  def claim_guarded_task_group(%__MODULE__{transport: transport}, req) do
+    resp =
+      Csilgen.Generated.Transport.call(
+        transport,
+        "CorndogsService",
+        "ClaimGuardedTaskGroup",
+        Csilgen.Generated.ClaimGuardedTaskGroupRequest.to_cbor(req)
+      )
+
+    Csilgen.Generated.ClaimGuardedTaskGroupResponse.from_cbor(resp)
+  end
+
+  @spec update_guarded_task(t(), Csilgen.Generated.UpdateGuardedTaskRequest.t()) ::
+          Csilgen.Generated.UpdateGuardedTaskResponse.t()
+  def update_guarded_task(%__MODULE__{transport: transport}, req) do
+    resp =
+      Csilgen.Generated.Transport.call(
+        transport,
+        "CorndogsService",
+        "UpdateGuardedTask",
+        Csilgen.Generated.UpdateGuardedTaskRequest.to_cbor(req)
+      )
+
+    Csilgen.Generated.UpdateGuardedTaskResponse.from_cbor(resp)
+  end
+
+  @spec complete_guarded_task(t(), Csilgen.Generated.CompleteGuardedTaskRequest.t()) ::
+          Csilgen.Generated.CompleteGuardedTaskResponse.t()
+  def complete_guarded_task(%__MODULE__{transport: transport}, req) do
+    resp =
+      Csilgen.Generated.Transport.call(
+        transport,
+        "CorndogsService",
+        "CompleteGuardedTask",
+        Csilgen.Generated.CompleteGuardedTaskRequest.to_cbor(req)
+      )
+
+    Csilgen.Generated.CompleteGuardedTaskResponse.from_cbor(resp)
+  end
+
+  @spec cancel_guarded_task(t(), Csilgen.Generated.CancelGuardedTaskRequest.t()) ::
+          Csilgen.Generated.CancelGuardedTaskResponse.t()
+  def cancel_guarded_task(%__MODULE__{transport: transport}, req) do
+    resp =
+      Csilgen.Generated.Transport.call(
+        transport,
+        "CorndogsService",
+        "CancelGuardedTask",
+        Csilgen.Generated.CancelGuardedTaskRequest.to_cbor(req)
+      )
+
+    Csilgen.Generated.CancelGuardedTaskResponse.from_cbor(resp)
+  end
+
+  @spec get_guarded_task(t(), Csilgen.Generated.GetGuardedTaskRequest.t()) ::
+          Csilgen.Generated.GetGuardedTaskResponse.t()
+  def get_guarded_task(%__MODULE__{transport: transport}, req) do
+    resp =
+      Csilgen.Generated.Transport.call(
+        transport,
+        "CorndogsService",
+        "GetGuardedTask",
+        Csilgen.Generated.GetGuardedTaskRequest.to_cbor(req)
+      )
+
+    Csilgen.Generated.GetGuardedTaskResponse.from_cbor(resp)
+  end
+
+  @spec lookup_operation(t(), Csilgen.Generated.LookupOperationRequest.t()) ::
+          Csilgen.Generated.LookupOperationResponse.t()
+  def lookup_operation(%__MODULE__{transport: transport}, req) do
+    resp =
+      Csilgen.Generated.Transport.call(
+        transport,
+        "CorndogsService",
+        "LookupOperation",
+        Csilgen.Generated.LookupOperationRequest.to_cbor(req)
+      )
+
+    Csilgen.Generated.LookupOperationResponse.from_cbor(resp)
+  end
 end

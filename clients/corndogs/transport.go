@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -35,6 +36,7 @@ const (
 	defaultDialWait  = 5 * time.Second // connect timeout
 	controlServiceHB = "CorndogsService"
 	opPing           = "$ping" // control-plane heartbeat op (never collides with app ops)
+	defaultAttempts  = 3
 )
 
 // StreamTransport implements Transport over a persistent, multiplexed TCP
@@ -42,6 +44,9 @@ const (
 type StreamTransport struct {
 	Addr        string        // host:port
 	DialTimeout time.Duration // 0 => defaultDialWait; covers the TLS handshake too
+	// MaxAttempts bounds the sends of one call (0 => 3). See Call for which
+	// failures are retried.
+	MaxAttempts int
 	// TLSConfig, when set, makes each dial a TLS connection. A nil RootCAs uses
 	// the system roots. An empty ServerName uses the host part of Addr.
 	TLSConfig *tls.Config
@@ -133,7 +138,7 @@ func (t *StreamTransport) teardown(conn net.Conn, cause error) {
 	_ = conn.Close()
 	for _, ch := range pending {
 		select {
-		case ch <- rpcResult{err: cause}:
+		case ch <- rpcResult{err: uncertain(cause)}:
 		default:
 		}
 	}
@@ -162,10 +167,57 @@ func (t *StreamTransport) readLoop(conn net.Conn) {
 }
 
 // Call sends one request and waits for its correlated response (or ctx timeout).
+//
+// Errors are classified for retry decisions (see errors.go): a failure before
+// the request was sent is ErrNotApplied; a failure after it was sent is
+// ErrOutcomeUncertain, because the server may have executed the operation.
+// Call retries only when that is safe: ErrNotApplied for every operation, and
+// ErrOutcomeUncertain for the operations in ReplaySafe, with the same bytes.
+// It never replays a legacy mutation after an uncertain outcome.
 func (t *StreamTransport) Call(ctx context.Context, service, op string, req []byte) ([]byte, error) {
+	var err error
+	for attempt := 0; attempt < t.maxAttempts(); attempt++ {
+		if attempt > 0 && !sleepBackoff(ctx, attempt-1) {
+			break
+		}
+		var resp []byte
+		resp, err = t.callOnce(ctx, service, op, req)
+		if err == nil || !retryable(op, err) {
+			return resp, err
+		}
+	}
+	return nil, err
+}
+
+// maxAttempts bounds the retries of one Call. A retry happens only for a
+// failure that retryable accepts, and never after ctx ends.
+func (t *StreamTransport) maxAttempts() int {
+	if t.MaxAttempts > 0 {
+		return t.MaxAttempts
+	}
+	return defaultAttempts
+}
+
+// retryable reports whether a failed call may be sent again with the same
+// bytes. A ServiceError, an unsupported operation, and a canceled context are
+// final.
+func retryable(op string, err error) bool {
+	if _, ok := ServiceErrorCode(err); ok {
+		return false
+	}
+	if errors.Is(err, ErrUnsupported) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if errors.Is(err, ErrNotApplied) {
+		return true
+	}
+	return errors.Is(err, ErrOutcomeUncertain) && ReplaySafe(op)
+}
+
+func (t *StreamTransport) callOnce(ctx context.Context, service, op string, req []byte) ([]byte, error) {
 	conn, err := t.ensureConn()
 	if err != nil {
-		return nil, &ClientError{Err: err}
+		return nil, notApplied(err)
 	}
 
 	t.mu.Lock()
@@ -174,7 +226,7 @@ func (t *StreamTransport) Call(ctx context.Context, service, op string, req []by
 	ch := make(chan rpcResult, 1)
 	if t.pending == nil { // torn down between ensureConn and here
 		t.mu.Unlock()
-		return nil, &ClientError{Err: fmt.Errorf("corndogs: connection lost")}
+		return nil, notApplied(fmt.Errorf("corndogs: connection lost"))
 	}
 	t.pending[id] = ch
 	t.mu.Unlock()
@@ -192,7 +244,8 @@ func (t *StreamTransport) Call(ctx context.Context, service, op string, req []by
 	t.writeMu.Unlock()
 	if werr != nil {
 		t.teardown(conn, werr)
-		return nil, &ClientError{Err: werr}
+		// Part of the frame may have reached the server.
+		return nil, uncertain(werr)
 	}
 
 	select {
@@ -200,7 +253,7 @@ func (t *StreamTransport) Call(ctx context.Context, service, op string, req []by
 		t.mu.Lock()
 		delete(t.pending, id)
 		t.mu.Unlock()
-		return nil, &ClientError{Err: ctx.Err()}
+		return nil, uncertain(ctx.Err())
 	case res := <-ch:
 		return res.payload, res.err
 	}
@@ -305,7 +358,7 @@ func parseResponse(frame []byte) (uint64, []byte, error) {
 			if ev, ok := cborMapGet(val, "error"); ok {
 				msg, _ = cborAsText(ev)
 			}
-			return id, nil, &ClientError{Err: fmt.Errorf("transport status %d: %s", status, msg)}
+			return id, nil, &ClientError{Err: &TransportStatusError{Status: status, Message: msg}}
 		}
 	}
 	pv, ok := cborMapGet(val, "payload")

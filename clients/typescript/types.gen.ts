@@ -179,6 +179,237 @@ export interface GetQueueAndStateCountsResponse {
   queueAndStateCounts: QueueAndStateCountsMap;
 }
 
+export interface GetServerInfoRequest {
+}
+
+/**
+ * features lists the contract features that this server enforces, for
+ * example "submission-keys-v1" and "task-guards-v1". A policy is
+ * "compatibility" (legacy operations are accepted) or "required" (legacy
+ * operations that the feature replaces are rejected before they change data).
+ */
+export interface GetServerInfoResponse {
+  serverVersion: string;
+  features: string[];
+  submissionKeyPolicy: string;
+  taskGuardPolicy: string;
+  receiptRetentionSeconds: number;
+}
+
+/**
+ * A task with its protection data. revision changes on each mutation of the
+ * task, including claims and timeout releases, so it identifies one claim.
+ * guarded is true when legacy operations cannot change the task. terminal is
+ * true when the task is completed or canceled.
+ */
+export interface GuardedTask {
+  task: Task;
+  guarded: boolean;
+  revision: number;
+  terminal: boolean;
+}
+
+/**
+ * The durable record of an accepted keyed submission. accepted_at and
+ * expires_at are Unix nanoseconds. After expires_at the server no longer
+ * deduplicates this key.
+ */
+export interface SubmissionReceipt {
+  queue: string;
+  submissionKey: string;
+  taskUuid: string;
+  acceptedAt: number;
+  expiresAt: number;
+  guarded: boolean;
+}
+
+/**
+ * SubmitKeyedTask creates a task at most once for each (queue,
+ * submission_key) during the receipt retention period. The server compares
+ * the request fields exactly as sent, before it applies defaults.
+ * - The same key with the same request returns the original receipt and the
+ * current task, with replayed = true. It does not create or change a task.
+ * - The same key with a different request returns ServiceError code 4.
+ * - An empty key returns ServiceError code 1. Keys have 1 to 128 bytes.
+ * guarded = true puts the task under task guards permanently.
+ */
+export interface SubmitKeyedTaskRequest {
+  submissionKey: string;
+  guarded: boolean;
+  queue: string;
+  currentState: string;
+  autoTargetState: string;
+  timeout: number;
+  payload: Uint8Array;
+  priority: number;
+}
+
+export interface SubmitKeyedTaskResponse {
+  receipt: SubmissionReceipt;
+  replayed: boolean;
+  task?: GuardedTask;
+}
+
+/**
+ * LookupSubmission reads a receipt. It does not change data. An absent
+ * receipt means that the server has no unexpired record of the key. In a
+ * cluster, only the leader answers.
+ */
+export interface LookupSubmissionRequest {
+  queue: string;
+  submissionKey: string;
+}
+
+export interface LookupSubmissionResponse {
+  receipt?: SubmissionReceipt;
+  task?: GuardedTask;
+}
+
+/**
+ * ClaimGuardedTask claims the next task like GetNextTask and returns its
+ * revision. It can claim guarded and legacy tasks. operation_id identifies
+ * this claim. A retry with the same operation_id and request returns the same
+ * claim with replayed = true while the claim still holds the task, or
+ * ServiceError code 8 after the task changed.
+ */
+export interface ClaimGuardedTaskRequest {
+  operationId: string;
+  queue: string;
+  currentState: string;
+  overrideTimeout: number;
+  overrideCurrentState: string;
+  overrideAutoTargetState: string;
+}
+
+/**
+ * A claimed task and its opaque payload bytes.
+ */
+export interface GuardedDelivery {
+  task: GuardedTask;
+  payload: Uint8Array;
+}
+
+export interface ClaimGuardedTaskResponse {
+  delivery?: GuardedDelivery;
+  replayed: boolean;
+}
+
+/**
+ * ClaimGuardedTaskGroup is GetNextTaskGroup with the ClaimGuardedTask rules.
+ */
+export interface ClaimGuardedTaskGroupRequest {
+  operationId: string;
+  queues: string[];
+  currentState: string;
+  overrideTimeout: number;
+  overrideCurrentState: string;
+  overrideAutoTargetState: string;
+}
+
+export interface ClaimGuardedTaskGroupResponse {
+  delivery?: GuardedDelivery;
+  replayed: boolean;
+}
+
+/**
+ * UpdateGuardedTask is UpdateTask with an atomic guard. The server changes
+ * the task only if uuid and queue identify it, its revision equals
+ * expected_revision, and its state equals expected_state when that field is
+ * present. Otherwise it returns ServiceError code 5 and changes nothing.
+ * operation_id makes a retry safe: the same operation_id and request return
+ * the first result with replayed = true.
+ */
+export interface UpdateGuardedTaskRequest {
+  operationId: string;
+  uuid: string;
+  queue: string;
+  expectedRevision: number;
+  expectedState?: string;
+  newState: string;
+  autoTargetState: string;
+  timeout: number;
+  payload?: Uint8Array;
+  priority?: number;
+}
+
+export interface UpdateGuardedTaskResponse {
+  task: GuardedTask;
+  replayed: boolean;
+}
+
+/**
+ * CompleteGuardedTask and CancelGuardedTask archive the task with the same
+ * guard and retry rules as UpdateGuardedTask. A task that waits without a
+ * worker needs no claim: send its current revision.
+ */
+export interface CompleteGuardedTaskRequest {
+  operationId: string;
+  uuid: string;
+  queue: string;
+  expectedRevision: number;
+  expectedState?: string;
+}
+
+export interface CompleteGuardedTaskResponse {
+  task: GuardedTask;
+  replayed: boolean;
+}
+
+export interface CancelGuardedTaskRequest {
+  operationId: string;
+  uuid: string;
+  queue: string;
+  expectedRevision: number;
+  expectedState?: string;
+}
+
+export interface CancelGuardedTaskResponse {
+  task: GuardedTask;
+  replayed: boolean;
+}
+
+/**
+ * GetGuardedTask reads a live or archived task with its revision. In a
+ * cluster, only the leader answers.
+ */
+export interface GetGuardedTaskRequest {
+  uuid: string;
+  queue: string;
+}
+
+export interface GetGuardedTaskResponse {
+  task?: GuardedTask;
+}
+
+/**
+ * The durable record of one guarded mutation. op is the operation name.
+ * result_revision and result_state describe the task after the operation.
+ * at and expires_at are Unix nanoseconds.
+ */
+export interface OperationReceipt {
+  operationId: string;
+  op: string;
+  taskUuid: string;
+  queue: string;
+  resultRevision: number;
+  resultState: string;
+  at: number;
+  expiresAt: number;
+}
+
+/**
+ * LookupOperation reads the receipt of a guarded mutation. It does not change
+ * data. An absent receipt means that the server has no unexpired record of
+ * the operation. In a cluster, only the leader answers.
+ */
+export interface LookupOperationRequest {
+  operationId: string;
+}
+
+export interface LookupOperationResponse {
+  receipt?: OperationReceipt;
+}
+
 export interface ServiceError {
   code: number;
   message: string;

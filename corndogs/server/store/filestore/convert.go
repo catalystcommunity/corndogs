@@ -33,3 +33,13 @@ func archivedToAPITask(a *ArchivedTask) *api.Task {
 		UpdateTime:      a.UpdateTime,
 	}
 }
+
+// toGuardedTask converts live metadata to the guarded view.
+func toGuardedTask(t *Task) *api.GuardedTask {
+	return &api.GuardedTask{Task: *toAPITask(t), Guarded: t.Guarded, Revision: t.Revision}
+}
+
+// archivedToGuardedTask converts an archive record to the guarded view.
+func archivedToGuardedTask(a *ArchivedTask) *api.GuardedTask {
+	return &api.GuardedTask{Task: *archivedToAPITask(a), Guarded: a.Guarded, Revision: a.Revision, Terminal: true}
+}

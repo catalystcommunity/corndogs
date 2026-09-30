@@ -372,6 +372,30 @@ public static class Codec
         QueueAndStateCounts csilTyped => QueueAndStateCountsToCborValue(csilTyped),
         GetQueueAndStateCountsRequest csilTyped => GetQueueAndStateCountsRequestToCborValue(csilTyped),
         GetQueueAndStateCountsResponse csilTyped => GetQueueAndStateCountsResponseToCborValue(csilTyped),
+        GetServerInfoRequest csilTyped => GetServerInfoRequestToCborValue(csilTyped),
+        GetServerInfoResponse csilTyped => GetServerInfoResponseToCborValue(csilTyped),
+        GuardedTask csilTyped => GuardedTaskToCborValue(csilTyped),
+        SubmissionReceipt csilTyped => SubmissionReceiptToCborValue(csilTyped),
+        SubmitKeyedTaskRequest csilTyped => SubmitKeyedTaskRequestToCborValue(csilTyped),
+        SubmitKeyedTaskResponse csilTyped => SubmitKeyedTaskResponseToCborValue(csilTyped),
+        LookupSubmissionRequest csilTyped => LookupSubmissionRequestToCborValue(csilTyped),
+        LookupSubmissionResponse csilTyped => LookupSubmissionResponseToCborValue(csilTyped),
+        ClaimGuardedTaskRequest csilTyped => ClaimGuardedTaskRequestToCborValue(csilTyped),
+        GuardedDelivery csilTyped => GuardedDeliveryToCborValue(csilTyped),
+        ClaimGuardedTaskResponse csilTyped => ClaimGuardedTaskResponseToCborValue(csilTyped),
+        ClaimGuardedTaskGroupRequest csilTyped => ClaimGuardedTaskGroupRequestToCborValue(csilTyped),
+        ClaimGuardedTaskGroupResponse csilTyped => ClaimGuardedTaskGroupResponseToCborValue(csilTyped),
+        UpdateGuardedTaskRequest csilTyped => UpdateGuardedTaskRequestToCborValue(csilTyped),
+        UpdateGuardedTaskResponse csilTyped => UpdateGuardedTaskResponseToCborValue(csilTyped),
+        CompleteGuardedTaskRequest csilTyped => CompleteGuardedTaskRequestToCborValue(csilTyped),
+        CompleteGuardedTaskResponse csilTyped => CompleteGuardedTaskResponseToCborValue(csilTyped),
+        CancelGuardedTaskRequest csilTyped => CancelGuardedTaskRequestToCborValue(csilTyped),
+        CancelGuardedTaskResponse csilTyped => CancelGuardedTaskResponseToCborValue(csilTyped),
+        GetGuardedTaskRequest csilTyped => GetGuardedTaskRequestToCborValue(csilTyped),
+        GetGuardedTaskResponse csilTyped => GetGuardedTaskResponseToCborValue(csilTyped),
+        OperationReceipt csilTyped => OperationReceiptToCborValue(csilTyped),
+        LookupOperationRequest csilTyped => LookupOperationRequestToCborValue(csilTyped),
+        LookupOperationResponse csilTyped => LookupOperationResponseToCborValue(csilTyped),
         ServiceError csilTyped => ServiceErrorToCborValue(csilTyped),
         _ => throw new System.ArgumentException("csilgen: no CSIL codec for the requested type"),
     };
@@ -405,6 +429,30 @@ public static class Codec
         if (csilType == typeof(QueueAndStateCounts)) return QueueAndStateCountsFromCborValue(value);
         if (csilType == typeof(GetQueueAndStateCountsRequest)) return GetQueueAndStateCountsRequestFromCborValue(value);
         if (csilType == typeof(GetQueueAndStateCountsResponse)) return GetQueueAndStateCountsResponseFromCborValue(value);
+        if (csilType == typeof(GetServerInfoRequest)) return GetServerInfoRequestFromCborValue(value);
+        if (csilType == typeof(GetServerInfoResponse)) return GetServerInfoResponseFromCborValue(value);
+        if (csilType == typeof(GuardedTask)) return GuardedTaskFromCborValue(value);
+        if (csilType == typeof(SubmissionReceipt)) return SubmissionReceiptFromCborValue(value);
+        if (csilType == typeof(SubmitKeyedTaskRequest)) return SubmitKeyedTaskRequestFromCborValue(value);
+        if (csilType == typeof(SubmitKeyedTaskResponse)) return SubmitKeyedTaskResponseFromCborValue(value);
+        if (csilType == typeof(LookupSubmissionRequest)) return LookupSubmissionRequestFromCborValue(value);
+        if (csilType == typeof(LookupSubmissionResponse)) return LookupSubmissionResponseFromCborValue(value);
+        if (csilType == typeof(ClaimGuardedTaskRequest)) return ClaimGuardedTaskRequestFromCborValue(value);
+        if (csilType == typeof(GuardedDelivery)) return GuardedDeliveryFromCborValue(value);
+        if (csilType == typeof(ClaimGuardedTaskResponse)) return ClaimGuardedTaskResponseFromCborValue(value);
+        if (csilType == typeof(ClaimGuardedTaskGroupRequest)) return ClaimGuardedTaskGroupRequestFromCborValue(value);
+        if (csilType == typeof(ClaimGuardedTaskGroupResponse)) return ClaimGuardedTaskGroupResponseFromCborValue(value);
+        if (csilType == typeof(UpdateGuardedTaskRequest)) return UpdateGuardedTaskRequestFromCborValue(value);
+        if (csilType == typeof(UpdateGuardedTaskResponse)) return UpdateGuardedTaskResponseFromCborValue(value);
+        if (csilType == typeof(CompleteGuardedTaskRequest)) return CompleteGuardedTaskRequestFromCborValue(value);
+        if (csilType == typeof(CompleteGuardedTaskResponse)) return CompleteGuardedTaskResponseFromCborValue(value);
+        if (csilType == typeof(CancelGuardedTaskRequest)) return CancelGuardedTaskRequestFromCborValue(value);
+        if (csilType == typeof(CancelGuardedTaskResponse)) return CancelGuardedTaskResponseFromCborValue(value);
+        if (csilType == typeof(GetGuardedTaskRequest)) return GetGuardedTaskRequestFromCborValue(value);
+        if (csilType == typeof(GetGuardedTaskResponse)) return GetGuardedTaskResponseFromCborValue(value);
+        if (csilType == typeof(OperationReceipt)) return OperationReceiptFromCborValue(value);
+        if (csilType == typeof(LookupOperationRequest)) return LookupOperationRequestFromCborValue(value);
+        if (csilType == typeof(LookupOperationResponse)) return LookupOperationResponseFromCborValue(value);
         if (csilType == typeof(ServiceError)) return ServiceErrorFromCborValue(value);
         throw new System.ArgumentException("csilgen: no CSIL codec for the requested type");
     }
@@ -1030,6 +1078,663 @@ public static class Codec
         return new GetQueueAndStateCountsResponse
         {
             QueueAndStateCounts = csilField0,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a GetServerInfoRequest.</summary>
+    public static CborValue GetServerInfoRequestToCborValue(GetServerInfoRequest value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a GetServerInfoRequest from a decoded CBOR value tree.</summary>
+    public static GetServerInfoRequest GetServerInfoRequestFromCborValue(CborValue value)
+    {
+        return new GetServerInfoRequest
+        {
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a GetServerInfoResponse.</summary>
+    public static CborValue GetServerInfoResponseToCborValue(GetServerInfoResponse value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("features"), new CborValue.Array(value.Features.Select(csilElem => (CborValue)new CborValue.Text(csilElem)).ToList())));
+        csilEntries.Add((new CborValue.Text("server_version"), new CborValue.Text(value.ServerVersion)));
+        csilEntries.Add((new CborValue.Text("task_guard_policy"), new CborValue.Text(value.TaskGuardPolicy)));
+        csilEntries.Add((new CborValue.Text("submission_key_policy"), new CborValue.Text(value.SubmissionKeyPolicy)));
+        csilEntries.Add((new CborValue.Text("receipt_retention_seconds"), new CborValue.Int(value.ReceiptRetentionSeconds)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a GetServerInfoResponse from a decoded CBOR value tree.</summary>
+    public static GetServerInfoResponse GetServerInfoResponseFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "server_version"));
+        var csilField1 = Cbor.AsArray(Cbor.Require(value, "features")).Select(csilElem => Cbor.AsText(csilElem)).ToList();
+        var csilField2 = Cbor.AsText(Cbor.Require(value, "submission_key_policy"));
+        var csilField3 = Cbor.AsText(Cbor.Require(value, "task_guard_policy"));
+        var csilField4 = Cbor.AsI64(Cbor.Require(value, "receipt_retention_seconds"));
+        return new GetServerInfoResponse
+        {
+            ServerVersion = csilField0,
+            Features = csilField1,
+            SubmissionKeyPolicy = csilField2,
+            TaskGuardPolicy = csilField3,
+            ReceiptRetentionSeconds = csilField4,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a GuardedTask.</summary>
+    public static CborValue GuardedTaskToCborValue(GuardedTask value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("task"), TaskToCborValue(value.Task)));
+        csilEntries.Add((new CborValue.Text("guarded"), new CborValue.Bool(value.Guarded)));
+        csilEntries.Add((new CborValue.Text("revision"), new CborValue.Int(value.Revision)));
+        csilEntries.Add((new CborValue.Text("terminal"), new CborValue.Bool(value.Terminal)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a GuardedTask from a decoded CBOR value tree.</summary>
+    public static GuardedTask GuardedTaskFromCborValue(CborValue value)
+    {
+        var csilField0 = TaskFromCborValue(Cbor.Require(value, "task"));
+        var csilField1 = Cbor.AsBool(Cbor.Require(value, "guarded"));
+        var csilField2 = Cbor.AsI64(Cbor.Require(value, "revision"));
+        var csilField3 = Cbor.AsBool(Cbor.Require(value, "terminal"));
+        return new GuardedTask
+        {
+            Task = csilField0,
+            Guarded = csilField1,
+            Revision = csilField2,
+            Terminal = csilField3,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a SubmissionReceipt.</summary>
+    public static CborValue SubmissionReceiptToCborValue(SubmissionReceipt value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
+        csilEntries.Add((new CborValue.Text("guarded"), new CborValue.Bool(value.Guarded)));
+        csilEntries.Add((new CborValue.Text("task_uuid"), new CborValue.Text(value.TaskUuid)));
+        csilEntries.Add((new CborValue.Text("expires_at"), new CborValue.Int(value.ExpiresAt)));
+        csilEntries.Add((new CborValue.Text("accepted_at"), new CborValue.Int(value.AcceptedAt)));
+        csilEntries.Add((new CborValue.Text("submission_key"), new CborValue.Text(value.SubmissionKey)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a SubmissionReceipt from a decoded CBOR value tree.</summary>
+    public static SubmissionReceipt SubmissionReceiptFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "queue"));
+        var csilField1 = Cbor.AsText(Cbor.Require(value, "submission_key"));
+        var csilField2 = Cbor.AsText(Cbor.Require(value, "task_uuid"));
+        var csilField3 = Cbor.AsI64(Cbor.Require(value, "accepted_at"));
+        var csilField4 = Cbor.AsI64(Cbor.Require(value, "expires_at"));
+        var csilField5 = Cbor.AsBool(Cbor.Require(value, "guarded"));
+        return new SubmissionReceipt
+        {
+            Queue = csilField0,
+            SubmissionKey = csilField1,
+            TaskUuid = csilField2,
+            AcceptedAt = csilField3,
+            ExpiresAt = csilField4,
+            Guarded = csilField5,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a SubmitKeyedTaskRequest.</summary>
+    public static CborValue SubmitKeyedTaskRequestToCborValue(SubmitKeyedTaskRequest value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
+        csilEntries.Add((new CborValue.Text("guarded"), new CborValue.Bool(value.Guarded)));
+        csilEntries.Add((new CborValue.Text("payload"), new CborValue.Bytes(value.Payload)));
+        csilEntries.Add((new CborValue.Text("timeout"), new CborValue.Int(value.Timeout)));
+        csilEntries.Add((new CborValue.Text("priority"), new CborValue.Int(value.Priority)));
+        csilEntries.Add((new CborValue.Text("current_state"), new CborValue.Text(value.CurrentState)));
+        csilEntries.Add((new CborValue.Text("submission_key"), new CborValue.Text(value.SubmissionKey)));
+        csilEntries.Add((new CborValue.Text("auto_target_state"), new CborValue.Text(value.AutoTargetState)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a SubmitKeyedTaskRequest from a decoded CBOR value tree.</summary>
+    public static SubmitKeyedTaskRequest SubmitKeyedTaskRequestFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "submission_key"));
+        var csilField1 = Cbor.AsBool(Cbor.Require(value, "guarded"));
+        var csilField2 = Cbor.AsText(Cbor.Require(value, "queue"));
+        var csilField3 = Cbor.AsText(Cbor.Require(value, "current_state"));
+        var csilField4 = Cbor.AsText(Cbor.Require(value, "auto_target_state"));
+        var csilField5 = Cbor.AsI64(Cbor.Require(value, "timeout"));
+        var csilField6 = Cbor.AsBytes(Cbor.Require(value, "payload"));
+        var csilField7 = Cbor.AsI64(Cbor.Require(value, "priority"));
+        return new SubmitKeyedTaskRequest
+        {
+            SubmissionKey = csilField0,
+            Guarded = csilField1,
+            Queue = csilField2,
+            CurrentState = csilField3,
+            AutoTargetState = csilField4,
+            Timeout = csilField5,
+            Payload = csilField6,
+            Priority = csilField7,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a SubmitKeyedTaskResponse.</summary>
+    public static CborValue SubmitKeyedTaskResponseToCborValue(SubmitKeyedTaskResponse value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        if (value.Task is { } csilV0)
+        {
+            csilEntries.Add((new CborValue.Text("task"), GuardedTaskToCborValue(csilV0)));
+        }
+        csilEntries.Add((new CborValue.Text("receipt"), SubmissionReceiptToCborValue(value.Receipt)));
+        csilEntries.Add((new CborValue.Text("replayed"), new CborValue.Bool(value.Replayed)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a SubmitKeyedTaskResponse from a decoded CBOR value tree.</summary>
+    public static SubmitKeyedTaskResponse SubmitKeyedTaskResponseFromCborValue(CborValue value)
+    {
+        var csilField0 = SubmissionReceiptFromCborValue(Cbor.Require(value, "receipt"));
+        var csilField1 = Cbor.AsBool(Cbor.Require(value, "replayed"));
+        GuardedTask? csilField2 = Cbor.MapGet(value, "task") is { } csilRaw2 ? GuardedTaskFromCborValue(csilRaw2) : null;
+        return new SubmitKeyedTaskResponse
+        {
+            Receipt = csilField0,
+            Replayed = csilField1,
+            Task = csilField2,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a LookupSubmissionRequest.</summary>
+    public static CborValue LookupSubmissionRequestToCborValue(LookupSubmissionRequest value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
+        csilEntries.Add((new CborValue.Text("submission_key"), new CborValue.Text(value.SubmissionKey)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a LookupSubmissionRequest from a decoded CBOR value tree.</summary>
+    public static LookupSubmissionRequest LookupSubmissionRequestFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "queue"));
+        var csilField1 = Cbor.AsText(Cbor.Require(value, "submission_key"));
+        return new LookupSubmissionRequest
+        {
+            Queue = csilField0,
+            SubmissionKey = csilField1,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a LookupSubmissionResponse.</summary>
+    public static CborValue LookupSubmissionResponseToCborValue(LookupSubmissionResponse value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        if (value.Task is { } csilV0)
+        {
+            csilEntries.Add((new CborValue.Text("task"), GuardedTaskToCborValue(csilV0)));
+        }
+        if (value.Receipt is { } csilV1)
+        {
+            csilEntries.Add((new CborValue.Text("receipt"), SubmissionReceiptToCborValue(csilV1)));
+        }
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a LookupSubmissionResponse from a decoded CBOR value tree.</summary>
+    public static LookupSubmissionResponse LookupSubmissionResponseFromCborValue(CborValue value)
+    {
+        SubmissionReceipt? csilField0 = Cbor.MapGet(value, "receipt") is { } csilRaw0 ? SubmissionReceiptFromCborValue(csilRaw0) : null;
+        GuardedTask? csilField1 = Cbor.MapGet(value, "task") is { } csilRaw1 ? GuardedTaskFromCborValue(csilRaw1) : null;
+        return new LookupSubmissionResponse
+        {
+            Receipt = csilField0,
+            Task = csilField1,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a ClaimGuardedTaskRequest.</summary>
+    public static CborValue ClaimGuardedTaskRequestToCborValue(ClaimGuardedTaskRequest value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
+        csilEntries.Add((new CborValue.Text("operation_id"), new CborValue.Text(value.OperationId)));
+        csilEntries.Add((new CborValue.Text("current_state"), new CborValue.Text(value.CurrentState)));
+        csilEntries.Add((new CborValue.Text("override_timeout"), new CborValue.Int(value.OverrideTimeout)));
+        csilEntries.Add((new CborValue.Text("override_current_state"), new CborValue.Text(value.OverrideCurrentState)));
+        csilEntries.Add((new CborValue.Text("override_auto_target_state"), new CborValue.Text(value.OverrideAutoTargetState)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a ClaimGuardedTaskRequest from a decoded CBOR value tree.</summary>
+    public static ClaimGuardedTaskRequest ClaimGuardedTaskRequestFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "operation_id"));
+        var csilField1 = Cbor.AsText(Cbor.Require(value, "queue"));
+        var csilField2 = Cbor.AsText(Cbor.Require(value, "current_state"));
+        var csilField3 = Cbor.AsI64(Cbor.Require(value, "override_timeout"));
+        var csilField4 = Cbor.AsText(Cbor.Require(value, "override_current_state"));
+        var csilField5 = Cbor.AsText(Cbor.Require(value, "override_auto_target_state"));
+        return new ClaimGuardedTaskRequest
+        {
+            OperationId = csilField0,
+            Queue = csilField1,
+            CurrentState = csilField2,
+            OverrideTimeout = csilField3,
+            OverrideCurrentState = csilField4,
+            OverrideAutoTargetState = csilField5,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a GuardedDelivery.</summary>
+    public static CborValue GuardedDeliveryToCborValue(GuardedDelivery value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("task"), GuardedTaskToCborValue(value.Task)));
+        csilEntries.Add((new CborValue.Text("payload"), new CborValue.Bytes(value.Payload)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a GuardedDelivery from a decoded CBOR value tree.</summary>
+    public static GuardedDelivery GuardedDeliveryFromCborValue(CborValue value)
+    {
+        var csilField0 = GuardedTaskFromCborValue(Cbor.Require(value, "task"));
+        var csilField1 = Cbor.AsBytes(Cbor.Require(value, "payload"));
+        return new GuardedDelivery
+        {
+            Task = csilField0,
+            Payload = csilField1,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a ClaimGuardedTaskResponse.</summary>
+    public static CborValue ClaimGuardedTaskResponseToCborValue(ClaimGuardedTaskResponse value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        if (value.Delivery is { } csilV0)
+        {
+            csilEntries.Add((new CborValue.Text("delivery"), GuardedDeliveryToCborValue(csilV0)));
+        }
+        csilEntries.Add((new CborValue.Text("replayed"), new CborValue.Bool(value.Replayed)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a ClaimGuardedTaskResponse from a decoded CBOR value tree.</summary>
+    public static ClaimGuardedTaskResponse ClaimGuardedTaskResponseFromCborValue(CborValue value)
+    {
+        GuardedDelivery? csilField0 = Cbor.MapGet(value, "delivery") is { } csilRaw0 ? GuardedDeliveryFromCborValue(csilRaw0) : null;
+        var csilField1 = Cbor.AsBool(Cbor.Require(value, "replayed"));
+        return new ClaimGuardedTaskResponse
+        {
+            Delivery = csilField0,
+            Replayed = csilField1,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a ClaimGuardedTaskGroupRequest.</summary>
+    public static CborValue ClaimGuardedTaskGroupRequestToCborValue(ClaimGuardedTaskGroupRequest value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("queues"), new CborValue.Array(value.Queues.Select(csilElem => (CborValue)new CborValue.Text(csilElem)).ToList())));
+        csilEntries.Add((new CborValue.Text("operation_id"), new CborValue.Text(value.OperationId)));
+        csilEntries.Add((new CborValue.Text("current_state"), new CborValue.Text(value.CurrentState)));
+        csilEntries.Add((new CborValue.Text("override_timeout"), new CborValue.Int(value.OverrideTimeout)));
+        csilEntries.Add((new CborValue.Text("override_current_state"), new CborValue.Text(value.OverrideCurrentState)));
+        csilEntries.Add((new CborValue.Text("override_auto_target_state"), new CborValue.Text(value.OverrideAutoTargetState)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a ClaimGuardedTaskGroupRequest from a decoded CBOR value tree.</summary>
+    public static ClaimGuardedTaskGroupRequest ClaimGuardedTaskGroupRequestFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "operation_id"));
+        var csilField1 = Cbor.AsArray(Cbor.Require(value, "queues")).Select(csilElem => Cbor.AsText(csilElem)).ToList();
+        var csilField2 = Cbor.AsText(Cbor.Require(value, "current_state"));
+        var csilField3 = Cbor.AsI64(Cbor.Require(value, "override_timeout"));
+        var csilField4 = Cbor.AsText(Cbor.Require(value, "override_current_state"));
+        var csilField5 = Cbor.AsText(Cbor.Require(value, "override_auto_target_state"));
+        return new ClaimGuardedTaskGroupRequest
+        {
+            OperationId = csilField0,
+            Queues = csilField1,
+            CurrentState = csilField2,
+            OverrideTimeout = csilField3,
+            OverrideCurrentState = csilField4,
+            OverrideAutoTargetState = csilField5,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a ClaimGuardedTaskGroupResponse.</summary>
+    public static CborValue ClaimGuardedTaskGroupResponseToCborValue(ClaimGuardedTaskGroupResponse value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        if (value.Delivery is { } csilV0)
+        {
+            csilEntries.Add((new CborValue.Text("delivery"), GuardedDeliveryToCborValue(csilV0)));
+        }
+        csilEntries.Add((new CborValue.Text("replayed"), new CborValue.Bool(value.Replayed)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a ClaimGuardedTaskGroupResponse from a decoded CBOR value tree.</summary>
+    public static ClaimGuardedTaskGroupResponse ClaimGuardedTaskGroupResponseFromCborValue(CborValue value)
+    {
+        GuardedDelivery? csilField0 = Cbor.MapGet(value, "delivery") is { } csilRaw0 ? GuardedDeliveryFromCborValue(csilRaw0) : null;
+        var csilField1 = Cbor.AsBool(Cbor.Require(value, "replayed"));
+        return new ClaimGuardedTaskGroupResponse
+        {
+            Delivery = csilField0,
+            Replayed = csilField1,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a UpdateGuardedTaskRequest.</summary>
+    public static CborValue UpdateGuardedTaskRequestToCborValue(UpdateGuardedTaskRequest value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("uuid"), new CborValue.Text(value.Uuid)));
+        csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
+        if (value.Payload is { } csilV2)
+        {
+            csilEntries.Add((new CborValue.Text("payload"), new CborValue.Bytes(csilV2)));
+        }
+        csilEntries.Add((new CborValue.Text("timeout"), new CborValue.Int(value.Timeout)));
+        if (value.Priority is { } csilV4)
+        {
+            csilEntries.Add((new CborValue.Text("priority"), new CborValue.Int(csilV4)));
+        }
+        csilEntries.Add((new CborValue.Text("new_state"), new CborValue.Text(value.NewState)));
+        csilEntries.Add((new CborValue.Text("operation_id"), new CborValue.Text(value.OperationId)));
+        if (value.ExpectedState is { } csilV7)
+        {
+            csilEntries.Add((new CborValue.Text("expected_state"), new CborValue.Text(csilV7)));
+        }
+        csilEntries.Add((new CborValue.Text("auto_target_state"), new CborValue.Text(value.AutoTargetState)));
+        csilEntries.Add((new CborValue.Text("expected_revision"), new CborValue.Int(value.ExpectedRevision)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a UpdateGuardedTaskRequest from a decoded CBOR value tree.</summary>
+    public static UpdateGuardedTaskRequest UpdateGuardedTaskRequestFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "operation_id"));
+        var csilField1 = Cbor.AsText(Cbor.Require(value, "uuid"));
+        var csilField2 = Cbor.AsText(Cbor.Require(value, "queue"));
+        var csilField3 = Cbor.AsI64(Cbor.Require(value, "expected_revision"));
+        string? csilField4 = Cbor.MapGet(value, "expected_state") is { } csilRaw4 ? Cbor.AsText(csilRaw4) : null;
+        var csilField5 = Cbor.AsText(Cbor.Require(value, "new_state"));
+        var csilField6 = Cbor.AsText(Cbor.Require(value, "auto_target_state"));
+        var csilField7 = Cbor.AsI64(Cbor.Require(value, "timeout"));
+        byte[]? csilField8 = Cbor.MapGet(value, "payload") is { } csilRaw8 ? Cbor.AsBytes(csilRaw8) : null;
+        long? csilField9 = Cbor.MapGet(value, "priority") is { } csilRaw9 ? Cbor.AsI64(csilRaw9) : null;
+        return new UpdateGuardedTaskRequest
+        {
+            OperationId = csilField0,
+            Uuid = csilField1,
+            Queue = csilField2,
+            ExpectedRevision = csilField3,
+            ExpectedState = csilField4,
+            NewState = csilField5,
+            AutoTargetState = csilField6,
+            Timeout = csilField7,
+            Payload = csilField8,
+            Priority = csilField9,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a UpdateGuardedTaskResponse.</summary>
+    public static CborValue UpdateGuardedTaskResponseToCborValue(UpdateGuardedTaskResponse value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("task"), GuardedTaskToCborValue(value.Task)));
+        csilEntries.Add((new CborValue.Text("replayed"), new CborValue.Bool(value.Replayed)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a UpdateGuardedTaskResponse from a decoded CBOR value tree.</summary>
+    public static UpdateGuardedTaskResponse UpdateGuardedTaskResponseFromCborValue(CborValue value)
+    {
+        var csilField0 = GuardedTaskFromCborValue(Cbor.Require(value, "task"));
+        var csilField1 = Cbor.AsBool(Cbor.Require(value, "replayed"));
+        return new UpdateGuardedTaskResponse
+        {
+            Task = csilField0,
+            Replayed = csilField1,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a CompleteGuardedTaskRequest.</summary>
+    public static CborValue CompleteGuardedTaskRequestToCborValue(CompleteGuardedTaskRequest value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("uuid"), new CborValue.Text(value.Uuid)));
+        csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
+        csilEntries.Add((new CborValue.Text("operation_id"), new CborValue.Text(value.OperationId)));
+        if (value.ExpectedState is { } csilV3)
+        {
+            csilEntries.Add((new CborValue.Text("expected_state"), new CborValue.Text(csilV3)));
+        }
+        csilEntries.Add((new CborValue.Text("expected_revision"), new CborValue.Int(value.ExpectedRevision)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a CompleteGuardedTaskRequest from a decoded CBOR value tree.</summary>
+    public static CompleteGuardedTaskRequest CompleteGuardedTaskRequestFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "operation_id"));
+        var csilField1 = Cbor.AsText(Cbor.Require(value, "uuid"));
+        var csilField2 = Cbor.AsText(Cbor.Require(value, "queue"));
+        var csilField3 = Cbor.AsI64(Cbor.Require(value, "expected_revision"));
+        string? csilField4 = Cbor.MapGet(value, "expected_state") is { } csilRaw4 ? Cbor.AsText(csilRaw4) : null;
+        return new CompleteGuardedTaskRequest
+        {
+            OperationId = csilField0,
+            Uuid = csilField1,
+            Queue = csilField2,
+            ExpectedRevision = csilField3,
+            ExpectedState = csilField4,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a CompleteGuardedTaskResponse.</summary>
+    public static CborValue CompleteGuardedTaskResponseToCborValue(CompleteGuardedTaskResponse value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("task"), GuardedTaskToCborValue(value.Task)));
+        csilEntries.Add((new CborValue.Text("replayed"), new CborValue.Bool(value.Replayed)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a CompleteGuardedTaskResponse from a decoded CBOR value tree.</summary>
+    public static CompleteGuardedTaskResponse CompleteGuardedTaskResponseFromCborValue(CborValue value)
+    {
+        var csilField0 = GuardedTaskFromCborValue(Cbor.Require(value, "task"));
+        var csilField1 = Cbor.AsBool(Cbor.Require(value, "replayed"));
+        return new CompleteGuardedTaskResponse
+        {
+            Task = csilField0,
+            Replayed = csilField1,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a CancelGuardedTaskRequest.</summary>
+    public static CborValue CancelGuardedTaskRequestToCborValue(CancelGuardedTaskRequest value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("uuid"), new CborValue.Text(value.Uuid)));
+        csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
+        csilEntries.Add((new CborValue.Text("operation_id"), new CborValue.Text(value.OperationId)));
+        if (value.ExpectedState is { } csilV3)
+        {
+            csilEntries.Add((new CborValue.Text("expected_state"), new CborValue.Text(csilV3)));
+        }
+        csilEntries.Add((new CborValue.Text("expected_revision"), new CborValue.Int(value.ExpectedRevision)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a CancelGuardedTaskRequest from a decoded CBOR value tree.</summary>
+    public static CancelGuardedTaskRequest CancelGuardedTaskRequestFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "operation_id"));
+        var csilField1 = Cbor.AsText(Cbor.Require(value, "uuid"));
+        var csilField2 = Cbor.AsText(Cbor.Require(value, "queue"));
+        var csilField3 = Cbor.AsI64(Cbor.Require(value, "expected_revision"));
+        string? csilField4 = Cbor.MapGet(value, "expected_state") is { } csilRaw4 ? Cbor.AsText(csilRaw4) : null;
+        return new CancelGuardedTaskRequest
+        {
+            OperationId = csilField0,
+            Uuid = csilField1,
+            Queue = csilField2,
+            ExpectedRevision = csilField3,
+            ExpectedState = csilField4,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a CancelGuardedTaskResponse.</summary>
+    public static CborValue CancelGuardedTaskResponseToCborValue(CancelGuardedTaskResponse value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("task"), GuardedTaskToCborValue(value.Task)));
+        csilEntries.Add((new CborValue.Text("replayed"), new CborValue.Bool(value.Replayed)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a CancelGuardedTaskResponse from a decoded CBOR value tree.</summary>
+    public static CancelGuardedTaskResponse CancelGuardedTaskResponseFromCborValue(CborValue value)
+    {
+        var csilField0 = GuardedTaskFromCborValue(Cbor.Require(value, "task"));
+        var csilField1 = Cbor.AsBool(Cbor.Require(value, "replayed"));
+        return new CancelGuardedTaskResponse
+        {
+            Task = csilField0,
+            Replayed = csilField1,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a GetGuardedTaskRequest.</summary>
+    public static CborValue GetGuardedTaskRequestToCborValue(GetGuardedTaskRequest value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("uuid"), new CborValue.Text(value.Uuid)));
+        csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a GetGuardedTaskRequest from a decoded CBOR value tree.</summary>
+    public static GetGuardedTaskRequest GetGuardedTaskRequestFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "uuid"));
+        var csilField1 = Cbor.AsText(Cbor.Require(value, "queue"));
+        return new GetGuardedTaskRequest
+        {
+            Uuid = csilField0,
+            Queue = csilField1,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a GetGuardedTaskResponse.</summary>
+    public static CborValue GetGuardedTaskResponseToCborValue(GetGuardedTaskResponse value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        if (value.Task is { } csilV0)
+        {
+            csilEntries.Add((new CborValue.Text("task"), GuardedTaskToCborValue(csilV0)));
+        }
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a GetGuardedTaskResponse from a decoded CBOR value tree.</summary>
+    public static GetGuardedTaskResponse GetGuardedTaskResponseFromCborValue(CborValue value)
+    {
+        GuardedTask? csilField0 = Cbor.MapGet(value, "task") is { } csilRaw0 ? GuardedTaskFromCborValue(csilRaw0) : null;
+        return new GetGuardedTaskResponse
+        {
+            Task = csilField0,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a OperationReceipt.</summary>
+    public static CborValue OperationReceiptToCborValue(OperationReceipt value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("at"), new CborValue.Int(value.At)));
+        csilEntries.Add((new CborValue.Text("op"), new CborValue.Text(value.Op)));
+        csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
+        csilEntries.Add((new CborValue.Text("task_uuid"), new CborValue.Text(value.TaskUuid)));
+        csilEntries.Add((new CborValue.Text("expires_at"), new CborValue.Int(value.ExpiresAt)));
+        csilEntries.Add((new CborValue.Text("operation_id"), new CborValue.Text(value.OperationId)));
+        csilEntries.Add((new CborValue.Text("result_state"), new CborValue.Text(value.ResultState)));
+        csilEntries.Add((new CborValue.Text("result_revision"), new CborValue.Int(value.ResultRevision)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a OperationReceipt from a decoded CBOR value tree.</summary>
+    public static OperationReceipt OperationReceiptFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "operation_id"));
+        var csilField1 = Cbor.AsText(Cbor.Require(value, "op"));
+        var csilField2 = Cbor.AsText(Cbor.Require(value, "task_uuid"));
+        var csilField3 = Cbor.AsText(Cbor.Require(value, "queue"));
+        var csilField4 = Cbor.AsI64(Cbor.Require(value, "result_revision"));
+        var csilField5 = Cbor.AsText(Cbor.Require(value, "result_state"));
+        var csilField6 = Cbor.AsI64(Cbor.Require(value, "at"));
+        var csilField7 = Cbor.AsI64(Cbor.Require(value, "expires_at"));
+        return new OperationReceipt
+        {
+            OperationId = csilField0,
+            Op = csilField1,
+            TaskUuid = csilField2,
+            Queue = csilField3,
+            ResultRevision = csilField4,
+            ResultState = csilField5,
+            At = csilField6,
+            ExpiresAt = csilField7,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a LookupOperationRequest.</summary>
+    public static CborValue LookupOperationRequestToCborValue(LookupOperationRequest value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        csilEntries.Add((new CborValue.Text("operation_id"), new CborValue.Text(value.OperationId)));
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a LookupOperationRequest from a decoded CBOR value tree.</summary>
+    public static LookupOperationRequest LookupOperationRequestFromCborValue(CborValue value)
+    {
+        var csilField0 = Cbor.AsText(Cbor.Require(value, "operation_id"));
+        return new LookupOperationRequest
+        {
+            OperationId = csilField0,
+        };
+    }
+
+    /// <summary>The canonical CBOR value tree for a LookupOperationResponse.</summary>
+    public static CborValue LookupOperationResponseToCborValue(LookupOperationResponse value)
+    {
+        var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
+        if (value.Receipt is { } csilV0)
+        {
+            csilEntries.Add((new CborValue.Text("receipt"), OperationReceiptToCborValue(csilV0)));
+        }
+        return new CborValue.Map(csilEntries);
+    }
+
+    /// <summary>Reconstruct a LookupOperationResponse from a decoded CBOR value tree.</summary>
+    public static LookupOperationResponse LookupOperationResponseFromCborValue(CborValue value)
+    {
+        OperationReceipt? csilField0 = Cbor.MapGet(value, "receipt") is { } csilRaw0 ? OperationReceiptFromCborValue(csilRaw0) : null;
+        return new LookupOperationResponse
+        {
+            Receipt = csilField0,
         };
     }
 

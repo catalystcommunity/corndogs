@@ -10,6 +10,7 @@ import (
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/config"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/logging"
+	"github.com/CatalystCommunity/corndogs/corndogs/server/store"
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store/postgresstore/models"
 	"github.com/google/uuid"
 	"github.com/pressly/goose/v3"
@@ -28,6 +29,8 @@ var taskMetadataColumns = []string{
 	"update_time",
 	"timeout",
 	"priority",
+	"revision",
+	"guarded",
 }
 
 // global db
@@ -126,6 +129,7 @@ func (s PostgresStore) SubmitTask(ctx context.Context, req *api.SubmitTaskReques
 			Timeout:         req.Timeout,
 			Priority:        req.Priority,
 			Payload:         req.Payload,
+			Revision:        1,
 		}
 		result := tx.Create(&model)
 		if result.Error != nil {
@@ -189,7 +193,7 @@ func (s PostgresStore) GetNextTaskGroup(ctx context.Context, req *api.GetNextTas
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := models.Task{}
 		result := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
-			Where("queue IN ? AND current_state = ?", req.Queues, req.CurrentState).
+			Where("queue IN ? AND current_state = ? AND guarded = false", req.Queues, req.CurrentState).
 			Order("priority DESC, update_time ASC").
 			Limit(1).
 			Find(&model)
@@ -214,11 +218,13 @@ func (s PostgresStore) GetNextTaskGroup(ctx context.Context, req *api.GetNextTas
 			model.Timeout = req.OverrideTimeout
 		}
 		model.UpdateTime = time.Now().UnixNano()
+		model.Revision++
 		result = tx.Model(&models.Task{}).Where("uuid = ?", model.UUID).Updates(map[string]interface{}{
 			"current_state":     model.CurrentState,
 			"auto_target_state": model.AutoTargetState,
 			"timeout":           model.Timeout,
 			"update_time":       model.UpdateTime,
+			"revision":          model.Revision,
 		})
 		if result.Error != nil {
 			return result.Error
@@ -238,7 +244,7 @@ func (s PostgresStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequ
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := models.Task{}
 		result := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
-			Where("queue = ? AND current_state = ?", req.Queue, req.CurrentState).
+			Where("queue = ? AND current_state = ? AND guarded = false", req.Queue, req.CurrentState).
 			Order("priority DESC, update_time ASC").
 			Limit(1).
 			Find(&model)
@@ -263,11 +269,13 @@ func (s PostgresStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequ
 			model.Timeout = req.OverrideTimeout
 		}
 		model.UpdateTime = time.Now().UnixNano()
+		model.Revision++
 		result = tx.Model(&models.Task{}).Where("uuid = ?", model.UUID).Updates(map[string]interface{}{
 			"current_state":     model.CurrentState,
 			"auto_target_state": model.AutoTargetState,
 			"timeout":           model.Timeout,
 			"update_time":       model.UpdateTime,
+			"revision":          model.Revision,
 		})
 		if result.Error != nil {
 			return result.Error
@@ -286,7 +294,7 @@ func (s PostgresStore) UpdateTask(ctx context.Context, req *api.UpdateTaskReques
 	taskProto := &api.Task{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := models.Task{UUID: req.Uuid}
-		result := tx.Select(taskMetadataColumns).First(&model)
+		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select(taskMetadataColumns).First(&model)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				// not found return nil
@@ -297,15 +305,20 @@ func (s PostgresStore) UpdateTask(ctx context.Context, req *api.UpdateTaskReques
 				return result.Error
 			}
 		}
+		if model.Guarded {
+			return store.LegacyOnGuarded("UpdateTask", model.UUID)
+		}
 		model.CurrentState = req.NewState
 		model.AutoTargetState = req.AutoTargetState
 		model.Timeout = req.Timeout
 		model.UpdateTime = time.Now().UnixNano()
+		model.Revision++
 		updates := map[string]interface{}{
 			"current_state":     model.CurrentState,
 			"auto_target_state": model.AutoTargetState,
 			"timeout":           model.Timeout,
 			"update_time":       model.UpdateTime,
+			"revision":          model.Revision,
 		}
 		// An absent priority or payload keeps the stored value. See UpdateTaskRequest
 		// in csil/corndogs.csil; the file store obeys the same rules.
@@ -331,6 +344,9 @@ func (s PostgresStore) UpdateTask(ctx context.Context, req *api.UpdateTaskReques
 		return nil
 	})
 	if err != nil {
+		if isServiceError(err) {
+			return nil, err
+		}
 		log.Err(err)
 		panic(err)
 	}
@@ -343,7 +359,7 @@ func (s PostgresStore) CompleteTask(ctx context.Context, req *api.CompleteTaskRe
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Load task metadata without the payload.
 		model := models.Task{UUID: req.Uuid}
-		result := tx.Select(taskMetadataColumns).First(&model)
+		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select(taskMetadataColumns).First(&model)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				// not found return nil
@@ -353,6 +369,9 @@ func (s PostgresStore) CompleteTask(ctx context.Context, req *api.CompleteTaskRe
 				log.Err(result.Error)
 				return result.Error
 			}
+		}
+		if model.Guarded {
+			return store.LegacyOnGuarded("CompleteTask", model.UUID)
 		}
 		archiveModel := models.ConvertTaskForArchive(model)
 		archiveModel.CurrentState = "completed"
@@ -369,6 +388,9 @@ func (s PostgresStore) CompleteTask(ctx context.Context, req *api.CompleteTaskRe
 		return nil
 	})
 	if err != nil {
+		if isServiceError(err) {
+			return nil, err
+		}
 		log.Err(err)
 		panic(err)
 	}
@@ -380,7 +402,7 @@ func (s PostgresStore) CancelTask(ctx context.Context, req *api.CancelTaskReques
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Load task metadata without the payload.
 		model := models.Task{UUID: req.Uuid}
-		result := tx.Select(taskMetadataColumns).First(&model)
+		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select(taskMetadataColumns).First(&model)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				// not found return nil
@@ -390,6 +412,9 @@ func (s PostgresStore) CancelTask(ctx context.Context, req *api.CancelTaskReques
 				log.Err(result.Error)
 				return result.Error
 			}
+		}
+		if model.Guarded {
+			return store.LegacyOnGuarded("CancelTask", model.UUID)
 		}
 		archiveModel := models.ConvertTaskForArchive(model)
 		archiveModel.CurrentState = "canceled"
@@ -408,6 +433,9 @@ func (s PostgresStore) CancelTask(ctx context.Context, req *api.CancelTaskReques
 		return nil
 	})
 	if err != nil {
+		if isServiceError(err) {
+			return nil, err
+		}
 		log.Err(err)
 		panic(err)
 	}
@@ -427,6 +455,8 @@ func (s PostgresStore) CleanUpTimedOut(ctx context.Context, req *api.CleanUpTime
 				"current_state":     gorm.Expr("auto_target_state"),
 				"auto_target_state": gorm.Expr("current_state"),
 				"timeout":           0,
+				// The new revision invalidates the released claim.
+				"revision": gorm.Expr("revision + 1"),
 			})
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {

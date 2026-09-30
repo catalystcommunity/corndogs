@@ -23,6 +23,9 @@ var opsListenOn = config.GetEnvOrDefault("CORNDOGS_HTTP_LISTEN", ":8080")
 
 func SetupAndRun() {
 	logging.InitLogging()
+	if err := config.ValidateResilience(); err != nil {
+		zlog.Fatal().Err(err).Msg("invalid resilience policy")
+	}
 	if err := selectStore(); err != nil {
 		zlog.Fatal().Err(err).Msg("store selection failed")
 	}
@@ -70,6 +73,9 @@ func run() error {
 	}
 
 	srv := &implementations.V1Alpha1Server{}
+	logResiliencePolicy()
+	stopPurge := startReceiptPurge(receiptPurgeInterval)
+	defer stopPurge()
 
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

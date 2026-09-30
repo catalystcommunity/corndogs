@@ -911,6 +911,588 @@ fun getQueueAndStateCountsResponseFromCborValue(cbor: CborValue): GetQueueAndSta
 /** Decode CSIL CBOR bytes into a GetQueueAndStateCountsResponse. */
 fun getQueueAndStateCountsResponseFromCbor(bytes: ByteArray): GetQueueAndStateCountsResponse = getQueueAndStateCountsResponseFromCborValue(CsilCbor.decode(bytes))
 
+/** The CBOR value tree for a GetServerInfoRequest (deep, canonical key order). */
+fun GetServerInfoRequest.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a GetServerInfoRequest to canonical CSIL CBOR bytes. */
+fun GetServerInfoRequest.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a GetServerInfoRequest from a decoded CBOR value tree. */
+fun getServerInfoRequestFromCborValue(cbor: CborValue): GetServerInfoRequest {
+    return GetServerInfoRequest()
+}
+
+/** Decode CSIL CBOR bytes into a GetServerInfoRequest. */
+fun getServerInfoRequestFromCbor(bytes: ByteArray): GetServerInfoRequest = getServerInfoRequestFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a GetServerInfoResponse (deep, canonical key order). */
+fun GetServerInfoResponse.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("features") to CborValue.CArray((this.features).map { csilE -> CborValue.CText(csilE) }))
+    csilEntries.add(CborValue.CText("server_version") to CborValue.CText(this.serverVersion))
+    csilEntries.add(CborValue.CText("task_guard_policy") to CborValue.CText(this.taskGuardPolicy))
+    csilEntries.add(CborValue.CText("submission_key_policy") to CborValue.CText(this.submissionKeyPolicy))
+    csilEntries.add(CborValue.CText("receipt_retention_seconds") to CborValue.CInt(this.receiptRetentionSeconds))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a GetServerInfoResponse to canonical CSIL CBOR bytes. */
+fun GetServerInfoResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a GetServerInfoResponse from a decoded CBOR value tree. */
+fun getServerInfoResponseFromCborValue(cbor: CborValue): GetServerInfoResponse {
+    val serverVersion = CsilCbor.asText(CsilCbor.require(cbor, "server_version"))
+    val features = CsilCbor.asArray(CsilCbor.require(cbor, "features")).map { csilE -> CsilCbor.asText(csilE) }
+    val submissionKeyPolicy = CsilCbor.asText(CsilCbor.require(cbor, "submission_key_policy"))
+    val taskGuardPolicy = CsilCbor.asText(CsilCbor.require(cbor, "task_guard_policy"))
+    val receiptRetentionSeconds = CsilCbor.asLong(CsilCbor.require(cbor, "receipt_retention_seconds"))
+    return GetServerInfoResponse(serverVersion = serverVersion, features = features, submissionKeyPolicy = submissionKeyPolicy, taskGuardPolicy = taskGuardPolicy, receiptRetentionSeconds = receiptRetentionSeconds)
+}
+
+/** Decode CSIL CBOR bytes into a GetServerInfoResponse. */
+fun getServerInfoResponseFromCbor(bytes: ByteArray): GetServerInfoResponse = getServerInfoResponseFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a GuardedTask (deep, canonical key order). */
+fun GuardedTask.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("task") to this.task.toCborValue())
+    csilEntries.add(CborValue.CText("guarded") to CborValue.CBool(this.guarded))
+    csilEntries.add(CborValue.CText("revision") to CborValue.CInt(this.revision))
+    csilEntries.add(CborValue.CText("terminal") to CborValue.CBool(this.terminal))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a GuardedTask to canonical CSIL CBOR bytes. */
+fun GuardedTask.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a GuardedTask from a decoded CBOR value tree. */
+fun guardedTaskFromCborValue(cbor: CborValue): GuardedTask {
+    val task = taskFromCborValue(CsilCbor.require(cbor, "task"))
+    val guarded = CsilCbor.asBoolean(CsilCbor.require(cbor, "guarded"))
+    val revision = CsilCbor.asLong(CsilCbor.require(cbor, "revision"))
+    val terminal = CsilCbor.asBoolean(CsilCbor.require(cbor, "terminal"))
+    return GuardedTask(task = task, guarded = guarded, revision = revision, terminal = terminal)
+}
+
+/** Decode CSIL CBOR bytes into a GuardedTask. */
+fun guardedTaskFromCbor(bytes: ByteArray): GuardedTask = guardedTaskFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a SubmissionReceipt (deep, canonical key order). */
+fun SubmissionReceipt.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
+    csilEntries.add(CborValue.CText("guarded") to CborValue.CBool(this.guarded))
+    csilEntries.add(CborValue.CText("task_uuid") to CborValue.CText(this.taskUuid))
+    csilEntries.add(CborValue.CText("expires_at") to CborValue.CInt(this.expiresAt))
+    csilEntries.add(CborValue.CText("accepted_at") to CborValue.CInt(this.acceptedAt))
+    csilEntries.add(CborValue.CText("submission_key") to CborValue.CText(this.submissionKey))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a SubmissionReceipt to canonical CSIL CBOR bytes. */
+fun SubmissionReceipt.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a SubmissionReceipt from a decoded CBOR value tree. */
+fun submissionReceiptFromCborValue(cbor: CborValue): SubmissionReceipt {
+    val queue = CsilCbor.asText(CsilCbor.require(cbor, "queue"))
+    val submissionKey = CsilCbor.asText(CsilCbor.require(cbor, "submission_key"))
+    val taskUuid = CsilCbor.asText(CsilCbor.require(cbor, "task_uuid"))
+    val acceptedAt = CsilCbor.asLong(CsilCbor.require(cbor, "accepted_at"))
+    val expiresAt = CsilCbor.asLong(CsilCbor.require(cbor, "expires_at"))
+    val guarded = CsilCbor.asBoolean(CsilCbor.require(cbor, "guarded"))
+    return SubmissionReceipt(queue = queue, submissionKey = submissionKey, taskUuid = taskUuid, acceptedAt = acceptedAt, expiresAt = expiresAt, guarded = guarded)
+}
+
+/** Decode CSIL CBOR bytes into a SubmissionReceipt. */
+fun submissionReceiptFromCbor(bytes: ByteArray): SubmissionReceipt = submissionReceiptFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a SubmitKeyedTaskRequest (deep, canonical key order). */
+fun SubmitKeyedTaskRequest.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
+    csilEntries.add(CborValue.CText("guarded") to CborValue.CBool(this.guarded))
+    csilEntries.add(CborValue.CText("payload") to CborValue.CBytes(this.payload))
+    csilEntries.add(CborValue.CText("timeout") to CborValue.CInt(this.timeout))
+    csilEntries.add(CborValue.CText("priority") to CborValue.CInt(this.priority))
+    csilEntries.add(CborValue.CText("current_state") to CborValue.CText(this.currentState))
+    csilEntries.add(CborValue.CText("submission_key") to CborValue.CText(this.submissionKey))
+    csilEntries.add(CborValue.CText("auto_target_state") to CborValue.CText(this.autoTargetState))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a SubmitKeyedTaskRequest to canonical CSIL CBOR bytes. */
+fun SubmitKeyedTaskRequest.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a SubmitKeyedTaskRequest from a decoded CBOR value tree. */
+fun submitKeyedTaskRequestFromCborValue(cbor: CborValue): SubmitKeyedTaskRequest {
+    val submissionKey = CsilCbor.asText(CsilCbor.require(cbor, "submission_key"))
+    val guarded = CsilCbor.asBoolean(CsilCbor.require(cbor, "guarded"))
+    val queue = CsilCbor.asText(CsilCbor.require(cbor, "queue"))
+    val currentState = CsilCbor.asText(CsilCbor.require(cbor, "current_state"))
+    val autoTargetState = CsilCbor.asText(CsilCbor.require(cbor, "auto_target_state"))
+    val timeout = CsilCbor.asLong(CsilCbor.require(cbor, "timeout"))
+    val payload = CsilCbor.asBytes(CsilCbor.require(cbor, "payload"))
+    val priority = CsilCbor.asLong(CsilCbor.require(cbor, "priority"))
+    return SubmitKeyedTaskRequest(submissionKey = submissionKey, guarded = guarded, queue = queue, currentState = currentState, autoTargetState = autoTargetState, timeout = timeout, payload = payload, priority = priority)
+}
+
+/** Decode CSIL CBOR bytes into a SubmitKeyedTaskRequest. */
+fun submitKeyedTaskRequestFromCbor(bytes: ByteArray): SubmitKeyedTaskRequest = submitKeyedTaskRequestFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a SubmitKeyedTaskResponse (deep, canonical key order). */
+fun SubmitKeyedTaskResponse.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    this.task?.let { csilV -> csilEntries.add(CborValue.CText("task") to csilV.toCborValue()) }
+    csilEntries.add(CborValue.CText("receipt") to this.receipt.toCborValue())
+    csilEntries.add(CborValue.CText("replayed") to CborValue.CBool(this.replayed))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a SubmitKeyedTaskResponse to canonical CSIL CBOR bytes. */
+fun SubmitKeyedTaskResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a SubmitKeyedTaskResponse from a decoded CBOR value tree. */
+fun submitKeyedTaskResponseFromCborValue(cbor: CborValue): SubmitKeyedTaskResponse {
+    val receipt = submissionReceiptFromCborValue(CsilCbor.require(cbor, "receipt"))
+    val replayed = CsilCbor.asBoolean(CsilCbor.require(cbor, "replayed"))
+    val task = CsilCbor.mapGet(cbor, "task")?.let { csilV -> guardedTaskFromCborValue(csilV) }
+    return SubmitKeyedTaskResponse(receipt = receipt, replayed = replayed, task = task)
+}
+
+/** Decode CSIL CBOR bytes into a SubmitKeyedTaskResponse. */
+fun submitKeyedTaskResponseFromCbor(bytes: ByteArray): SubmitKeyedTaskResponse = submitKeyedTaskResponseFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a LookupSubmissionRequest (deep, canonical key order). */
+fun LookupSubmissionRequest.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
+    csilEntries.add(CborValue.CText("submission_key") to CborValue.CText(this.submissionKey))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a LookupSubmissionRequest to canonical CSIL CBOR bytes. */
+fun LookupSubmissionRequest.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a LookupSubmissionRequest from a decoded CBOR value tree. */
+fun lookupSubmissionRequestFromCborValue(cbor: CborValue): LookupSubmissionRequest {
+    val queue = CsilCbor.asText(CsilCbor.require(cbor, "queue"))
+    val submissionKey = CsilCbor.asText(CsilCbor.require(cbor, "submission_key"))
+    return LookupSubmissionRequest(queue = queue, submissionKey = submissionKey)
+}
+
+/** Decode CSIL CBOR bytes into a LookupSubmissionRequest. */
+fun lookupSubmissionRequestFromCbor(bytes: ByteArray): LookupSubmissionRequest = lookupSubmissionRequestFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a LookupSubmissionResponse (deep, canonical key order). */
+fun LookupSubmissionResponse.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    this.task?.let { csilV -> csilEntries.add(CborValue.CText("task") to csilV.toCborValue()) }
+    this.receipt?.let { csilV -> csilEntries.add(CborValue.CText("receipt") to csilV.toCborValue()) }
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a LookupSubmissionResponse to canonical CSIL CBOR bytes. */
+fun LookupSubmissionResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a LookupSubmissionResponse from a decoded CBOR value tree. */
+fun lookupSubmissionResponseFromCborValue(cbor: CborValue): LookupSubmissionResponse {
+    val receipt = CsilCbor.mapGet(cbor, "receipt")?.let { csilV -> submissionReceiptFromCborValue(csilV) }
+    val task = CsilCbor.mapGet(cbor, "task")?.let { csilV -> guardedTaskFromCborValue(csilV) }
+    return LookupSubmissionResponse(receipt = receipt, task = task)
+}
+
+/** Decode CSIL CBOR bytes into a LookupSubmissionResponse. */
+fun lookupSubmissionResponseFromCbor(bytes: ByteArray): LookupSubmissionResponse = lookupSubmissionResponseFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a ClaimGuardedTaskRequest (deep, canonical key order). */
+fun ClaimGuardedTaskRequest.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
+    csilEntries.add(CborValue.CText("operation_id") to CborValue.CText(this.operationId))
+    csilEntries.add(CborValue.CText("current_state") to CborValue.CText(this.currentState))
+    csilEntries.add(CborValue.CText("override_timeout") to CborValue.CInt(this.overrideTimeout))
+    csilEntries.add(CborValue.CText("override_current_state") to CborValue.CText(this.overrideCurrentState))
+    csilEntries.add(CborValue.CText("override_auto_target_state") to CborValue.CText(this.overrideAutoTargetState))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a ClaimGuardedTaskRequest to canonical CSIL CBOR bytes. */
+fun ClaimGuardedTaskRequest.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a ClaimGuardedTaskRequest from a decoded CBOR value tree. */
+fun claimGuardedTaskRequestFromCborValue(cbor: CborValue): ClaimGuardedTaskRequest {
+    val operationId = CsilCbor.asText(CsilCbor.require(cbor, "operation_id"))
+    val queue = CsilCbor.asText(CsilCbor.require(cbor, "queue"))
+    val currentState = CsilCbor.asText(CsilCbor.require(cbor, "current_state"))
+    val overrideTimeout = CsilCbor.asLong(CsilCbor.require(cbor, "override_timeout"))
+    val overrideCurrentState = CsilCbor.asText(CsilCbor.require(cbor, "override_current_state"))
+    val overrideAutoTargetState = CsilCbor.asText(CsilCbor.require(cbor, "override_auto_target_state"))
+    return ClaimGuardedTaskRequest(operationId = operationId, queue = queue, currentState = currentState, overrideTimeout = overrideTimeout, overrideCurrentState = overrideCurrentState, overrideAutoTargetState = overrideAutoTargetState)
+}
+
+/** Decode CSIL CBOR bytes into a ClaimGuardedTaskRequest. */
+fun claimGuardedTaskRequestFromCbor(bytes: ByteArray): ClaimGuardedTaskRequest = claimGuardedTaskRequestFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a GuardedDelivery (deep, canonical key order). */
+fun GuardedDelivery.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("task") to this.task.toCborValue())
+    csilEntries.add(CborValue.CText("payload") to CborValue.CBytes(this.payload))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a GuardedDelivery to canonical CSIL CBOR bytes. */
+fun GuardedDelivery.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a GuardedDelivery from a decoded CBOR value tree. */
+fun guardedDeliveryFromCborValue(cbor: CborValue): GuardedDelivery {
+    val task = guardedTaskFromCborValue(CsilCbor.require(cbor, "task"))
+    val payload = CsilCbor.asBytes(CsilCbor.require(cbor, "payload"))
+    return GuardedDelivery(task = task, payload = payload)
+}
+
+/** Decode CSIL CBOR bytes into a GuardedDelivery. */
+fun guardedDeliveryFromCbor(bytes: ByteArray): GuardedDelivery = guardedDeliveryFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a ClaimGuardedTaskResponse (deep, canonical key order). */
+fun ClaimGuardedTaskResponse.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    this.delivery?.let { csilV -> csilEntries.add(CborValue.CText("delivery") to csilV.toCborValue()) }
+    csilEntries.add(CborValue.CText("replayed") to CborValue.CBool(this.replayed))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a ClaimGuardedTaskResponse to canonical CSIL CBOR bytes. */
+fun ClaimGuardedTaskResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a ClaimGuardedTaskResponse from a decoded CBOR value tree. */
+fun claimGuardedTaskResponseFromCborValue(cbor: CborValue): ClaimGuardedTaskResponse {
+    val delivery = CsilCbor.mapGet(cbor, "delivery")?.let { csilV -> guardedDeliveryFromCborValue(csilV) }
+    val replayed = CsilCbor.asBoolean(CsilCbor.require(cbor, "replayed"))
+    return ClaimGuardedTaskResponse(delivery = delivery, replayed = replayed)
+}
+
+/** Decode CSIL CBOR bytes into a ClaimGuardedTaskResponse. */
+fun claimGuardedTaskResponseFromCbor(bytes: ByteArray): ClaimGuardedTaskResponse = claimGuardedTaskResponseFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a ClaimGuardedTaskGroupRequest (deep, canonical key order). */
+fun ClaimGuardedTaskGroupRequest.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("queues") to CborValue.CArray((this.queues).map { csilE -> CborValue.CText(csilE) }))
+    csilEntries.add(CborValue.CText("operation_id") to CborValue.CText(this.operationId))
+    csilEntries.add(CborValue.CText("current_state") to CborValue.CText(this.currentState))
+    csilEntries.add(CborValue.CText("override_timeout") to CborValue.CInt(this.overrideTimeout))
+    csilEntries.add(CborValue.CText("override_current_state") to CborValue.CText(this.overrideCurrentState))
+    csilEntries.add(CborValue.CText("override_auto_target_state") to CborValue.CText(this.overrideAutoTargetState))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a ClaimGuardedTaskGroupRequest to canonical CSIL CBOR bytes. */
+fun ClaimGuardedTaskGroupRequest.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a ClaimGuardedTaskGroupRequest from a decoded CBOR value tree. */
+fun claimGuardedTaskGroupRequestFromCborValue(cbor: CborValue): ClaimGuardedTaskGroupRequest {
+    val operationId = CsilCbor.asText(CsilCbor.require(cbor, "operation_id"))
+    val queues = CsilCbor.asArray(CsilCbor.require(cbor, "queues")).map { csilE -> CsilCbor.asText(csilE) }
+    val currentState = CsilCbor.asText(CsilCbor.require(cbor, "current_state"))
+    val overrideTimeout = CsilCbor.asLong(CsilCbor.require(cbor, "override_timeout"))
+    val overrideCurrentState = CsilCbor.asText(CsilCbor.require(cbor, "override_current_state"))
+    val overrideAutoTargetState = CsilCbor.asText(CsilCbor.require(cbor, "override_auto_target_state"))
+    return ClaimGuardedTaskGroupRequest(operationId = operationId, queues = queues, currentState = currentState, overrideTimeout = overrideTimeout, overrideCurrentState = overrideCurrentState, overrideAutoTargetState = overrideAutoTargetState)
+}
+
+/** Decode CSIL CBOR bytes into a ClaimGuardedTaskGroupRequest. */
+fun claimGuardedTaskGroupRequestFromCbor(bytes: ByteArray): ClaimGuardedTaskGroupRequest = claimGuardedTaskGroupRequestFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a ClaimGuardedTaskGroupResponse (deep, canonical key order). */
+fun ClaimGuardedTaskGroupResponse.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    this.delivery?.let { csilV -> csilEntries.add(CborValue.CText("delivery") to csilV.toCborValue()) }
+    csilEntries.add(CborValue.CText("replayed") to CborValue.CBool(this.replayed))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a ClaimGuardedTaskGroupResponse to canonical CSIL CBOR bytes. */
+fun ClaimGuardedTaskGroupResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a ClaimGuardedTaskGroupResponse from a decoded CBOR value tree. */
+fun claimGuardedTaskGroupResponseFromCborValue(cbor: CborValue): ClaimGuardedTaskGroupResponse {
+    val delivery = CsilCbor.mapGet(cbor, "delivery")?.let { csilV -> guardedDeliveryFromCborValue(csilV) }
+    val replayed = CsilCbor.asBoolean(CsilCbor.require(cbor, "replayed"))
+    return ClaimGuardedTaskGroupResponse(delivery = delivery, replayed = replayed)
+}
+
+/** Decode CSIL CBOR bytes into a ClaimGuardedTaskGroupResponse. */
+fun claimGuardedTaskGroupResponseFromCbor(bytes: ByteArray): ClaimGuardedTaskGroupResponse = claimGuardedTaskGroupResponseFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a UpdateGuardedTaskRequest (deep, canonical key order). */
+fun UpdateGuardedTaskRequest.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("uuid") to CborValue.CText(this.uuid))
+    csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
+    this.payload?.let { csilV -> csilEntries.add(CborValue.CText("payload") to CborValue.CBytes(csilV)) }
+    csilEntries.add(CborValue.CText("timeout") to CborValue.CInt(this.timeout))
+    this.priority?.let { csilV -> csilEntries.add(CborValue.CText("priority") to CborValue.CInt(csilV)) }
+    csilEntries.add(CborValue.CText("new_state") to CborValue.CText(this.newState))
+    csilEntries.add(CborValue.CText("operation_id") to CborValue.CText(this.operationId))
+    this.expectedState?.let { csilV -> csilEntries.add(CborValue.CText("expected_state") to CborValue.CText(csilV)) }
+    csilEntries.add(CborValue.CText("auto_target_state") to CborValue.CText(this.autoTargetState))
+    csilEntries.add(CborValue.CText("expected_revision") to CborValue.CInt(this.expectedRevision))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a UpdateGuardedTaskRequest to canonical CSIL CBOR bytes. */
+fun UpdateGuardedTaskRequest.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a UpdateGuardedTaskRequest from a decoded CBOR value tree. */
+fun updateGuardedTaskRequestFromCborValue(cbor: CborValue): UpdateGuardedTaskRequest {
+    val operationId = CsilCbor.asText(CsilCbor.require(cbor, "operation_id"))
+    val uuid = CsilCbor.asText(CsilCbor.require(cbor, "uuid"))
+    val queue = CsilCbor.asText(CsilCbor.require(cbor, "queue"))
+    val expectedRevision = CsilCbor.asLong(CsilCbor.require(cbor, "expected_revision"))
+    val expectedState = CsilCbor.mapGet(cbor, "expected_state")?.let { csilV -> CsilCbor.asText(csilV) }
+    val newState = CsilCbor.asText(CsilCbor.require(cbor, "new_state"))
+    val autoTargetState = CsilCbor.asText(CsilCbor.require(cbor, "auto_target_state"))
+    val timeout = CsilCbor.asLong(CsilCbor.require(cbor, "timeout"))
+    val payload = CsilCbor.mapGet(cbor, "payload")?.let { csilV -> CsilCbor.asBytes(csilV) }
+    val priority = CsilCbor.mapGet(cbor, "priority")?.let { csilV -> CsilCbor.asLong(csilV) }
+    return UpdateGuardedTaskRequest(operationId = operationId, uuid = uuid, queue = queue, expectedRevision = expectedRevision, expectedState = expectedState, newState = newState, autoTargetState = autoTargetState, timeout = timeout, payload = payload, priority = priority)
+}
+
+/** Decode CSIL CBOR bytes into a UpdateGuardedTaskRequest. */
+fun updateGuardedTaskRequestFromCbor(bytes: ByteArray): UpdateGuardedTaskRequest = updateGuardedTaskRequestFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a UpdateGuardedTaskResponse (deep, canonical key order). */
+fun UpdateGuardedTaskResponse.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("task") to this.task.toCborValue())
+    csilEntries.add(CborValue.CText("replayed") to CborValue.CBool(this.replayed))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a UpdateGuardedTaskResponse to canonical CSIL CBOR bytes. */
+fun UpdateGuardedTaskResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a UpdateGuardedTaskResponse from a decoded CBOR value tree. */
+fun updateGuardedTaskResponseFromCborValue(cbor: CborValue): UpdateGuardedTaskResponse {
+    val task = guardedTaskFromCborValue(CsilCbor.require(cbor, "task"))
+    val replayed = CsilCbor.asBoolean(CsilCbor.require(cbor, "replayed"))
+    return UpdateGuardedTaskResponse(task = task, replayed = replayed)
+}
+
+/** Decode CSIL CBOR bytes into a UpdateGuardedTaskResponse. */
+fun updateGuardedTaskResponseFromCbor(bytes: ByteArray): UpdateGuardedTaskResponse = updateGuardedTaskResponseFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a CompleteGuardedTaskRequest (deep, canonical key order). */
+fun CompleteGuardedTaskRequest.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("uuid") to CborValue.CText(this.uuid))
+    csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
+    csilEntries.add(CborValue.CText("operation_id") to CborValue.CText(this.operationId))
+    this.expectedState?.let { csilV -> csilEntries.add(CborValue.CText("expected_state") to CborValue.CText(csilV)) }
+    csilEntries.add(CborValue.CText("expected_revision") to CborValue.CInt(this.expectedRevision))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a CompleteGuardedTaskRequest to canonical CSIL CBOR bytes. */
+fun CompleteGuardedTaskRequest.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a CompleteGuardedTaskRequest from a decoded CBOR value tree. */
+fun completeGuardedTaskRequestFromCborValue(cbor: CborValue): CompleteGuardedTaskRequest {
+    val operationId = CsilCbor.asText(CsilCbor.require(cbor, "operation_id"))
+    val uuid = CsilCbor.asText(CsilCbor.require(cbor, "uuid"))
+    val queue = CsilCbor.asText(CsilCbor.require(cbor, "queue"))
+    val expectedRevision = CsilCbor.asLong(CsilCbor.require(cbor, "expected_revision"))
+    val expectedState = CsilCbor.mapGet(cbor, "expected_state")?.let { csilV -> CsilCbor.asText(csilV) }
+    return CompleteGuardedTaskRequest(operationId = operationId, uuid = uuid, queue = queue, expectedRevision = expectedRevision, expectedState = expectedState)
+}
+
+/** Decode CSIL CBOR bytes into a CompleteGuardedTaskRequest. */
+fun completeGuardedTaskRequestFromCbor(bytes: ByteArray): CompleteGuardedTaskRequest = completeGuardedTaskRequestFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a CompleteGuardedTaskResponse (deep, canonical key order). */
+fun CompleteGuardedTaskResponse.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("task") to this.task.toCborValue())
+    csilEntries.add(CborValue.CText("replayed") to CborValue.CBool(this.replayed))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a CompleteGuardedTaskResponse to canonical CSIL CBOR bytes. */
+fun CompleteGuardedTaskResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a CompleteGuardedTaskResponse from a decoded CBOR value tree. */
+fun completeGuardedTaskResponseFromCborValue(cbor: CborValue): CompleteGuardedTaskResponse {
+    val task = guardedTaskFromCborValue(CsilCbor.require(cbor, "task"))
+    val replayed = CsilCbor.asBoolean(CsilCbor.require(cbor, "replayed"))
+    return CompleteGuardedTaskResponse(task = task, replayed = replayed)
+}
+
+/** Decode CSIL CBOR bytes into a CompleteGuardedTaskResponse. */
+fun completeGuardedTaskResponseFromCbor(bytes: ByteArray): CompleteGuardedTaskResponse = completeGuardedTaskResponseFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a CancelGuardedTaskRequest (deep, canonical key order). */
+fun CancelGuardedTaskRequest.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("uuid") to CborValue.CText(this.uuid))
+    csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
+    csilEntries.add(CborValue.CText("operation_id") to CborValue.CText(this.operationId))
+    this.expectedState?.let { csilV -> csilEntries.add(CborValue.CText("expected_state") to CborValue.CText(csilV)) }
+    csilEntries.add(CborValue.CText("expected_revision") to CborValue.CInt(this.expectedRevision))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a CancelGuardedTaskRequest to canonical CSIL CBOR bytes. */
+fun CancelGuardedTaskRequest.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a CancelGuardedTaskRequest from a decoded CBOR value tree. */
+fun cancelGuardedTaskRequestFromCborValue(cbor: CborValue): CancelGuardedTaskRequest {
+    val operationId = CsilCbor.asText(CsilCbor.require(cbor, "operation_id"))
+    val uuid = CsilCbor.asText(CsilCbor.require(cbor, "uuid"))
+    val queue = CsilCbor.asText(CsilCbor.require(cbor, "queue"))
+    val expectedRevision = CsilCbor.asLong(CsilCbor.require(cbor, "expected_revision"))
+    val expectedState = CsilCbor.mapGet(cbor, "expected_state")?.let { csilV -> CsilCbor.asText(csilV) }
+    return CancelGuardedTaskRequest(operationId = operationId, uuid = uuid, queue = queue, expectedRevision = expectedRevision, expectedState = expectedState)
+}
+
+/** Decode CSIL CBOR bytes into a CancelGuardedTaskRequest. */
+fun cancelGuardedTaskRequestFromCbor(bytes: ByteArray): CancelGuardedTaskRequest = cancelGuardedTaskRequestFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a CancelGuardedTaskResponse (deep, canonical key order). */
+fun CancelGuardedTaskResponse.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("task") to this.task.toCborValue())
+    csilEntries.add(CborValue.CText("replayed") to CborValue.CBool(this.replayed))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a CancelGuardedTaskResponse to canonical CSIL CBOR bytes. */
+fun CancelGuardedTaskResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a CancelGuardedTaskResponse from a decoded CBOR value tree. */
+fun cancelGuardedTaskResponseFromCborValue(cbor: CborValue): CancelGuardedTaskResponse {
+    val task = guardedTaskFromCborValue(CsilCbor.require(cbor, "task"))
+    val replayed = CsilCbor.asBoolean(CsilCbor.require(cbor, "replayed"))
+    return CancelGuardedTaskResponse(task = task, replayed = replayed)
+}
+
+/** Decode CSIL CBOR bytes into a CancelGuardedTaskResponse. */
+fun cancelGuardedTaskResponseFromCbor(bytes: ByteArray): CancelGuardedTaskResponse = cancelGuardedTaskResponseFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a GetGuardedTaskRequest (deep, canonical key order). */
+fun GetGuardedTaskRequest.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("uuid") to CborValue.CText(this.uuid))
+    csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a GetGuardedTaskRequest to canonical CSIL CBOR bytes. */
+fun GetGuardedTaskRequest.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a GetGuardedTaskRequest from a decoded CBOR value tree. */
+fun getGuardedTaskRequestFromCborValue(cbor: CborValue): GetGuardedTaskRequest {
+    val uuid = CsilCbor.asText(CsilCbor.require(cbor, "uuid"))
+    val queue = CsilCbor.asText(CsilCbor.require(cbor, "queue"))
+    return GetGuardedTaskRequest(uuid = uuid, queue = queue)
+}
+
+/** Decode CSIL CBOR bytes into a GetGuardedTaskRequest. */
+fun getGuardedTaskRequestFromCbor(bytes: ByteArray): GetGuardedTaskRequest = getGuardedTaskRequestFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a GetGuardedTaskResponse (deep, canonical key order). */
+fun GetGuardedTaskResponse.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    this.task?.let { csilV -> csilEntries.add(CborValue.CText("task") to csilV.toCborValue()) }
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a GetGuardedTaskResponse to canonical CSIL CBOR bytes. */
+fun GetGuardedTaskResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a GetGuardedTaskResponse from a decoded CBOR value tree. */
+fun getGuardedTaskResponseFromCborValue(cbor: CborValue): GetGuardedTaskResponse {
+    val task = CsilCbor.mapGet(cbor, "task")?.let { csilV -> guardedTaskFromCborValue(csilV) }
+    return GetGuardedTaskResponse(task = task)
+}
+
+/** Decode CSIL CBOR bytes into a GetGuardedTaskResponse. */
+fun getGuardedTaskResponseFromCbor(bytes: ByteArray): GetGuardedTaskResponse = getGuardedTaskResponseFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a OperationReceipt (deep, canonical key order). */
+fun OperationReceipt.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("at") to CborValue.CInt(this.at))
+    csilEntries.add(CborValue.CText("op") to CborValue.CText(this.op))
+    csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
+    csilEntries.add(CborValue.CText("task_uuid") to CborValue.CText(this.taskUuid))
+    csilEntries.add(CborValue.CText("expires_at") to CborValue.CInt(this.expiresAt))
+    csilEntries.add(CborValue.CText("operation_id") to CborValue.CText(this.operationId))
+    csilEntries.add(CborValue.CText("result_state") to CborValue.CText(this.resultState))
+    csilEntries.add(CborValue.CText("result_revision") to CborValue.CInt(this.resultRevision))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a OperationReceipt to canonical CSIL CBOR bytes. */
+fun OperationReceipt.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a OperationReceipt from a decoded CBOR value tree. */
+fun operationReceiptFromCborValue(cbor: CborValue): OperationReceipt {
+    val operationId = CsilCbor.asText(CsilCbor.require(cbor, "operation_id"))
+    val op = CsilCbor.asText(CsilCbor.require(cbor, "op"))
+    val taskUuid = CsilCbor.asText(CsilCbor.require(cbor, "task_uuid"))
+    val queue = CsilCbor.asText(CsilCbor.require(cbor, "queue"))
+    val resultRevision = CsilCbor.asLong(CsilCbor.require(cbor, "result_revision"))
+    val resultState = CsilCbor.asText(CsilCbor.require(cbor, "result_state"))
+    val at = CsilCbor.asLong(CsilCbor.require(cbor, "at"))
+    val expiresAt = CsilCbor.asLong(CsilCbor.require(cbor, "expires_at"))
+    return OperationReceipt(operationId = operationId, op = op, taskUuid = taskUuid, queue = queue, resultRevision = resultRevision, resultState = resultState, at = at, expiresAt = expiresAt)
+}
+
+/** Decode CSIL CBOR bytes into a OperationReceipt. */
+fun operationReceiptFromCbor(bytes: ByteArray): OperationReceipt = operationReceiptFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a LookupOperationRequest (deep, canonical key order). */
+fun LookupOperationRequest.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    csilEntries.add(CborValue.CText("operation_id") to CborValue.CText(this.operationId))
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a LookupOperationRequest to canonical CSIL CBOR bytes. */
+fun LookupOperationRequest.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a LookupOperationRequest from a decoded CBOR value tree. */
+fun lookupOperationRequestFromCborValue(cbor: CborValue): LookupOperationRequest {
+    val operationId = CsilCbor.asText(CsilCbor.require(cbor, "operation_id"))
+    return LookupOperationRequest(operationId = operationId)
+}
+
+/** Decode CSIL CBOR bytes into a LookupOperationRequest. */
+fun lookupOperationRequestFromCbor(bytes: ByteArray): LookupOperationRequest = lookupOperationRequestFromCborValue(CsilCbor.decode(bytes))
+
+/** The CBOR value tree for a LookupOperationResponse (deep, canonical key order). */
+fun LookupOperationResponse.toCborValue(): CborValue {
+    val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
+    this.receipt?.let { csilV -> csilEntries.add(CborValue.CText("receipt") to csilV.toCborValue()) }
+    return CborValue.CMap(csilEntries)
+}
+
+/** Encode a LookupOperationResponse to canonical CSIL CBOR bytes. */
+fun LookupOperationResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue())
+
+/** Reconstruct a LookupOperationResponse from a decoded CBOR value tree. */
+fun lookupOperationResponseFromCborValue(cbor: CborValue): LookupOperationResponse {
+    val receipt = CsilCbor.mapGet(cbor, "receipt")?.let { csilV -> operationReceiptFromCborValue(csilV) }
+    return LookupOperationResponse(receipt = receipt)
+}
+
+/** Decode CSIL CBOR bytes into a LookupOperationResponse. */
+fun lookupOperationResponseFromCbor(bytes: ByteArray): LookupOperationResponse = lookupOperationResponseFromCborValue(CsilCbor.decode(bytes))
+
 /** The CBOR value tree for a ServiceError (deep, canonical key order). */
 fun ServiceError.toCborValue(): CborValue {
     val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
@@ -964,6 +1546,30 @@ private fun csilToCborValue(value: Any?): CborValue = when (value) {
     is QueueAndStateCounts -> value.toCborValue()
     is GetQueueAndStateCountsRequest -> value.toCborValue()
     is GetQueueAndStateCountsResponse -> value.toCborValue()
+    is GetServerInfoRequest -> value.toCborValue()
+    is GetServerInfoResponse -> value.toCborValue()
+    is GuardedTask -> value.toCborValue()
+    is SubmissionReceipt -> value.toCborValue()
+    is SubmitKeyedTaskRequest -> value.toCborValue()
+    is SubmitKeyedTaskResponse -> value.toCborValue()
+    is LookupSubmissionRequest -> value.toCborValue()
+    is LookupSubmissionResponse -> value.toCborValue()
+    is ClaimGuardedTaskRequest -> value.toCborValue()
+    is GuardedDelivery -> value.toCborValue()
+    is ClaimGuardedTaskResponse -> value.toCborValue()
+    is ClaimGuardedTaskGroupRequest -> value.toCborValue()
+    is ClaimGuardedTaskGroupResponse -> value.toCborValue()
+    is UpdateGuardedTaskRequest -> value.toCborValue()
+    is UpdateGuardedTaskResponse -> value.toCborValue()
+    is CompleteGuardedTaskRequest -> value.toCborValue()
+    is CompleteGuardedTaskResponse -> value.toCborValue()
+    is CancelGuardedTaskRequest -> value.toCborValue()
+    is CancelGuardedTaskResponse -> value.toCborValue()
+    is GetGuardedTaskRequest -> value.toCborValue()
+    is GetGuardedTaskResponse -> value.toCborValue()
+    is OperationReceipt -> value.toCborValue()
+    is LookupOperationRequest -> value.toCborValue()
+    is LookupOperationResponse -> value.toCborValue()
     is ServiceError -> value.toCborValue()
     else -> throw CborError("no CSIL CBOR codec for ${value::class}")
 }
@@ -1000,6 +1606,30 @@ fun csilFromCborValue(type: kotlin.reflect.KClass<*>, cbor: CborValue): Any = wh
     QueueAndStateCounts::class -> queueAndStateCountsFromCborValue(cbor)
     GetQueueAndStateCountsRequest::class -> getQueueAndStateCountsRequestFromCborValue(cbor)
     GetQueueAndStateCountsResponse::class -> getQueueAndStateCountsResponseFromCborValue(cbor)
+    GetServerInfoRequest::class -> getServerInfoRequestFromCborValue(cbor)
+    GetServerInfoResponse::class -> getServerInfoResponseFromCborValue(cbor)
+    GuardedTask::class -> guardedTaskFromCborValue(cbor)
+    SubmissionReceipt::class -> submissionReceiptFromCborValue(cbor)
+    SubmitKeyedTaskRequest::class -> submitKeyedTaskRequestFromCborValue(cbor)
+    SubmitKeyedTaskResponse::class -> submitKeyedTaskResponseFromCborValue(cbor)
+    LookupSubmissionRequest::class -> lookupSubmissionRequestFromCborValue(cbor)
+    LookupSubmissionResponse::class -> lookupSubmissionResponseFromCborValue(cbor)
+    ClaimGuardedTaskRequest::class -> claimGuardedTaskRequestFromCborValue(cbor)
+    GuardedDelivery::class -> guardedDeliveryFromCborValue(cbor)
+    ClaimGuardedTaskResponse::class -> claimGuardedTaskResponseFromCborValue(cbor)
+    ClaimGuardedTaskGroupRequest::class -> claimGuardedTaskGroupRequestFromCborValue(cbor)
+    ClaimGuardedTaskGroupResponse::class -> claimGuardedTaskGroupResponseFromCborValue(cbor)
+    UpdateGuardedTaskRequest::class -> updateGuardedTaskRequestFromCborValue(cbor)
+    UpdateGuardedTaskResponse::class -> updateGuardedTaskResponseFromCborValue(cbor)
+    CompleteGuardedTaskRequest::class -> completeGuardedTaskRequestFromCborValue(cbor)
+    CompleteGuardedTaskResponse::class -> completeGuardedTaskResponseFromCborValue(cbor)
+    CancelGuardedTaskRequest::class -> cancelGuardedTaskRequestFromCborValue(cbor)
+    CancelGuardedTaskResponse::class -> cancelGuardedTaskResponseFromCborValue(cbor)
+    GetGuardedTaskRequest::class -> getGuardedTaskRequestFromCborValue(cbor)
+    GetGuardedTaskResponse::class -> getGuardedTaskResponseFromCborValue(cbor)
+    OperationReceipt::class -> operationReceiptFromCborValue(cbor)
+    LookupOperationRequest::class -> lookupOperationRequestFromCborValue(cbor)
+    LookupOperationResponse::class -> lookupOperationResponseFromCborValue(cbor)
     ServiceError::class -> serviceErrorFromCborValue(cbor)
     else -> throw CborError("no CSIL CBOR codec for $type")
 }

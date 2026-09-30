@@ -296,19 +296,21 @@ public sealed class TcpTransport : ICsilTransport, IDisposable
                 if (resp is null)
                 {
                     Reset();
-                    throw new CorndogsTransportException("corndogs: connection closed");
+                    throw new CorndogsTransportException("corndogs: outcome uncertain: connection closed");
                 }
                 return CsilRpcWire.ParseResponse(resp);
             }
+            // The request may have reached the server. It is not sent again:
+            // a legacy mutation could run twice.
             catch (IOException ex)
             {
                 Reset();
-                throw new CorndogsTransportException($"corndogs: {ex.Message}", ex);
+                throw new CorndogsTransportException($"corndogs: outcome uncertain: {ex.Message}", ex);
             }
             catch (SocketException ex)
             {
                 Reset();
-                throw new CorndogsTransportException($"corndogs: {ex.Message}", ex);
+                throw new CorndogsTransportException($"corndogs: outcome uncertain: {ex.Message}", ex);
             }
         }
     }

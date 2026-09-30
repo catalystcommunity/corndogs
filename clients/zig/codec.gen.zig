@@ -1112,6 +1112,842 @@ fn dec_GetQueueAndStateCountsResponse(alloc: std.mem.Allocator, m: Value, out: *
     }
 }
 
+fn enc_GetServerInfoRequest(out: *std.ArrayList(u8), v: *const types.GetServerInfoRequest) CodecError!void {
+    _ = v;
+    try w_map_head(out, 0);
+}
+
+fn dec_GetServerInfoRequest(alloc: std.mem.Allocator, m: Value, out: *types.GetServerInfoRequest) CodecError!void {
+    _ = alloc;
+    _ = out;
+    if (m != .map) return error.WrongType;
+}
+
+fn enc_GetServerInfoResponse(out: *std.ArrayList(u8), v: *const types.GetServerInfoResponse) CodecError!void {
+    try w_map_head(out, 5);
+    try w_text(out, "features");
+    try w_array_head(out, v.features.len);
+    for (v.features) |csil_it| {
+        try w_text(out, csil_it);
+    }
+    try w_text(out, "server_version");
+    try w_text(out, v.server_version);
+    try w_text(out, "task_guard_policy");
+    try w_text(out, v.task_guard_policy);
+    try w_text(out, "submission_key_policy");
+    try w_text(out, v.submission_key_policy);
+    try w_text(out, "receipt_retention_seconds");
+    try w_int(out, v.receipt_retention_seconds);
+}
+
+fn dec_GetServerInfoResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetServerInfoResponse) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "features");
+        if (csil_fv != .array) return error.WrongType;
+        out.features = try alloc.alloc([]const u8, csil_fv.array.len);
+        for (csil_fv.array, 0..) |csil_it, csil_i| {
+            out.features[csil_i] = try as_text(csil_it);
+        }
+    }
+    {
+        const csil_fv = try req(m, "server_version");
+        out.server_version = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "task_guard_policy");
+        out.task_guard_policy = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "submission_key_policy");
+        out.submission_key_policy = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "receipt_retention_seconds");
+        out.receipt_retention_seconds = try as_i64(csil_fv);
+    }
+}
+
+fn enc_GuardedTask(out: *std.ArrayList(u8), v: *const types.GuardedTask) CodecError!void {
+    try w_map_head(out, 4);
+    try w_text(out, "task");
+    try enc_Task(out, &(v.task));
+    try w_text(out, "guarded");
+    try w_bool(out, v.guarded);
+    try w_text(out, "revision");
+    try w_int(out, v.revision);
+    try w_text(out, "terminal");
+    try w_bool(out, v.terminal);
+}
+
+fn dec_GuardedTask(alloc: std.mem.Allocator, m: Value, out: *types.GuardedTask) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "task");
+        try dec_Task(alloc, csil_fv, &(out.task));
+    }
+    {
+        const csil_fv = try req(m, "guarded");
+        out.guarded = try as_bool(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "revision");
+        out.revision = try as_i64(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "terminal");
+        out.terminal = try as_bool(csil_fv);
+    }
+}
+
+fn enc_SubmissionReceipt(out: *std.ArrayList(u8), v: *const types.SubmissionReceipt) CodecError!void {
+    try w_map_head(out, 6);
+    try w_text(out, "queue");
+    try w_text(out, v.queue);
+    try w_text(out, "guarded");
+    try w_bool(out, v.guarded);
+    try w_text(out, "task_uuid");
+    try w_text(out, v.task_uuid);
+    try w_text(out, "expires_at");
+    try w_int(out, v.expires_at);
+    try w_text(out, "accepted_at");
+    try w_int(out, v.accepted_at);
+    try w_text(out, "submission_key");
+    try w_text(out, v.submission_key);
+}
+
+fn dec_SubmissionReceipt(alloc: std.mem.Allocator, m: Value, out: *types.SubmissionReceipt) CodecError!void {
+    _ = alloc;
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "queue");
+        out.queue = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "guarded");
+        out.guarded = try as_bool(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "task_uuid");
+        out.task_uuid = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "expires_at");
+        out.expires_at = try as_i64(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "accepted_at");
+        out.accepted_at = try as_i64(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "submission_key");
+        out.submission_key = try as_text(csil_fv);
+    }
+}
+
+fn enc_SubmitKeyedTaskRequest(out: *std.ArrayList(u8), v: *const types.SubmitKeyedTaskRequest) CodecError!void {
+    try w_map_head(out, 8);
+    try w_text(out, "queue");
+    try w_text(out, v.queue);
+    try w_text(out, "guarded");
+    try w_bool(out, v.guarded);
+    try w_text(out, "payload");
+    try w_bytes(out, v.payload);
+    try w_text(out, "timeout");
+    try w_int(out, v.timeout);
+    try w_text(out, "priority");
+    try w_int(out, v.priority);
+    try w_text(out, "current_state");
+    try w_text(out, v.current_state);
+    try w_text(out, "submission_key");
+    try w_text(out, v.submission_key);
+    try w_text(out, "auto_target_state");
+    try w_text(out, v.auto_target_state);
+}
+
+fn dec_SubmitKeyedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.SubmitKeyedTaskRequest) CodecError!void {
+    _ = alloc;
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "queue");
+        out.queue = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "guarded");
+        out.guarded = try as_bool(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "payload");
+        out.payload = try as_bytes(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "timeout");
+        out.timeout = try as_i64(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "priority");
+        out.priority = try as_i64(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "current_state");
+        out.current_state = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "submission_key");
+        out.submission_key = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "auto_target_state");
+        out.auto_target_state = try as_text(csil_fv);
+    }
+}
+
+fn enc_SubmitKeyedTaskResponse(out: *std.ArrayList(u8), v: *const types.SubmitKeyedTaskResponse) CodecError!void {
+    var csil_n: usize = 2;
+    if (v.task != null) csil_n += 1;
+    try w_map_head(out, csil_n);
+    if (v.task) |csil_x| {
+        try w_text(out, "task");
+        try enc_GuardedTask(out, &(csil_x));
+    }
+    try w_text(out, "receipt");
+    try enc_SubmissionReceipt(out, &(v.receipt));
+    try w_text(out, "replayed");
+    try w_bool(out, v.replayed);
+}
+
+fn dec_SubmitKeyedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.SubmitKeyedTaskResponse) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        if (mget(m, "task")) |csil_fv| {
+            var csil_tmp: types.GuardedTask = undefined;
+            try dec_GuardedTask(alloc, csil_fv, &csil_tmp);
+            out.task = csil_tmp;
+        } else {
+            out.task = null;
+        }
+    }
+    {
+        const csil_fv = try req(m, "receipt");
+        try dec_SubmissionReceipt(alloc, csil_fv, &(out.receipt));
+    }
+    {
+        const csil_fv = try req(m, "replayed");
+        out.replayed = try as_bool(csil_fv);
+    }
+}
+
+fn enc_LookupSubmissionRequest(out: *std.ArrayList(u8), v: *const types.LookupSubmissionRequest) CodecError!void {
+    try w_map_head(out, 2);
+    try w_text(out, "queue");
+    try w_text(out, v.queue);
+    try w_text(out, "submission_key");
+    try w_text(out, v.submission_key);
+}
+
+fn dec_LookupSubmissionRequest(alloc: std.mem.Allocator, m: Value, out: *types.LookupSubmissionRequest) CodecError!void {
+    _ = alloc;
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "queue");
+        out.queue = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "submission_key");
+        out.submission_key = try as_text(csil_fv);
+    }
+}
+
+fn enc_LookupSubmissionResponse(out: *std.ArrayList(u8), v: *const types.LookupSubmissionResponse) CodecError!void {
+    var csil_n: usize = 0;
+    if (v.task != null) csil_n += 1;
+    if (v.receipt != null) csil_n += 1;
+    try w_map_head(out, csil_n);
+    if (v.task) |csil_x| {
+        try w_text(out, "task");
+        try enc_GuardedTask(out, &(csil_x));
+    }
+    if (v.receipt) |csil_x| {
+        try w_text(out, "receipt");
+        try enc_SubmissionReceipt(out, &(csil_x));
+    }
+}
+
+fn dec_LookupSubmissionResponse(alloc: std.mem.Allocator, m: Value, out: *types.LookupSubmissionResponse) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        if (mget(m, "task")) |csil_fv| {
+            var csil_tmp: types.GuardedTask = undefined;
+            try dec_GuardedTask(alloc, csil_fv, &csil_tmp);
+            out.task = csil_tmp;
+        } else {
+            out.task = null;
+        }
+    }
+    {
+        if (mget(m, "receipt")) |csil_fv| {
+            var csil_tmp: types.SubmissionReceipt = undefined;
+            try dec_SubmissionReceipt(alloc, csil_fv, &csil_tmp);
+            out.receipt = csil_tmp;
+        } else {
+            out.receipt = null;
+        }
+    }
+}
+
+fn enc_ClaimGuardedTaskRequest(out: *std.ArrayList(u8), v: *const types.ClaimGuardedTaskRequest) CodecError!void {
+    try w_map_head(out, 6);
+    try w_text(out, "queue");
+    try w_text(out, v.queue);
+    try w_text(out, "operation_id");
+    try w_text(out, v.operation_id);
+    try w_text(out, "current_state");
+    try w_text(out, v.current_state);
+    try w_text(out, "override_timeout");
+    try w_int(out, v.override_timeout);
+    try w_text(out, "override_current_state");
+    try w_text(out, v.override_current_state);
+    try w_text(out, "override_auto_target_state");
+    try w_text(out, v.override_auto_target_state);
+}
+
+fn dec_ClaimGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.ClaimGuardedTaskRequest) CodecError!void {
+    _ = alloc;
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "queue");
+        out.queue = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "operation_id");
+        out.operation_id = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "current_state");
+        out.current_state = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "override_timeout");
+        out.override_timeout = try as_i64(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "override_current_state");
+        out.override_current_state = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "override_auto_target_state");
+        out.override_auto_target_state = try as_text(csil_fv);
+    }
+}
+
+fn enc_GuardedDelivery(out: *std.ArrayList(u8), v: *const types.GuardedDelivery) CodecError!void {
+    try w_map_head(out, 2);
+    try w_text(out, "task");
+    try enc_GuardedTask(out, &(v.task));
+    try w_text(out, "payload");
+    try w_bytes(out, v.payload);
+}
+
+fn dec_GuardedDelivery(alloc: std.mem.Allocator, m: Value, out: *types.GuardedDelivery) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "task");
+        try dec_GuardedTask(alloc, csil_fv, &(out.task));
+    }
+    {
+        const csil_fv = try req(m, "payload");
+        out.payload = try as_bytes(csil_fv);
+    }
+}
+
+fn enc_ClaimGuardedTaskResponse(out: *std.ArrayList(u8), v: *const types.ClaimGuardedTaskResponse) CodecError!void {
+    var csil_n: usize = 1;
+    if (v.delivery != null) csil_n += 1;
+    try w_map_head(out, csil_n);
+    if (v.delivery) |csil_x| {
+        try w_text(out, "delivery");
+        try enc_GuardedDelivery(out, &(csil_x));
+    }
+    try w_text(out, "replayed");
+    try w_bool(out, v.replayed);
+}
+
+fn dec_ClaimGuardedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.ClaimGuardedTaskResponse) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        if (mget(m, "delivery")) |csil_fv| {
+            var csil_tmp: types.GuardedDelivery = undefined;
+            try dec_GuardedDelivery(alloc, csil_fv, &csil_tmp);
+            out.delivery = csil_tmp;
+        } else {
+            out.delivery = null;
+        }
+    }
+    {
+        const csil_fv = try req(m, "replayed");
+        out.replayed = try as_bool(csil_fv);
+    }
+}
+
+fn enc_ClaimGuardedTaskGroupRequest(out: *std.ArrayList(u8), v: *const types.ClaimGuardedTaskGroupRequest) CodecError!void {
+    try w_map_head(out, 6);
+    try w_text(out, "queues");
+    try w_array_head(out, v.queues.len);
+    for (v.queues) |csil_it| {
+        try w_text(out, csil_it);
+    }
+    try w_text(out, "operation_id");
+    try w_text(out, v.operation_id);
+    try w_text(out, "current_state");
+    try w_text(out, v.current_state);
+    try w_text(out, "override_timeout");
+    try w_int(out, v.override_timeout);
+    try w_text(out, "override_current_state");
+    try w_text(out, v.override_current_state);
+    try w_text(out, "override_auto_target_state");
+    try w_text(out, v.override_auto_target_state);
+}
+
+fn dec_ClaimGuardedTaskGroupRequest(alloc: std.mem.Allocator, m: Value, out: *types.ClaimGuardedTaskGroupRequest) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "queues");
+        if (csil_fv != .array) return error.WrongType;
+        out.queues = try alloc.alloc([]const u8, csil_fv.array.len);
+        for (csil_fv.array, 0..) |csil_it, csil_i| {
+            out.queues[csil_i] = try as_text(csil_it);
+        }
+    }
+    {
+        const csil_fv = try req(m, "operation_id");
+        out.operation_id = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "current_state");
+        out.current_state = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "override_timeout");
+        out.override_timeout = try as_i64(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "override_current_state");
+        out.override_current_state = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "override_auto_target_state");
+        out.override_auto_target_state = try as_text(csil_fv);
+    }
+}
+
+fn enc_ClaimGuardedTaskGroupResponse(out: *std.ArrayList(u8), v: *const types.ClaimGuardedTaskGroupResponse) CodecError!void {
+    var csil_n: usize = 1;
+    if (v.delivery != null) csil_n += 1;
+    try w_map_head(out, csil_n);
+    if (v.delivery) |csil_x| {
+        try w_text(out, "delivery");
+        try enc_GuardedDelivery(out, &(csil_x));
+    }
+    try w_text(out, "replayed");
+    try w_bool(out, v.replayed);
+}
+
+fn dec_ClaimGuardedTaskGroupResponse(alloc: std.mem.Allocator, m: Value, out: *types.ClaimGuardedTaskGroupResponse) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        if (mget(m, "delivery")) |csil_fv| {
+            var csil_tmp: types.GuardedDelivery = undefined;
+            try dec_GuardedDelivery(alloc, csil_fv, &csil_tmp);
+            out.delivery = csil_tmp;
+        } else {
+            out.delivery = null;
+        }
+    }
+    {
+        const csil_fv = try req(m, "replayed");
+        out.replayed = try as_bool(csil_fv);
+    }
+}
+
+fn enc_UpdateGuardedTaskRequest(out: *std.ArrayList(u8), v: *const types.UpdateGuardedTaskRequest) CodecError!void {
+    var csil_n: usize = 7;
+    if (v.payload != null) csil_n += 1;
+    if (v.priority != null) csil_n += 1;
+    if (v.expected_state != null) csil_n += 1;
+    try w_map_head(out, csil_n);
+    try w_text(out, "uuid");
+    try w_text(out, v.uuid);
+    try w_text(out, "queue");
+    try w_text(out, v.queue);
+    if (v.payload) |csil_x| {
+        try w_text(out, "payload");
+        try w_bytes(out, csil_x);
+    }
+    try w_text(out, "timeout");
+    try w_int(out, v.timeout);
+    if (v.priority) |csil_x| {
+        try w_text(out, "priority");
+        try w_int(out, csil_x);
+    }
+    try w_text(out, "new_state");
+    try w_text(out, v.new_state);
+    try w_text(out, "operation_id");
+    try w_text(out, v.operation_id);
+    if (v.expected_state) |csil_x| {
+        try w_text(out, "expected_state");
+        try w_text(out, csil_x);
+    }
+    try w_text(out, "auto_target_state");
+    try w_text(out, v.auto_target_state);
+    try w_text(out, "expected_revision");
+    try w_int(out, v.expected_revision);
+}
+
+fn dec_UpdateGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.UpdateGuardedTaskRequest) CodecError!void {
+    _ = alloc;
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "uuid");
+        out.uuid = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "queue");
+        out.queue = try as_text(csil_fv);
+    }
+    {
+        if (mget(m, "payload")) |csil_fv| {
+            out.payload = try as_bytes(csil_fv);
+        } else {
+            out.payload = null;
+        }
+    }
+    {
+        const csil_fv = try req(m, "timeout");
+        out.timeout = try as_i64(csil_fv);
+    }
+    {
+        if (mget(m, "priority")) |csil_fv| {
+            out.priority = try as_i64(csil_fv);
+        } else {
+            out.priority = null;
+        }
+    }
+    {
+        const csil_fv = try req(m, "new_state");
+        out.new_state = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "operation_id");
+        out.operation_id = try as_text(csil_fv);
+    }
+    {
+        if (mget(m, "expected_state")) |csil_fv| {
+            out.expected_state = try as_text(csil_fv);
+        } else {
+            out.expected_state = null;
+        }
+    }
+    {
+        const csil_fv = try req(m, "auto_target_state");
+        out.auto_target_state = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "expected_revision");
+        out.expected_revision = try as_i64(csil_fv);
+    }
+}
+
+fn enc_UpdateGuardedTaskResponse(out: *std.ArrayList(u8), v: *const types.UpdateGuardedTaskResponse) CodecError!void {
+    try w_map_head(out, 2);
+    try w_text(out, "task");
+    try enc_GuardedTask(out, &(v.task));
+    try w_text(out, "replayed");
+    try w_bool(out, v.replayed);
+}
+
+fn dec_UpdateGuardedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.UpdateGuardedTaskResponse) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "task");
+        try dec_GuardedTask(alloc, csil_fv, &(out.task));
+    }
+    {
+        const csil_fv = try req(m, "replayed");
+        out.replayed = try as_bool(csil_fv);
+    }
+}
+
+fn enc_CompleteGuardedTaskRequest(out: *std.ArrayList(u8), v: *const types.CompleteGuardedTaskRequest) CodecError!void {
+    var csil_n: usize = 4;
+    if (v.expected_state != null) csil_n += 1;
+    try w_map_head(out, csil_n);
+    try w_text(out, "uuid");
+    try w_text(out, v.uuid);
+    try w_text(out, "queue");
+    try w_text(out, v.queue);
+    try w_text(out, "operation_id");
+    try w_text(out, v.operation_id);
+    if (v.expected_state) |csil_x| {
+        try w_text(out, "expected_state");
+        try w_text(out, csil_x);
+    }
+    try w_text(out, "expected_revision");
+    try w_int(out, v.expected_revision);
+}
+
+fn dec_CompleteGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.CompleteGuardedTaskRequest) CodecError!void {
+    _ = alloc;
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "uuid");
+        out.uuid = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "queue");
+        out.queue = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "operation_id");
+        out.operation_id = try as_text(csil_fv);
+    }
+    {
+        if (mget(m, "expected_state")) |csil_fv| {
+            out.expected_state = try as_text(csil_fv);
+        } else {
+            out.expected_state = null;
+        }
+    }
+    {
+        const csil_fv = try req(m, "expected_revision");
+        out.expected_revision = try as_i64(csil_fv);
+    }
+}
+
+fn enc_CompleteGuardedTaskResponse(out: *std.ArrayList(u8), v: *const types.CompleteGuardedTaskResponse) CodecError!void {
+    try w_map_head(out, 2);
+    try w_text(out, "task");
+    try enc_GuardedTask(out, &(v.task));
+    try w_text(out, "replayed");
+    try w_bool(out, v.replayed);
+}
+
+fn dec_CompleteGuardedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.CompleteGuardedTaskResponse) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "task");
+        try dec_GuardedTask(alloc, csil_fv, &(out.task));
+    }
+    {
+        const csil_fv = try req(m, "replayed");
+        out.replayed = try as_bool(csil_fv);
+    }
+}
+
+fn enc_CancelGuardedTaskRequest(out: *std.ArrayList(u8), v: *const types.CancelGuardedTaskRequest) CodecError!void {
+    var csil_n: usize = 4;
+    if (v.expected_state != null) csil_n += 1;
+    try w_map_head(out, csil_n);
+    try w_text(out, "uuid");
+    try w_text(out, v.uuid);
+    try w_text(out, "queue");
+    try w_text(out, v.queue);
+    try w_text(out, "operation_id");
+    try w_text(out, v.operation_id);
+    if (v.expected_state) |csil_x| {
+        try w_text(out, "expected_state");
+        try w_text(out, csil_x);
+    }
+    try w_text(out, "expected_revision");
+    try w_int(out, v.expected_revision);
+}
+
+fn dec_CancelGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.CancelGuardedTaskRequest) CodecError!void {
+    _ = alloc;
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "uuid");
+        out.uuid = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "queue");
+        out.queue = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "operation_id");
+        out.operation_id = try as_text(csil_fv);
+    }
+    {
+        if (mget(m, "expected_state")) |csil_fv| {
+            out.expected_state = try as_text(csil_fv);
+        } else {
+            out.expected_state = null;
+        }
+    }
+    {
+        const csil_fv = try req(m, "expected_revision");
+        out.expected_revision = try as_i64(csil_fv);
+    }
+}
+
+fn enc_CancelGuardedTaskResponse(out: *std.ArrayList(u8), v: *const types.CancelGuardedTaskResponse) CodecError!void {
+    try w_map_head(out, 2);
+    try w_text(out, "task");
+    try enc_GuardedTask(out, &(v.task));
+    try w_text(out, "replayed");
+    try w_bool(out, v.replayed);
+}
+
+fn dec_CancelGuardedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.CancelGuardedTaskResponse) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "task");
+        try dec_GuardedTask(alloc, csil_fv, &(out.task));
+    }
+    {
+        const csil_fv = try req(m, "replayed");
+        out.replayed = try as_bool(csil_fv);
+    }
+}
+
+fn enc_GetGuardedTaskRequest(out: *std.ArrayList(u8), v: *const types.GetGuardedTaskRequest) CodecError!void {
+    try w_map_head(out, 2);
+    try w_text(out, "uuid");
+    try w_text(out, v.uuid);
+    try w_text(out, "queue");
+    try w_text(out, v.queue);
+}
+
+fn dec_GetGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.GetGuardedTaskRequest) CodecError!void {
+    _ = alloc;
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "uuid");
+        out.uuid = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "queue");
+        out.queue = try as_text(csil_fv);
+    }
+}
+
+fn enc_GetGuardedTaskResponse(out: *std.ArrayList(u8), v: *const types.GetGuardedTaskResponse) CodecError!void {
+    var csil_n: usize = 0;
+    if (v.task != null) csil_n += 1;
+    try w_map_head(out, csil_n);
+    if (v.task) |csil_x| {
+        try w_text(out, "task");
+        try enc_GuardedTask(out, &(csil_x));
+    }
+}
+
+fn dec_GetGuardedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetGuardedTaskResponse) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        if (mget(m, "task")) |csil_fv| {
+            var csil_tmp: types.GuardedTask = undefined;
+            try dec_GuardedTask(alloc, csil_fv, &csil_tmp);
+            out.task = csil_tmp;
+        } else {
+            out.task = null;
+        }
+    }
+}
+
+fn enc_OperationReceipt(out: *std.ArrayList(u8), v: *const types.OperationReceipt) CodecError!void {
+    try w_map_head(out, 8);
+    try w_text(out, "at");
+    try w_int(out, v.at);
+    try w_text(out, "op");
+    try w_text(out, v.op);
+    try w_text(out, "queue");
+    try w_text(out, v.queue);
+    try w_text(out, "task_uuid");
+    try w_text(out, v.task_uuid);
+    try w_text(out, "expires_at");
+    try w_int(out, v.expires_at);
+    try w_text(out, "operation_id");
+    try w_text(out, v.operation_id);
+    try w_text(out, "result_state");
+    try w_text(out, v.result_state);
+    try w_text(out, "result_revision");
+    try w_int(out, v.result_revision);
+}
+
+fn dec_OperationReceipt(alloc: std.mem.Allocator, m: Value, out: *types.OperationReceipt) CodecError!void {
+    _ = alloc;
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "at");
+        out.at = try as_i64(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "op");
+        out.op = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "queue");
+        out.queue = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "task_uuid");
+        out.task_uuid = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "expires_at");
+        out.expires_at = try as_i64(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "operation_id");
+        out.operation_id = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "result_state");
+        out.result_state = try as_text(csil_fv);
+    }
+    {
+        const csil_fv = try req(m, "result_revision");
+        out.result_revision = try as_i64(csil_fv);
+    }
+}
+
+fn enc_LookupOperationRequest(out: *std.ArrayList(u8), v: *const types.LookupOperationRequest) CodecError!void {
+    try w_map_head(out, 1);
+    try w_text(out, "operation_id");
+    try w_text(out, v.operation_id);
+}
+
+fn dec_LookupOperationRequest(alloc: std.mem.Allocator, m: Value, out: *types.LookupOperationRequest) CodecError!void {
+    _ = alloc;
+    if (m != .map) return error.WrongType;
+    {
+        const csil_fv = try req(m, "operation_id");
+        out.operation_id = try as_text(csil_fv);
+    }
+}
+
+fn enc_LookupOperationResponse(out: *std.ArrayList(u8), v: *const types.LookupOperationResponse) CodecError!void {
+    var csil_n: usize = 0;
+    if (v.receipt != null) csil_n += 1;
+    try w_map_head(out, csil_n);
+    if (v.receipt) |csil_x| {
+        try w_text(out, "receipt");
+        try enc_OperationReceipt(out, &(csil_x));
+    }
+}
+
+fn dec_LookupOperationResponse(alloc: std.mem.Allocator, m: Value, out: *types.LookupOperationResponse) CodecError!void {
+    if (m != .map) return error.WrongType;
+    {
+        if (mget(m, "receipt")) |csil_fv| {
+            var csil_tmp: types.OperationReceipt = undefined;
+            try dec_OperationReceipt(alloc, csil_fv, &csil_tmp);
+            out.receipt = csil_tmp;
+        } else {
+            out.receipt = null;
+        }
+    }
+}
+
 fn enc_ServiceError(out: *std.ArrayList(u8), v: *const types.ServiceError) CodecError!void {
     try w_map_head(out, 2);
     try w_text(out, "code");
@@ -1563,6 +2399,390 @@ pub fn encode_GetQueueAndStateCountsResponse(alloc: std.mem.Allocator, v: *const
 pub fn decode_GetQueueAndStateCountsResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.GetQueueAndStateCountsResponse) CodecError!void {
     const root = try decode(alloc, bytes);
     try dec_GetQueueAndStateCountsResponse(alloc, root, out);
+}
+
+/// Encode a GetServerInfoRequest to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_GetServerInfoRequest(alloc: std.mem.Allocator, v: *const types.GetServerInfoRequest) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_GetServerInfoRequest(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a GetServerInfoRequest. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_GetServerInfoRequest(alloc: std.mem.Allocator, bytes: []const u8, out: *types.GetServerInfoRequest) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_GetServerInfoRequest(alloc, root, out);
+}
+
+/// Encode a GetServerInfoResponse to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_GetServerInfoResponse(alloc: std.mem.Allocator, v: *const types.GetServerInfoResponse) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_GetServerInfoResponse(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a GetServerInfoResponse. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_GetServerInfoResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.GetServerInfoResponse) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_GetServerInfoResponse(alloc, root, out);
+}
+
+/// Encode a GuardedTask to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_GuardedTask(alloc: std.mem.Allocator, v: *const types.GuardedTask) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_GuardedTask(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a GuardedTask. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_GuardedTask(alloc: std.mem.Allocator, bytes: []const u8, out: *types.GuardedTask) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_GuardedTask(alloc, root, out);
+}
+
+/// Encode a SubmissionReceipt to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_SubmissionReceipt(alloc: std.mem.Allocator, v: *const types.SubmissionReceipt) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_SubmissionReceipt(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a SubmissionReceipt. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_SubmissionReceipt(alloc: std.mem.Allocator, bytes: []const u8, out: *types.SubmissionReceipt) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_SubmissionReceipt(alloc, root, out);
+}
+
+/// Encode a SubmitKeyedTaskRequest to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_SubmitKeyedTaskRequest(alloc: std.mem.Allocator, v: *const types.SubmitKeyedTaskRequest) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_SubmitKeyedTaskRequest(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a SubmitKeyedTaskRequest. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_SubmitKeyedTaskRequest(alloc: std.mem.Allocator, bytes: []const u8, out: *types.SubmitKeyedTaskRequest) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_SubmitKeyedTaskRequest(alloc, root, out);
+}
+
+/// Encode a SubmitKeyedTaskResponse to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_SubmitKeyedTaskResponse(alloc: std.mem.Allocator, v: *const types.SubmitKeyedTaskResponse) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_SubmitKeyedTaskResponse(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a SubmitKeyedTaskResponse. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_SubmitKeyedTaskResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.SubmitKeyedTaskResponse) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_SubmitKeyedTaskResponse(alloc, root, out);
+}
+
+/// Encode a LookupSubmissionRequest to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_LookupSubmissionRequest(alloc: std.mem.Allocator, v: *const types.LookupSubmissionRequest) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_LookupSubmissionRequest(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a LookupSubmissionRequest. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_LookupSubmissionRequest(alloc: std.mem.Allocator, bytes: []const u8, out: *types.LookupSubmissionRequest) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_LookupSubmissionRequest(alloc, root, out);
+}
+
+/// Encode a LookupSubmissionResponse to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_LookupSubmissionResponse(alloc: std.mem.Allocator, v: *const types.LookupSubmissionResponse) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_LookupSubmissionResponse(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a LookupSubmissionResponse. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_LookupSubmissionResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.LookupSubmissionResponse) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_LookupSubmissionResponse(alloc, root, out);
+}
+
+/// Encode a ClaimGuardedTaskRequest to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_ClaimGuardedTaskRequest(alloc: std.mem.Allocator, v: *const types.ClaimGuardedTaskRequest) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_ClaimGuardedTaskRequest(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a ClaimGuardedTaskRequest. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_ClaimGuardedTaskRequest(alloc: std.mem.Allocator, bytes: []const u8, out: *types.ClaimGuardedTaskRequest) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_ClaimGuardedTaskRequest(alloc, root, out);
+}
+
+/// Encode a GuardedDelivery to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_GuardedDelivery(alloc: std.mem.Allocator, v: *const types.GuardedDelivery) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_GuardedDelivery(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a GuardedDelivery. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_GuardedDelivery(alloc: std.mem.Allocator, bytes: []const u8, out: *types.GuardedDelivery) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_GuardedDelivery(alloc, root, out);
+}
+
+/// Encode a ClaimGuardedTaskResponse to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_ClaimGuardedTaskResponse(alloc: std.mem.Allocator, v: *const types.ClaimGuardedTaskResponse) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_ClaimGuardedTaskResponse(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a ClaimGuardedTaskResponse. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_ClaimGuardedTaskResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.ClaimGuardedTaskResponse) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_ClaimGuardedTaskResponse(alloc, root, out);
+}
+
+/// Encode a ClaimGuardedTaskGroupRequest to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_ClaimGuardedTaskGroupRequest(alloc: std.mem.Allocator, v: *const types.ClaimGuardedTaskGroupRequest) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_ClaimGuardedTaskGroupRequest(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a ClaimGuardedTaskGroupRequest. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_ClaimGuardedTaskGroupRequest(alloc: std.mem.Allocator, bytes: []const u8, out: *types.ClaimGuardedTaskGroupRequest) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_ClaimGuardedTaskGroupRequest(alloc, root, out);
+}
+
+/// Encode a ClaimGuardedTaskGroupResponse to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_ClaimGuardedTaskGroupResponse(alloc: std.mem.Allocator, v: *const types.ClaimGuardedTaskGroupResponse) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_ClaimGuardedTaskGroupResponse(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a ClaimGuardedTaskGroupResponse. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_ClaimGuardedTaskGroupResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.ClaimGuardedTaskGroupResponse) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_ClaimGuardedTaskGroupResponse(alloc, root, out);
+}
+
+/// Encode a UpdateGuardedTaskRequest to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_UpdateGuardedTaskRequest(alloc: std.mem.Allocator, v: *const types.UpdateGuardedTaskRequest) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_UpdateGuardedTaskRequest(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a UpdateGuardedTaskRequest. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_UpdateGuardedTaskRequest(alloc: std.mem.Allocator, bytes: []const u8, out: *types.UpdateGuardedTaskRequest) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_UpdateGuardedTaskRequest(alloc, root, out);
+}
+
+/// Encode a UpdateGuardedTaskResponse to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_UpdateGuardedTaskResponse(alloc: std.mem.Allocator, v: *const types.UpdateGuardedTaskResponse) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_UpdateGuardedTaskResponse(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a UpdateGuardedTaskResponse. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_UpdateGuardedTaskResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.UpdateGuardedTaskResponse) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_UpdateGuardedTaskResponse(alloc, root, out);
+}
+
+/// Encode a CompleteGuardedTaskRequest to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_CompleteGuardedTaskRequest(alloc: std.mem.Allocator, v: *const types.CompleteGuardedTaskRequest) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_CompleteGuardedTaskRequest(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a CompleteGuardedTaskRequest. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_CompleteGuardedTaskRequest(alloc: std.mem.Allocator, bytes: []const u8, out: *types.CompleteGuardedTaskRequest) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_CompleteGuardedTaskRequest(alloc, root, out);
+}
+
+/// Encode a CompleteGuardedTaskResponse to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_CompleteGuardedTaskResponse(alloc: std.mem.Allocator, v: *const types.CompleteGuardedTaskResponse) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_CompleteGuardedTaskResponse(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a CompleteGuardedTaskResponse. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_CompleteGuardedTaskResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.CompleteGuardedTaskResponse) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_CompleteGuardedTaskResponse(alloc, root, out);
+}
+
+/// Encode a CancelGuardedTaskRequest to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_CancelGuardedTaskRequest(alloc: std.mem.Allocator, v: *const types.CancelGuardedTaskRequest) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_CancelGuardedTaskRequest(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a CancelGuardedTaskRequest. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_CancelGuardedTaskRequest(alloc: std.mem.Allocator, bytes: []const u8, out: *types.CancelGuardedTaskRequest) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_CancelGuardedTaskRequest(alloc, root, out);
+}
+
+/// Encode a CancelGuardedTaskResponse to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_CancelGuardedTaskResponse(alloc: std.mem.Allocator, v: *const types.CancelGuardedTaskResponse) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_CancelGuardedTaskResponse(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a CancelGuardedTaskResponse. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_CancelGuardedTaskResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.CancelGuardedTaskResponse) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_CancelGuardedTaskResponse(alloc, root, out);
+}
+
+/// Encode a GetGuardedTaskRequest to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_GetGuardedTaskRequest(alloc: std.mem.Allocator, v: *const types.GetGuardedTaskRequest) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_GetGuardedTaskRequest(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a GetGuardedTaskRequest. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_GetGuardedTaskRequest(alloc: std.mem.Allocator, bytes: []const u8, out: *types.GetGuardedTaskRequest) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_GetGuardedTaskRequest(alloc, root, out);
+}
+
+/// Encode a GetGuardedTaskResponse to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_GetGuardedTaskResponse(alloc: std.mem.Allocator, v: *const types.GetGuardedTaskResponse) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_GetGuardedTaskResponse(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a GetGuardedTaskResponse. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_GetGuardedTaskResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.GetGuardedTaskResponse) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_GetGuardedTaskResponse(alloc, root, out);
+}
+
+/// Encode a OperationReceipt to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_OperationReceipt(alloc: std.mem.Allocator, v: *const types.OperationReceipt) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_OperationReceipt(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a OperationReceipt. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_OperationReceipt(alloc: std.mem.Allocator, bytes: []const u8, out: *types.OperationReceipt) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_OperationReceipt(alloc, root, out);
+}
+
+/// Encode a LookupOperationRequest to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_LookupOperationRequest(alloc: std.mem.Allocator, v: *const types.LookupOperationRequest) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_LookupOperationRequest(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a LookupOperationRequest. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_LookupOperationRequest(alloc: std.mem.Allocator, bytes: []const u8, out: *types.LookupOperationRequest) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_LookupOperationRequest(alloc, root, out);
+}
+
+/// Encode a LookupOperationResponse to CBOR. The returned slice is owned by the caller
+/// (free it with alloc.free).
+pub fn encode_LookupOperationResponse(alloc: std.mem.Allocator, v: *const types.LookupOperationResponse) CodecError![]u8 {
+    var out = std.ArrayList(u8).init(alloc);
+    errdefer out.deinit();
+    try enc_LookupOperationResponse(&out, v);
+    return out.toOwnedSlice();
+}
+
+/// Decode CBOR into a LookupOperationResponse. Every string/slice/map inside `out` is
+/// allocated from `alloc`; pass an arena and free it all at once.
+pub fn decode_LookupOperationResponse(alloc: std.mem.Allocator, bytes: []const u8, out: *types.LookupOperationResponse) CodecError!void {
+    const root = try decode(alloc, bytes);
+    try dec_LookupOperationResponse(alloc, root, out);
 }
 
 /// Encode a ServiceError to CBOR. The returned slice is owned by the caller

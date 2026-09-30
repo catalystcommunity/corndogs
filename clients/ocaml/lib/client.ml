@@ -72,4 +72,54 @@ module Corndogs_service = struct
     match c.call ~service:"CorndogsService" ~op:"GetQueueAndStateCounts" ~payload:(Codec.encode_get_queue_and_state_counts_request_bytes req) with
     | Ok payload -> Ok (Codec.decode_get_queue_and_state_counts_response_bytes payload)
     | Error _ as e -> e
+
+  let get_server_info (c : client) (req : get_server_info_request) : (get_server_info_response, string) result =
+    match c.call ~service:"CorndogsService" ~op:"GetServerInfo" ~payload:(Codec.encode_get_server_info_request_bytes req) with
+    | Ok payload -> Ok (Codec.decode_get_server_info_response_bytes payload)
+    | Error _ as e -> e
+
+  let submit_keyed_task (c : client) (req : submit_keyed_task_request) : (submit_keyed_task_response, string) result =
+    match c.call ~service:"CorndogsService" ~op:"SubmitKeyedTask" ~payload:(Codec.encode_submit_keyed_task_request_bytes req) with
+    | Ok payload -> Ok (Codec.decode_submit_keyed_task_response_bytes payload)
+    | Error _ as e -> e
+
+  let lookup_submission (c : client) (req : lookup_submission_request) : (lookup_submission_response, string) result =
+    match c.call ~service:"CorndogsService" ~op:"LookupSubmission" ~payload:(Codec.encode_lookup_submission_request_bytes req) with
+    | Ok payload -> Ok (Codec.decode_lookup_submission_response_bytes payload)
+    | Error _ as e -> e
+
+  let claim_guarded_task (c : client) (req : claim_guarded_task_request) : (claim_guarded_task_response, string) result =
+    match c.call ~service:"CorndogsService" ~op:"ClaimGuardedTask" ~payload:(Codec.encode_claim_guarded_task_request_bytes req) with
+    | Ok payload -> Ok (Codec.decode_claim_guarded_task_response_bytes payload)
+    | Error _ as e -> e
+
+  let claim_guarded_task_group (c : client) (req : claim_guarded_task_group_request) : (claim_guarded_task_group_response, string) result =
+    match c.call ~service:"CorndogsService" ~op:"ClaimGuardedTaskGroup" ~payload:(Codec.encode_claim_guarded_task_group_request_bytes req) with
+    | Ok payload -> Ok (Codec.decode_claim_guarded_task_group_response_bytes payload)
+    | Error _ as e -> e
+
+  let update_guarded_task (c : client) (req : update_guarded_task_request) : (update_guarded_task_response, string) result =
+    match c.call ~service:"CorndogsService" ~op:"UpdateGuardedTask" ~payload:(Codec.encode_update_guarded_task_request_bytes req) with
+    | Ok payload -> Ok (Codec.decode_update_guarded_task_response_bytes payload)
+    | Error _ as e -> e
+
+  let complete_guarded_task (c : client) (req : complete_guarded_task_request) : (complete_guarded_task_response, string) result =
+    match c.call ~service:"CorndogsService" ~op:"CompleteGuardedTask" ~payload:(Codec.encode_complete_guarded_task_request_bytes req) with
+    | Ok payload -> Ok (Codec.decode_complete_guarded_task_response_bytes payload)
+    | Error _ as e -> e
+
+  let cancel_guarded_task (c : client) (req : cancel_guarded_task_request) : (cancel_guarded_task_response, string) result =
+    match c.call ~service:"CorndogsService" ~op:"CancelGuardedTask" ~payload:(Codec.encode_cancel_guarded_task_request_bytes req) with
+    | Ok payload -> Ok (Codec.decode_cancel_guarded_task_response_bytes payload)
+    | Error _ as e -> e
+
+  let get_guarded_task (c : client) (req : get_guarded_task_request) : (get_guarded_task_response, string) result =
+    match c.call ~service:"CorndogsService" ~op:"GetGuardedTask" ~payload:(Codec.encode_get_guarded_task_request_bytes req) with
+    | Ok payload -> Ok (Codec.decode_get_guarded_task_response_bytes payload)
+    | Error _ as e -> e
+
+  let lookup_operation (c : client) (req : lookup_operation_request) : (lookup_operation_response, string) result =
+    match c.call ~service:"CorndogsService" ~op:"LookupOperation" ~payload:(Codec.encode_lookup_operation_request_bytes req) with
+    | Ok payload -> Ok (Codec.decode_lookup_operation_response_bytes payload)
+    | Error _ as e -> e
 end

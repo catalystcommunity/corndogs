@@ -449,14 +449,16 @@ impl TransportInner {
         let frame = match outcome {
             Ok(frame) => frame,
             Err(e) => {
+                // The request may have reached the server. The call is not
+                // sent again: a legacy mutation could run twice.
                 state.stream = None; // torn down; the next call re-dials
                 if e.kind() == io::ErrorKind::TimedOut {
                     let limit = self.io_timeout.unwrap_or_default();
                     return Err(ClientError::Transport(format!(
-                        "corndogs: {service}/{op} timed out after {limit:?}"
+                        "corndogs: outcome uncertain: {service}/{op} timed out after {limit:?}"
                     )));
                 }
-                return Err(ClientError::Transport(e.to_string()));
+                return Err(ClientError::Transport(format!("corndogs: outcome uncertain: {e}")));
             }
         };
 

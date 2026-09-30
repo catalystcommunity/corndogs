@@ -168,9 +168,14 @@ defmodule Corndogs.Transport do
           {:ok, frame} ->
             {:reply, parse_response(frame), state}
 
+          {:error, {:frame_too_large, _} = reason} ->
+            {:reply, {:error, reason}, state}
+
+          # The request may have reached the server. It is not sent again:
+          # a legacy mutation could run twice.
           {:error, reason} ->
             close_socket(socket)
-            {:reply, {:error, reason}, %{state | socket: nil}}
+            {:reply, {:error, {:outcome_uncertain, reason}}, %{state | socket: nil}}
         end
 
       {:error, reason} ->
@@ -332,6 +337,7 @@ defmodule Corndogs.Transport do
     do: "malformed response envelope: #{Exception.message(e)}"
 
   defp format_reason(:closed), do: "connection closed"
+  defp format_reason({:outcome_uncertain, r}), do: "outcome uncertain: " <> format_reason(r)
   defp format_reason(reason) when is_atom(reason), do: :inet.format_error(reason) |> to_string()
   defp format_reason(reason), do: inspect(reason)
 

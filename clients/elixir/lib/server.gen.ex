@@ -54,4 +54,46 @@ defmodule Csilgen.Generated.CorndogsServer do
             ) ::
               {:ok, Csilgen.Generated.GetQueueAndStateCountsResponse.t()}
               | {:error, Csilgen.Generated.ServiceError.t()}
+  @callback get_server_info(req :: Csilgen.Generated.GetServerInfoRequest.t(), ctx :: map()) ::
+              {:ok, Csilgen.Generated.GetServerInfoResponse.t()}
+              | {:error, Csilgen.Generated.ServiceError.t()}
+  @callback submit_keyed_task(req :: Csilgen.Generated.SubmitKeyedTaskRequest.t(), ctx :: map()) ::
+              {:ok, Csilgen.Generated.SubmitKeyedTaskResponse.t()}
+              | {:error, Csilgen.Generated.ServiceError.t()}
+  @callback lookup_submission(req :: Csilgen.Generated.LookupSubmissionRequest.t(), ctx :: map()) ::
+              {:ok, Csilgen.Generated.LookupSubmissionResponse.t()}
+              | {:error, Csilgen.Generated.ServiceError.t()}
+  @callback claim_guarded_task(req :: Csilgen.Generated.ClaimGuardedTaskRequest.t(), ctx :: map()) ::
+              {:ok, Csilgen.Generated.ClaimGuardedTaskResponse.t()}
+              | {:error, Csilgen.Generated.ServiceError.t()}
+  @callback claim_guarded_task_group(
+              req :: Csilgen.Generated.ClaimGuardedTaskGroupRequest.t(),
+              ctx :: map()
+            ) ::
+              {:ok, Csilgen.Generated.ClaimGuardedTaskGroupResponse.t()}
+              | {:error, Csilgen.Generated.ServiceError.t()}
+  @callback update_guarded_task(
+              req :: Csilgen.Generated.UpdateGuardedTaskRequest.t(),
+              ctx :: map()
+            ) ::
+              {:ok, Csilgen.Generated.UpdateGuardedTaskResponse.t()}
+              | {:error, Csilgen.Generated.ServiceError.t()}
+  @callback complete_guarded_task(
+              req :: Csilgen.Generated.CompleteGuardedTaskRequest.t(),
+              ctx :: map()
+            ) ::
+              {:ok, Csilgen.Generated.CompleteGuardedTaskResponse.t()}
+              | {:error, Csilgen.Generated.ServiceError.t()}
+  @callback cancel_guarded_task(
+              req :: Csilgen.Generated.CancelGuardedTaskRequest.t(),
+              ctx :: map()
+            ) ::
+              {:ok, Csilgen.Generated.CancelGuardedTaskResponse.t()}
+              | {:error, Csilgen.Generated.ServiceError.t()}
+  @callback get_guarded_task(req :: Csilgen.Generated.GetGuardedTaskRequest.t(), ctx :: map()) ::
+              {:ok, Csilgen.Generated.GetGuardedTaskResponse.t()}
+              | {:error, Csilgen.Generated.ServiceError.t()}
+  @callback lookup_operation(req :: Csilgen.Generated.LookupOperationRequest.t(), ctx :: map()) ::
+              {:ok, Csilgen.Generated.LookupOperationResponse.t()}
+              | {:error, Csilgen.Generated.ServiceError.t()}
 end

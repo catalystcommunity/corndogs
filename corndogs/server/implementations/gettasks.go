@@ -17,6 +17,9 @@ func (s *V1Alpha1Server) GetTaskStateByID(ctx context.Context, req api.GetTaskSt
 }
 
 func (s *V1Alpha1Server) GetNextTask(ctx context.Context, req api.GetNextTaskRequest) (api.GetNextTaskResponse, error) {
+	if err := admitLegacy("GetNextTask", false); err != nil {
+		return api.GetNextTaskResponse{}, err
+	}
 	if req.Queue == "" {
 		req.Queue = config.DefaultQueue
 	}
@@ -31,6 +34,9 @@ func (s *V1Alpha1Server) GetNextTask(ctx context.Context, req api.GetNextTaskReq
 }
 
 func (s *V1Alpha1Server) GetNextTaskGroup(ctx context.Context, req api.GetNextTaskGroupRequest) (api.GetNextTaskGroupResponse, error) {
+	if err := admitLegacy("GetNextTaskGroup", false); err != nil {
+		return api.GetNextTaskGroupResponse{}, err
+	}
 	if len(req.Queues) == 0 {
 		req.Queues = []string{config.DefaultQueue}
 	}

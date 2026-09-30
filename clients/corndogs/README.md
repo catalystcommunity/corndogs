@@ -98,9 +98,60 @@ _, err := c.UpdateTask(ctx, corndogs.UpdateTaskRequest{
 })
 ```
 
+## Safe retries (server 0.8.0 and later)
+
+Use a submission key for each logical submission, and task guards for each
+worker. Store the key with your work item if you must survive a restart. Send
+the same key and the same fields on every retry.
+
+```go
+if _, err := c.RequireFeatures(ctx, corndogs.FeatureSubmissionKeys, corndogs.FeatureTaskGuards); err != nil {
+	log.Fatal(err) // an older server: do not fall back to SubmitTask
+}
+key := corndogs.NewSubmissionKey()
+sub, err := c.SubmitKeyedTask(ctx, corndogs.SubmitKeyedTaskRequest{
+	SubmissionKey: key, Guarded: true, Queue: "emails",
+	CurrentState: "submitted", AutoTargetState: "submitted-working",
+	Timeout: 60, Payload: payload,
+})
+// sub.Replayed is true when an earlier attempt already created the task.
+
+claim, err := c.ClaimGuardedTask(ctx, corndogs.ClaimGuardedTaskRequest{
+	OperationId: corndogs.NewOperationID(), Queue: "emails", CurrentState: "submitted",
+})
+if err == nil && claim.Delivery != nil {
+	d := claim.Delivery
+	// ... do the work with d.Payload ...
+	_, err = c.CompleteGuardedTask(ctx, corndogs.CompleteGuardedTaskRequest{
+		OperationId: corndogs.NewOperationID(), Uuid: d.Task.Task.Uuid,
+		Queue: "emails", ExpectedRevision: d.Task.Revision,
+	})
+	if code, ok := corndogs.ServiceErrorCode(err); ok && code == corndogs.CodeRevisionConflict {
+		// The claim expired and another worker has the task. Do not repeat the effect.
+	}
+}
+```
+
+The transports classify every failure:
+
+| Check | Meaning |
+| --- | --- |
+| `errors.Is(err, corndogs.ErrOutcomeUncertain)` | The request was sent; it may have run |
+| `errors.Is(err, corndogs.ErrNotApplied)` | The server did not apply it |
+| `errors.Is(err, corndogs.ErrUnsupported)` | The server does not know the operation |
+| `corndogs.ServiceErrorCode(err)` | A ServiceError from the server; final |
+
+Both transports send a request again only when that is safe: after a failure
+before the send, after a leader redirect, or for a keyed or guarded request
+with the same bytes. They never send a legacy mutation (`SubmitTask`,
+`GetNextTask`, `UpdateTask`, and so on) again after an uncertain outcome.
+`StreamTransport.MaxAttempts` sets the attempt budget (default 3). See
+[Resilience contract](../../docs/resilience.md).
+
 ## Notes
 
 - **Transport:** CSIL-RPC over TCP (4-byte length-prefix framing). HTTP is not used
   for RPC — the server serves RPC on its TCP port; HTTP is only for health/metrics.
 - Errors: a service error is a `*corndogs.ClientError` with `Code`/`Message`; a
   transport failure is a `*corndogs.ClientError` wrapping the underlying error.
+  Use the checks in "Safe retries" to classify them.

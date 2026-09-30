@@ -214,7 +214,11 @@ export class TcpTransport implements AsyncServiceTransport {
     socket.destroy();
     const pending = this.pending;
     this.pending = new Map();
-    for (const waiter of pending.values()) waiter.reject(cause);
+    // A pending request may have reached the server. It is not sent again:
+    // a legacy mutation could run twice.
+    for (const waiter of pending.values()) {
+      waiter.reject(new TransportError(`corndogs: outcome uncertain: ${cause.message}`));
+    }
   }
 
   private onData(chunk: Buffer): void {
@@ -306,7 +310,7 @@ export class TcpTransport implements AsyncServiceTransport {
       socket.write(frame, (writeErr) => {
         if (writeErr) {
           this.pending.delete(id);
-          reject(new TransportError(writeErr.message));
+          reject(new TransportError(`corndogs: outcome uncertain: ${writeErr.message}`));
         }
       });
     });

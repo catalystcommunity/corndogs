@@ -207,11 +207,13 @@ public final class TcpTransport: CsilTransport {
                 (.text("payload"), .tag(tagEncodedCbor, .bytes(request))),
             ]))
 
+        // After the write starts, the request may have reached the server. It
+        // is not sent again: a legacy mutation could run twice.
         do {
             try writeFrame(sockFd, envelope)
         } catch {
             resetLocked()
-            throw error
+            throw TransportError("corndogs: outcome uncertain: \(error)")
         }
 
         let frame: [UInt8]
@@ -222,7 +224,7 @@ public final class TcpTransport: CsilTransport {
             frame = received
         } catch {
             resetLocked()
-            throw error
+            throw TransportError("corndogs: outcome uncertain: \(error)")
         }
 
         return try parseResponse(frame)

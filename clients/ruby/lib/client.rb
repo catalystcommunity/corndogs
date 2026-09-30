@@ -74,4 +74,54 @@ class CorndogsClient
   def get_queue_and_state_counts(req)
     GetQueueAndStateCountsResponse.from_cbor(@transport.call("CorndogsService", "GetQueueAndStateCounts", req.to_cbor))
   end
+
+  # GetServerInfo: -> GetServerInfoResponse
+  def get_server_info(req)
+    GetServerInfoResponse.from_cbor(@transport.call("CorndogsService", "GetServerInfo", req.to_cbor))
+  end
+
+  # SubmitKeyedTask: -> SubmitKeyedTaskResponse
+  def submit_keyed_task(req)
+    SubmitKeyedTaskResponse.from_cbor(@transport.call("CorndogsService", "SubmitKeyedTask", req.to_cbor))
+  end
+
+  # LookupSubmission: -> LookupSubmissionResponse
+  def lookup_submission(req)
+    LookupSubmissionResponse.from_cbor(@transport.call("CorndogsService", "LookupSubmission", req.to_cbor))
+  end
+
+  # ClaimGuardedTask: -> ClaimGuardedTaskResponse
+  def claim_guarded_task(req)
+    ClaimGuardedTaskResponse.from_cbor(@transport.call("CorndogsService", "ClaimGuardedTask", req.to_cbor))
+  end
+
+  # ClaimGuardedTaskGroup: -> ClaimGuardedTaskGroupResponse
+  def claim_guarded_task_group(req)
+    ClaimGuardedTaskGroupResponse.from_cbor(@transport.call("CorndogsService", "ClaimGuardedTaskGroup", req.to_cbor))
+  end
+
+  # UpdateGuardedTask: -> UpdateGuardedTaskResponse
+  def update_guarded_task(req)
+    UpdateGuardedTaskResponse.from_cbor(@transport.call("CorndogsService", "UpdateGuardedTask", req.to_cbor))
+  end
+
+  # CompleteGuardedTask: -> CompleteGuardedTaskResponse
+  def complete_guarded_task(req)
+    CompleteGuardedTaskResponse.from_cbor(@transport.call("CorndogsService", "CompleteGuardedTask", req.to_cbor))
+  end
+
+  # CancelGuardedTask: -> CancelGuardedTaskResponse
+  def cancel_guarded_task(req)
+    CancelGuardedTaskResponse.from_cbor(@transport.call("CorndogsService", "CancelGuardedTask", req.to_cbor))
+  end
+
+  # GetGuardedTask: -> GetGuardedTaskResponse
+  def get_guarded_task(req)
+    GetGuardedTaskResponse.from_cbor(@transport.call("CorndogsService", "GetGuardedTask", req.to_cbor))
+  end
+
+  # LookupOperation: -> LookupOperationResponse
+  def lookup_operation(req)
+    LookupOperationResponse.from_cbor(@transport.call("CorndogsService", "LookupOperation", req.to_cbor))
+  end
 end

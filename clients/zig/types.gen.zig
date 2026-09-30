@@ -153,6 +153,188 @@ pub const GetTaskStateCountsRequest = struct {
 /// GetQueueAndStateCountsRequest is a structured data type.
 pub const GetQueueAndStateCountsRequest = struct {};
 
+/// GetServerInfoRequest is a structured data type.
+pub const GetServerInfoRequest = struct {};
+
+/// GetServerInfoResponse is a structured data type.
+pub const GetServerInfoResponse = struct {
+    server_version: []const u8,
+    features: [][]const u8,
+    submission_key_policy: []const u8,
+    task_guard_policy: []const u8,
+    receipt_retention_seconds: i64,
+};
+
+/// GuardedTask is a structured data type.
+pub const GuardedTask = struct {
+    task: Task,
+    guarded: bool,
+    revision: i64,
+    terminal: bool,
+};
+
+/// SubmissionReceipt is a structured data type.
+pub const SubmissionReceipt = struct {
+    queue: []const u8,
+    submission_key: []const u8,
+    task_uuid: []const u8,
+    accepted_at: i64,
+    expires_at: i64,
+    guarded: bool,
+};
+
+/// SubmitKeyedTaskRequest is a structured data type.
+pub const SubmitKeyedTaskRequest = struct {
+    submission_key: []const u8,
+    guarded: bool,
+    queue: []const u8,
+    current_state: []const u8,
+    auto_target_state: []const u8,
+    timeout: i64,
+    payload: []const u8,
+    priority: i64,
+};
+
+/// SubmitKeyedTaskResponse is a structured data type.
+pub const SubmitKeyedTaskResponse = struct {
+    receipt: SubmissionReceipt,
+    replayed: bool,
+    task: ?GuardedTask = null,
+};
+
+/// LookupSubmissionRequest is a structured data type.
+pub const LookupSubmissionRequest = struct {
+    queue: []const u8,
+    submission_key: []const u8,
+};
+
+/// LookupSubmissionResponse is a structured data type.
+pub const LookupSubmissionResponse = struct {
+    receipt: ?SubmissionReceipt = null,
+    task: ?GuardedTask = null,
+};
+
+/// ClaimGuardedTaskRequest is a structured data type.
+pub const ClaimGuardedTaskRequest = struct {
+    operation_id: []const u8,
+    queue: []const u8,
+    current_state: []const u8,
+    override_timeout: i64,
+    override_current_state: []const u8,
+    override_auto_target_state: []const u8,
+};
+
+/// GuardedDelivery is a structured data type.
+pub const GuardedDelivery = struct {
+    task: GuardedTask,
+    payload: []const u8,
+};
+
+/// ClaimGuardedTaskResponse is a structured data type.
+pub const ClaimGuardedTaskResponse = struct {
+    delivery: ?GuardedDelivery = null,
+    replayed: bool,
+};
+
+/// ClaimGuardedTaskGroupRequest is a structured data type.
+pub const ClaimGuardedTaskGroupRequest = struct {
+    operation_id: []const u8,
+    queues: [][]const u8,
+    current_state: []const u8,
+    override_timeout: i64,
+    override_current_state: []const u8,
+    override_auto_target_state: []const u8,
+};
+
+/// ClaimGuardedTaskGroupResponse is a structured data type.
+pub const ClaimGuardedTaskGroupResponse = struct {
+    delivery: ?GuardedDelivery = null,
+    replayed: bool,
+};
+
+/// UpdateGuardedTaskRequest is a structured data type.
+pub const UpdateGuardedTaskRequest = struct {
+    operation_id: []const u8,
+    uuid: []const u8,
+    queue: []const u8,
+    expected_revision: i64,
+    expected_state: ?[]const u8 = null,
+    new_state: []const u8,
+    auto_target_state: []const u8,
+    timeout: i64,
+    payload: ?[]const u8 = null,
+    priority: ?i64 = null,
+};
+
+/// UpdateGuardedTaskResponse is a structured data type.
+pub const UpdateGuardedTaskResponse = struct {
+    task: GuardedTask,
+    replayed: bool,
+};
+
+/// CompleteGuardedTaskRequest is a structured data type.
+pub const CompleteGuardedTaskRequest = struct {
+    operation_id: []const u8,
+    uuid: []const u8,
+    queue: []const u8,
+    expected_revision: i64,
+    expected_state: ?[]const u8 = null,
+};
+
+/// CompleteGuardedTaskResponse is a structured data type.
+pub const CompleteGuardedTaskResponse = struct {
+    task: GuardedTask,
+    replayed: bool,
+};
+
+/// CancelGuardedTaskRequest is a structured data type.
+pub const CancelGuardedTaskRequest = struct {
+    operation_id: []const u8,
+    uuid: []const u8,
+    queue: []const u8,
+    expected_revision: i64,
+    expected_state: ?[]const u8 = null,
+};
+
+/// CancelGuardedTaskResponse is a structured data type.
+pub const CancelGuardedTaskResponse = struct {
+    task: GuardedTask,
+    replayed: bool,
+};
+
+/// GetGuardedTaskRequest is a structured data type.
+pub const GetGuardedTaskRequest = struct {
+    uuid: []const u8,
+    queue: []const u8,
+};
+
+/// GetGuardedTaskResponse is a structured data type.
+pub const GetGuardedTaskResponse = struct {
+    task: ?GuardedTask = null,
+};
+
+/// OperationReceipt is a structured data type.
+pub const OperationReceipt = struct {
+    operation_id: []const u8,
+    op: []const u8,
+    task_uuid: []const u8,
+    queue: []const u8,
+    result_revision: i64,
+    result_state: []const u8,
+    at: i64,
+    expires_at: i64,
+};
+
+/// LookupOperationRequest is a structured data type.
+pub const LookupOperationRequest = struct {
+    operation_id: []const u8,
+};
+
+/// LookupOperationResponse is a structured data type.
+pub const LookupOperationResponse = struct {
+    receipt: ?OperationReceipt = null,
+};
+
 /// ServiceError is a structured data type.
 pub const ServiceError = struct {
     code: u64,

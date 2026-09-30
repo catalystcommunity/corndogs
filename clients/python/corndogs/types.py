@@ -743,6 +743,777 @@ class GetQueueAndStateCountsResponse:
 
 
 @dataclass
+class GetServerInfoRequest:
+    pass
+
+@dataclass
+class GetServerInfoResponse:
+    server_version: str
+    features: List[str]
+    submission_key_policy: str
+    task_guard_policy: str
+    receipt_retention_seconds: int
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'server_version') and self.server_version is not None:
+            result['server_version'] = self.server_version
+        if hasattr(self, 'features') and self.features is not None:
+            result['features'] = self.features
+        if hasattr(self, 'submission_key_policy') and self.submission_key_policy is not None:
+            result['submission_key_policy'] = self.submission_key_policy
+        if hasattr(self, 'task_guard_policy') and self.task_guard_policy is not None:
+            result['task_guard_policy'] = self.task_guard_policy
+        if hasattr(self, 'receipt_retention_seconds') and self.receipt_retention_seconds is not None:
+            result['receipt_retention_seconds'] = self.receipt_retention_seconds
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'GetServerInfoResponse':
+        """Create instance from dictionary."""
+        return cls(server_version=data.get('server_version'), features=data.get('features'), submission_key_policy=data.get('submission_key_policy'), task_guard_policy=data.get('task_guard_policy'), receipt_retention_seconds=data.get('receipt_retention_seconds'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'GetServerInfoResponse':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class GuardedTask:
+    task: Task
+    guarded: bool
+    revision: int
+    terminal: bool
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'task') and self.task is not None:
+            result['task'] = self.task
+        if hasattr(self, 'guarded') and self.guarded is not None:
+            result['guarded'] = self.guarded
+        if hasattr(self, 'revision') and self.revision is not None:
+            result['revision'] = self.revision
+        if hasattr(self, 'terminal') and self.terminal is not None:
+            result['terminal'] = self.terminal
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'GuardedTask':
+        """Create instance from dictionary."""
+        return cls(task=data.get('task'), guarded=data.get('guarded'), revision=data.get('revision'), terminal=data.get('terminal'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'GuardedTask':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class SubmissionReceipt:
+    queue: str
+    submission_key: str
+    task_uuid: str
+    accepted_at: int
+    expires_at: int
+    guarded: bool
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'queue') and self.queue is not None:
+            result['queue'] = self.queue
+        if hasattr(self, 'submission_key') and self.submission_key is not None:
+            result['submission_key'] = self.submission_key
+        if hasattr(self, 'task_uuid') and self.task_uuid is not None:
+            result['task_uuid'] = self.task_uuid
+        if hasattr(self, 'accepted_at') and self.accepted_at is not None:
+            result['accepted_at'] = self.accepted_at
+        if hasattr(self, 'expires_at') and self.expires_at is not None:
+            result['expires_at'] = self.expires_at
+        if hasattr(self, 'guarded') and self.guarded is not None:
+            result['guarded'] = self.guarded
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SubmissionReceipt':
+        """Create instance from dictionary."""
+        return cls(queue=data.get('queue'), submission_key=data.get('submission_key'), task_uuid=data.get('task_uuid'), accepted_at=data.get('accepted_at'), expires_at=data.get('expires_at'), guarded=data.get('guarded'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'SubmissionReceipt':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class SubmitKeyedTaskRequest:
+    submission_key: str
+    guarded: bool
+    queue: str
+    current_state: str
+    auto_target_state: str
+    timeout: int
+    payload: bytes
+    priority: int
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'submission_key') and self.submission_key is not None:
+            result['submission_key'] = self.submission_key
+        if hasattr(self, 'guarded') and self.guarded is not None:
+            result['guarded'] = self.guarded
+        if hasattr(self, 'queue') and self.queue is not None:
+            result['queue'] = self.queue
+        if hasattr(self, 'current_state') and self.current_state is not None:
+            result['current_state'] = self.current_state
+        if hasattr(self, 'auto_target_state') and self.auto_target_state is not None:
+            result['auto_target_state'] = self.auto_target_state
+        if hasattr(self, 'timeout') and self.timeout is not None:
+            result['timeout'] = self.timeout
+        if hasattr(self, 'payload') and self.payload is not None:
+            result['payload'] = self.payload
+        if hasattr(self, 'priority') and self.priority is not None:
+            result['priority'] = self.priority
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SubmitKeyedTaskRequest':
+        """Create instance from dictionary."""
+        return cls(submission_key=data.get('submission_key'), guarded=data.get('guarded'), queue=data.get('queue'), current_state=data.get('current_state'), auto_target_state=data.get('auto_target_state'), timeout=data.get('timeout'), payload=data.get('payload'), priority=data.get('priority'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'SubmitKeyedTaskRequest':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class SubmitKeyedTaskResponse:
+    receipt: SubmissionReceipt
+    replayed: bool
+    task: Optional[GuardedTask] = None
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'receipt') and self.receipt is not None:
+            result['receipt'] = self.receipt
+        if hasattr(self, 'replayed') and self.replayed is not None:
+            result['replayed'] = self.replayed
+        if hasattr(self, 'task') and self.task is not None:
+            result['task'] = self.task
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SubmitKeyedTaskResponse':
+        """Create instance from dictionary."""
+        return cls(receipt=data.get('receipt'), replayed=data.get('replayed'), task=data.get('task'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'SubmitKeyedTaskResponse':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class LookupSubmissionRequest:
+    queue: str
+    submission_key: str
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'queue') and self.queue is not None:
+            result['queue'] = self.queue
+        if hasattr(self, 'submission_key') and self.submission_key is not None:
+            result['submission_key'] = self.submission_key
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'LookupSubmissionRequest':
+        """Create instance from dictionary."""
+        return cls(queue=data.get('queue'), submission_key=data.get('submission_key'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'LookupSubmissionRequest':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class LookupSubmissionResponse:
+    receipt: Optional[SubmissionReceipt] = None
+    task: Optional[GuardedTask] = None
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'receipt') and self.receipt is not None:
+            result['receipt'] = self.receipt
+        if hasattr(self, 'task') and self.task is not None:
+            result['task'] = self.task
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'LookupSubmissionResponse':
+        """Create instance from dictionary."""
+        return cls(receipt=data.get('receipt'), task=data.get('task'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'LookupSubmissionResponse':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class ClaimGuardedTaskRequest:
+    operation_id: str
+    queue: str
+    current_state: str
+    override_timeout: int
+    override_current_state: str
+    override_auto_target_state: str
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'operation_id') and self.operation_id is not None:
+            result['operation_id'] = self.operation_id
+        if hasattr(self, 'queue') and self.queue is not None:
+            result['queue'] = self.queue
+        if hasattr(self, 'current_state') and self.current_state is not None:
+            result['current_state'] = self.current_state
+        if hasattr(self, 'override_timeout') and self.override_timeout is not None:
+            result['override_timeout'] = self.override_timeout
+        if hasattr(self, 'override_current_state') and self.override_current_state is not None:
+            result['override_current_state'] = self.override_current_state
+        if hasattr(self, 'override_auto_target_state') and self.override_auto_target_state is not None:
+            result['override_auto_target_state'] = self.override_auto_target_state
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ClaimGuardedTaskRequest':
+        """Create instance from dictionary."""
+        return cls(operation_id=data.get('operation_id'), queue=data.get('queue'), current_state=data.get('current_state'), override_timeout=data.get('override_timeout'), override_current_state=data.get('override_current_state'), override_auto_target_state=data.get('override_auto_target_state'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'ClaimGuardedTaskRequest':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class GuardedDelivery:
+    task: GuardedTask
+    payload: bytes
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'task') and self.task is not None:
+            result['task'] = self.task
+        if hasattr(self, 'payload') and self.payload is not None:
+            result['payload'] = self.payload
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'GuardedDelivery':
+        """Create instance from dictionary."""
+        return cls(task=data.get('task'), payload=data.get('payload'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'GuardedDelivery':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class ClaimGuardedTaskResponse:
+    replayed: bool
+    delivery: Optional[GuardedDelivery] = None
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'delivery') and self.delivery is not None:
+            result['delivery'] = self.delivery
+        if hasattr(self, 'replayed') and self.replayed is not None:
+            result['replayed'] = self.replayed
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ClaimGuardedTaskResponse':
+        """Create instance from dictionary."""
+        return cls(delivery=data.get('delivery'), replayed=data.get('replayed'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'ClaimGuardedTaskResponse':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class ClaimGuardedTaskGroupRequest:
+    operation_id: str
+    queues: List[str]
+    current_state: str
+    override_timeout: int
+    override_current_state: str
+    override_auto_target_state: str
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'operation_id') and self.operation_id is not None:
+            result['operation_id'] = self.operation_id
+        if hasattr(self, 'queues') and self.queues is not None:
+            result['queues'] = self.queues
+        if hasattr(self, 'current_state') and self.current_state is not None:
+            result['current_state'] = self.current_state
+        if hasattr(self, 'override_timeout') and self.override_timeout is not None:
+            result['override_timeout'] = self.override_timeout
+        if hasattr(self, 'override_current_state') and self.override_current_state is not None:
+            result['override_current_state'] = self.override_current_state
+        if hasattr(self, 'override_auto_target_state') and self.override_auto_target_state is not None:
+            result['override_auto_target_state'] = self.override_auto_target_state
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ClaimGuardedTaskGroupRequest':
+        """Create instance from dictionary."""
+        return cls(operation_id=data.get('operation_id'), queues=data.get('queues'), current_state=data.get('current_state'), override_timeout=data.get('override_timeout'), override_current_state=data.get('override_current_state'), override_auto_target_state=data.get('override_auto_target_state'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'ClaimGuardedTaskGroupRequest':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class ClaimGuardedTaskGroupResponse:
+    replayed: bool
+    delivery: Optional[GuardedDelivery] = None
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'delivery') and self.delivery is not None:
+            result['delivery'] = self.delivery
+        if hasattr(self, 'replayed') and self.replayed is not None:
+            result['replayed'] = self.replayed
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ClaimGuardedTaskGroupResponse':
+        """Create instance from dictionary."""
+        return cls(delivery=data.get('delivery'), replayed=data.get('replayed'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'ClaimGuardedTaskGroupResponse':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class UpdateGuardedTaskRequest:
+    operation_id: str
+    uuid: str
+    queue: str
+    expected_revision: int
+    new_state: str
+    auto_target_state: str
+    timeout: int
+    expected_state: Optional[str] = None
+    payload: Optional[bytes] = None
+    priority: Optional[int] = None
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'operation_id') and self.operation_id is not None:
+            result['operation_id'] = self.operation_id
+        if hasattr(self, 'uuid') and self.uuid is not None:
+            result['uuid'] = self.uuid
+        if hasattr(self, 'queue') and self.queue is not None:
+            result['queue'] = self.queue
+        if hasattr(self, 'expected_revision') and self.expected_revision is not None:
+            result['expected_revision'] = self.expected_revision
+        if hasattr(self, 'expected_state') and self.expected_state is not None:
+            result['expected_state'] = self.expected_state
+        if hasattr(self, 'new_state') and self.new_state is not None:
+            result['new_state'] = self.new_state
+        if hasattr(self, 'auto_target_state') and self.auto_target_state is not None:
+            result['auto_target_state'] = self.auto_target_state
+        if hasattr(self, 'timeout') and self.timeout is not None:
+            result['timeout'] = self.timeout
+        if hasattr(self, 'payload') and self.payload is not None:
+            result['payload'] = self.payload
+        if hasattr(self, 'priority') and self.priority is not None:
+            result['priority'] = self.priority
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'UpdateGuardedTaskRequest':
+        """Create instance from dictionary."""
+        return cls(operation_id=data.get('operation_id'), uuid=data.get('uuid'), queue=data.get('queue'), expected_revision=data.get('expected_revision'), expected_state=data.get('expected_state'), new_state=data.get('new_state'), auto_target_state=data.get('auto_target_state'), timeout=data.get('timeout'), payload=data.get('payload'), priority=data.get('priority'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'UpdateGuardedTaskRequest':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class UpdateGuardedTaskResponse:
+    task: GuardedTask
+    replayed: bool
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'task') and self.task is not None:
+            result['task'] = self.task
+        if hasattr(self, 'replayed') and self.replayed is not None:
+            result['replayed'] = self.replayed
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'UpdateGuardedTaskResponse':
+        """Create instance from dictionary."""
+        return cls(task=data.get('task'), replayed=data.get('replayed'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'UpdateGuardedTaskResponse':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class CompleteGuardedTaskRequest:
+    operation_id: str
+    uuid: str
+    queue: str
+    expected_revision: int
+    expected_state: Optional[str] = None
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'operation_id') and self.operation_id is not None:
+            result['operation_id'] = self.operation_id
+        if hasattr(self, 'uuid') and self.uuid is not None:
+            result['uuid'] = self.uuid
+        if hasattr(self, 'queue') and self.queue is not None:
+            result['queue'] = self.queue
+        if hasattr(self, 'expected_revision') and self.expected_revision is not None:
+            result['expected_revision'] = self.expected_revision
+        if hasattr(self, 'expected_state') and self.expected_state is not None:
+            result['expected_state'] = self.expected_state
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CompleteGuardedTaskRequest':
+        """Create instance from dictionary."""
+        return cls(operation_id=data.get('operation_id'), uuid=data.get('uuid'), queue=data.get('queue'), expected_revision=data.get('expected_revision'), expected_state=data.get('expected_state'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'CompleteGuardedTaskRequest':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class CompleteGuardedTaskResponse:
+    task: GuardedTask
+    replayed: bool
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'task') and self.task is not None:
+            result['task'] = self.task
+        if hasattr(self, 'replayed') and self.replayed is not None:
+            result['replayed'] = self.replayed
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CompleteGuardedTaskResponse':
+        """Create instance from dictionary."""
+        return cls(task=data.get('task'), replayed=data.get('replayed'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'CompleteGuardedTaskResponse':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class CancelGuardedTaskRequest:
+    operation_id: str
+    uuid: str
+    queue: str
+    expected_revision: int
+    expected_state: Optional[str] = None
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'operation_id') and self.operation_id is not None:
+            result['operation_id'] = self.operation_id
+        if hasattr(self, 'uuid') and self.uuid is not None:
+            result['uuid'] = self.uuid
+        if hasattr(self, 'queue') and self.queue is not None:
+            result['queue'] = self.queue
+        if hasattr(self, 'expected_revision') and self.expected_revision is not None:
+            result['expected_revision'] = self.expected_revision
+        if hasattr(self, 'expected_state') and self.expected_state is not None:
+            result['expected_state'] = self.expected_state
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CancelGuardedTaskRequest':
+        """Create instance from dictionary."""
+        return cls(operation_id=data.get('operation_id'), uuid=data.get('uuid'), queue=data.get('queue'), expected_revision=data.get('expected_revision'), expected_state=data.get('expected_state'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'CancelGuardedTaskRequest':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class CancelGuardedTaskResponse:
+    task: GuardedTask
+    replayed: bool
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'task') and self.task is not None:
+            result['task'] = self.task
+        if hasattr(self, 'replayed') and self.replayed is not None:
+            result['replayed'] = self.replayed
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CancelGuardedTaskResponse':
+        """Create instance from dictionary."""
+        return cls(task=data.get('task'), replayed=data.get('replayed'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'CancelGuardedTaskResponse':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class GetGuardedTaskRequest:
+    uuid: str
+    queue: str
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'uuid') and self.uuid is not None:
+            result['uuid'] = self.uuid
+        if hasattr(self, 'queue') and self.queue is not None:
+            result['queue'] = self.queue
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'GetGuardedTaskRequest':
+        """Create instance from dictionary."""
+        return cls(uuid=data.get('uuid'), queue=data.get('queue'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'GetGuardedTaskRequest':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class GetGuardedTaskResponse:
+    task: Optional[GuardedTask] = None
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'task') and self.task is not None:
+            result['task'] = self.task
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'GetGuardedTaskResponse':
+        """Create instance from dictionary."""
+        return cls(task=data.get('task'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'GetGuardedTaskResponse':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class OperationReceipt:
+    operation_id: str
+    op: str
+    task_uuid: str
+    queue: str
+    result_revision: int
+    result_state: str
+    at: int
+    expires_at: int
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'operation_id') and self.operation_id is not None:
+            result['operation_id'] = self.operation_id
+        if hasattr(self, 'op') and self.op is not None:
+            result['op'] = self.op
+        if hasattr(self, 'task_uuid') and self.task_uuid is not None:
+            result['task_uuid'] = self.task_uuid
+        if hasattr(self, 'queue') and self.queue is not None:
+            result['queue'] = self.queue
+        if hasattr(self, 'result_revision') and self.result_revision is not None:
+            result['result_revision'] = self.result_revision
+        if hasattr(self, 'result_state') and self.result_state is not None:
+            result['result_state'] = self.result_state
+        if hasattr(self, 'at') and self.at is not None:
+            result['at'] = self.at
+        if hasattr(self, 'expires_at') and self.expires_at is not None:
+            result['expires_at'] = self.expires_at
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'OperationReceipt':
+        """Create instance from dictionary."""
+        return cls(operation_id=data.get('operation_id'), op=data.get('op'), task_uuid=data.get('task_uuid'), queue=data.get('queue'), result_revision=data.get('result_revision'), result_state=data.get('result_state'), at=data.get('at'), expires_at=data.get('expires_at'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'OperationReceipt':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class LookupOperationRequest:
+    operation_id: str
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'operation_id') and self.operation_id is not None:
+            result['operation_id'] = self.operation_id
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'LookupOperationRequest':
+        """Create instance from dictionary."""
+        return cls(operation_id=data.get('operation_id'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'LookupOperationRequest':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
+class LookupOperationResponse:
+    receipt: Optional[OperationReceipt] = None
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {}
+        if hasattr(self, 'receipt') and self.receipt is not None:
+            result['receipt'] = self.receipt
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'LookupOperationResponse':
+        """Create instance from dictionary."""
+        return cls(receipt=data.get('receipt'))
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'LookupOperationResponse':
+        """Create instance from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+@dataclass
 class ServiceError:
     code: int
     message: str

@@ -20,5 +20,15 @@ public interface ICorndogsService
     GetQueueTaskCountsResponse GetQueueTaskCounts(GetQueueTaskCountsRequest getQueueTaskCountsRequest);
     GetTaskStateCountsResponse GetTaskStateCounts(GetTaskStateCountsRequest getTaskStateCountsRequest);
     GetQueueAndStateCountsResponse GetQueueAndStateCounts(GetQueueAndStateCountsRequest getQueueAndStateCountsRequest);
+    GetServerInfoResponse GetServerInfo(GetServerInfoRequest getServerInfoRequest);
+    SubmitKeyedTaskResponse SubmitKeyedTask(SubmitKeyedTaskRequest submitKeyedTaskRequest);
+    LookupSubmissionResponse LookupSubmission(LookupSubmissionRequest lookupSubmissionRequest);
+    ClaimGuardedTaskResponse ClaimGuardedTask(ClaimGuardedTaskRequest claimGuardedTaskRequest);
+    ClaimGuardedTaskGroupResponse ClaimGuardedTaskGroup(ClaimGuardedTaskGroupRequest claimGuardedTaskGroupRequest);
+    UpdateGuardedTaskResponse UpdateGuardedTask(UpdateGuardedTaskRequest updateGuardedTaskRequest);
+    CompleteGuardedTaskResponse CompleteGuardedTask(CompleteGuardedTaskRequest completeGuardedTaskRequest);
+    CancelGuardedTaskResponse CancelGuardedTask(CancelGuardedTaskRequest cancelGuardedTaskRequest);
+    GetGuardedTaskResponse GetGuardedTask(GetGuardedTaskRequest getGuardedTaskRequest);
+    LookupOperationResponse LookupOperation(LookupOperationRequest lookupOperationRequest);
 }
 

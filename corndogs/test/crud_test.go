@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	api "github.com/CatalystCommunity/corndogs/clients/corndogs"
@@ -17,6 +18,11 @@ var testID = gofakeit.Breakfast() + gofakeit.Dessert()
 
 // assume an empty db, but we are using conventions to try to do this against a live server if needed
 func init() {
+	// A cluster run uses CORNDOGS_TEST_SEEDS; only the resilience tests follow
+	// the leader there.
+	if os.Getenv("CORNDOGS_TEST_SEEDS") != "" {
+		return
+	}
 	// Get the next task in the test_via_core_corndogs_repo queue, which should be none
 	getNextRequest := &api.GetNextTaskRequest{
 		Queue:        "testQueue" + GetTestID(),
@@ -24,6 +30,11 @@ func init() {
 	}
 	nextTaskResponse, err := client.GetNextTask(context.Background(), getNextRequest)
 	if err != nil {
+		// A server in required mode rejects legacy claims. Only the resilience
+		// tests can run against it.
+		if code, ok := api.ServiceErrorCode(err); ok && code == api.CodeTaskGuardRequired {
+			return
+		}
 		panic(err)
 	}
 	if nextTaskResponse.Delivery != nil {

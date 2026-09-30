@@ -1062,6 +1062,707 @@ def _get_queue_and_state_counts_response_from_cbor(data: bytes) -> "GetQueueAndS
 GetQueueAndStateCountsResponse.to_cbor = _get_queue_and_state_counts_response_to_cbor
 GetQueueAndStateCountsResponse.from_cbor = staticmethod(_get_queue_and_state_counts_response_from_cbor)
 
+def _encode_get_server_info_request_value(v: "GetServerInfoRequest") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    return csil_m
+
+def _decode_get_server_info_request_value(tree: Any) -> "GetServerInfoRequest":
+    tree = _csil_expect_map(tree)
+    return GetServerInfoRequest()
+
+
+def _get_server_info_request_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_get_server_info_request_value(self))
+
+
+def _get_server_info_request_from_cbor(data: bytes) -> "GetServerInfoRequest":
+    return _decode_get_server_info_request_value(cbor_decode(data))
+
+
+GetServerInfoRequest.to_cbor = _get_server_info_request_to_cbor
+GetServerInfoRequest.from_cbor = staticmethod(_get_server_info_request_from_cbor)
+
+def _encode_get_server_info_response_value(v: "GetServerInfoResponse") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["features"] = v.features
+    csil_m["server_version"] = v.server_version
+    csil_m["task_guard_policy"] = v.task_guard_policy
+    csil_m["submission_key_policy"] = v.submission_key_policy
+    csil_m["receipt_retention_seconds"] = v.receipt_retention_seconds
+    return csil_m
+
+def _decode_get_server_info_response_value(tree: Any) -> "GetServerInfoResponse":
+    tree = _csil_expect_map(tree)
+    return GetServerInfoResponse(
+        server_version=_csil_expect_text(tree["server_version"]),
+        features=[_csil_expect_text(csil_e) for csil_e in _csil_expect_array(tree["features"])],
+        submission_key_policy=_csil_expect_text(tree["submission_key_policy"]),
+        task_guard_policy=_csil_expect_text(tree["task_guard_policy"]),
+        receipt_retention_seconds=_csil_expect_int(tree["receipt_retention_seconds"]),
+    )
+
+
+def _get_server_info_response_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_get_server_info_response_value(self))
+
+
+def _get_server_info_response_from_cbor(data: bytes) -> "GetServerInfoResponse":
+    return _decode_get_server_info_response_value(cbor_decode(data))
+
+
+GetServerInfoResponse.to_cbor = _get_server_info_response_to_cbor
+GetServerInfoResponse.from_cbor = staticmethod(_get_server_info_response_from_cbor)
+
+def _encode_guarded_task_value(v: "GuardedTask") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["task"] = _encode_task_value(v.task)
+    csil_m["guarded"] = v.guarded
+    csil_m["revision"] = v.revision
+    csil_m["terminal"] = v.terminal
+    return csil_m
+
+def _decode_guarded_task_value(tree: Any) -> "GuardedTask":
+    tree = _csil_expect_map(tree)
+    return GuardedTask(
+        task=_decode_task_value(tree["task"]),
+        guarded=_csil_expect_bool(tree["guarded"]),
+        revision=_csil_expect_int(tree["revision"]),
+        terminal=_csil_expect_bool(tree["terminal"]),
+    )
+
+
+def _guarded_task_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_guarded_task_value(self))
+
+
+def _guarded_task_from_cbor(data: bytes) -> "GuardedTask":
+    return _decode_guarded_task_value(cbor_decode(data))
+
+
+GuardedTask.to_cbor = _guarded_task_to_cbor
+GuardedTask.from_cbor = staticmethod(_guarded_task_from_cbor)
+
+def _encode_submission_receipt_value(v: "SubmissionReceipt") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["queue"] = v.queue
+    csil_m["guarded"] = v.guarded
+    csil_m["task_uuid"] = v.task_uuid
+    csil_m["expires_at"] = v.expires_at
+    csil_m["accepted_at"] = v.accepted_at
+    csil_m["submission_key"] = v.submission_key
+    return csil_m
+
+def _decode_submission_receipt_value(tree: Any) -> "SubmissionReceipt":
+    tree = _csil_expect_map(tree)
+    return SubmissionReceipt(
+        queue=_csil_expect_text(tree["queue"]),
+        submission_key=_csil_expect_text(tree["submission_key"]),
+        task_uuid=_csil_expect_text(tree["task_uuid"]),
+        accepted_at=_csil_expect_int(tree["accepted_at"]),
+        expires_at=_csil_expect_int(tree["expires_at"]),
+        guarded=_csil_expect_bool(tree["guarded"]),
+    )
+
+
+def _submission_receipt_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_submission_receipt_value(self))
+
+
+def _submission_receipt_from_cbor(data: bytes) -> "SubmissionReceipt":
+    return _decode_submission_receipt_value(cbor_decode(data))
+
+
+SubmissionReceipt.to_cbor = _submission_receipt_to_cbor
+SubmissionReceipt.from_cbor = staticmethod(_submission_receipt_from_cbor)
+
+def _encode_submit_keyed_task_request_value(v: "SubmitKeyedTaskRequest") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["queue"] = v.queue
+    csil_m["guarded"] = v.guarded
+    csil_m["payload"] = v.payload
+    csil_m["timeout"] = v.timeout
+    csil_m["priority"] = v.priority
+    csil_m["current_state"] = v.current_state
+    csil_m["submission_key"] = v.submission_key
+    csil_m["auto_target_state"] = v.auto_target_state
+    return csil_m
+
+def _decode_submit_keyed_task_request_value(tree: Any) -> "SubmitKeyedTaskRequest":
+    tree = _csil_expect_map(tree)
+    return SubmitKeyedTaskRequest(
+        submission_key=_csil_expect_text(tree["submission_key"]),
+        guarded=_csil_expect_bool(tree["guarded"]),
+        queue=_csil_expect_text(tree["queue"]),
+        current_state=_csil_expect_text(tree["current_state"]),
+        auto_target_state=_csil_expect_text(tree["auto_target_state"]),
+        timeout=_csil_expect_int(tree["timeout"]),
+        payload=_csil_expect_bytes(tree["payload"]),
+        priority=_csil_expect_int(tree["priority"]),
+    )
+
+
+def _submit_keyed_task_request_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_submit_keyed_task_request_value(self))
+
+
+def _submit_keyed_task_request_from_cbor(data: bytes) -> "SubmitKeyedTaskRequest":
+    return _decode_submit_keyed_task_request_value(cbor_decode(data))
+
+
+SubmitKeyedTaskRequest.to_cbor = _submit_keyed_task_request_to_cbor
+SubmitKeyedTaskRequest.from_cbor = staticmethod(_submit_keyed_task_request_from_cbor)
+
+def _encode_submit_keyed_task_response_value(v: "SubmitKeyedTaskResponse") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_x = v.task
+    if csil_x is not None:
+        csil_m["task"] = _encode_guarded_task_value(csil_x)
+    csil_m["receipt"] = _encode_submission_receipt_value(v.receipt)
+    csil_m["replayed"] = v.replayed
+    return csil_m
+
+def _decode_submit_keyed_task_response_value(tree: Any) -> "SubmitKeyedTaskResponse":
+    tree = _csil_expect_map(tree)
+    return SubmitKeyedTaskResponse(
+        receipt=_decode_submission_receipt_value(tree["receipt"]),
+        replayed=_csil_expect_bool(tree["replayed"]),
+        task=(None if tree.get("task") is None else _decode_guarded_task_value(tree["task"])),
+    )
+
+
+def _submit_keyed_task_response_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_submit_keyed_task_response_value(self))
+
+
+def _submit_keyed_task_response_from_cbor(data: bytes) -> "SubmitKeyedTaskResponse":
+    return _decode_submit_keyed_task_response_value(cbor_decode(data))
+
+
+SubmitKeyedTaskResponse.to_cbor = _submit_keyed_task_response_to_cbor
+SubmitKeyedTaskResponse.from_cbor = staticmethod(_submit_keyed_task_response_from_cbor)
+
+def _encode_lookup_submission_request_value(v: "LookupSubmissionRequest") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["queue"] = v.queue
+    csil_m["submission_key"] = v.submission_key
+    return csil_m
+
+def _decode_lookup_submission_request_value(tree: Any) -> "LookupSubmissionRequest":
+    tree = _csil_expect_map(tree)
+    return LookupSubmissionRequest(
+        queue=_csil_expect_text(tree["queue"]),
+        submission_key=_csil_expect_text(tree["submission_key"]),
+    )
+
+
+def _lookup_submission_request_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_lookup_submission_request_value(self))
+
+
+def _lookup_submission_request_from_cbor(data: bytes) -> "LookupSubmissionRequest":
+    return _decode_lookup_submission_request_value(cbor_decode(data))
+
+
+LookupSubmissionRequest.to_cbor = _lookup_submission_request_to_cbor
+LookupSubmissionRequest.from_cbor = staticmethod(_lookup_submission_request_from_cbor)
+
+def _encode_lookup_submission_response_value(v: "LookupSubmissionResponse") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_x = v.task
+    if csil_x is not None:
+        csil_m["task"] = _encode_guarded_task_value(csil_x)
+    csil_x = v.receipt
+    if csil_x is not None:
+        csil_m["receipt"] = _encode_submission_receipt_value(csil_x)
+    return csil_m
+
+def _decode_lookup_submission_response_value(tree: Any) -> "LookupSubmissionResponse":
+    tree = _csil_expect_map(tree)
+    return LookupSubmissionResponse(
+        receipt=(None if tree.get("receipt") is None else _decode_submission_receipt_value(tree["receipt"])),
+        task=(None if tree.get("task") is None else _decode_guarded_task_value(tree["task"])),
+    )
+
+
+def _lookup_submission_response_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_lookup_submission_response_value(self))
+
+
+def _lookup_submission_response_from_cbor(data: bytes) -> "LookupSubmissionResponse":
+    return _decode_lookup_submission_response_value(cbor_decode(data))
+
+
+LookupSubmissionResponse.to_cbor = _lookup_submission_response_to_cbor
+LookupSubmissionResponse.from_cbor = staticmethod(_lookup_submission_response_from_cbor)
+
+def _encode_claim_guarded_task_request_value(v: "ClaimGuardedTaskRequest") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["queue"] = v.queue
+    csil_m["operation_id"] = v.operation_id
+    csil_m["current_state"] = v.current_state
+    csil_m["override_timeout"] = v.override_timeout
+    csil_m["override_current_state"] = v.override_current_state
+    csil_m["override_auto_target_state"] = v.override_auto_target_state
+    return csil_m
+
+def _decode_claim_guarded_task_request_value(tree: Any) -> "ClaimGuardedTaskRequest":
+    tree = _csil_expect_map(tree)
+    return ClaimGuardedTaskRequest(
+        operation_id=_csil_expect_text(tree["operation_id"]),
+        queue=_csil_expect_text(tree["queue"]),
+        current_state=_csil_expect_text(tree["current_state"]),
+        override_timeout=_csil_expect_int(tree["override_timeout"]),
+        override_current_state=_csil_expect_text(tree["override_current_state"]),
+        override_auto_target_state=_csil_expect_text(tree["override_auto_target_state"]),
+    )
+
+
+def _claim_guarded_task_request_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_claim_guarded_task_request_value(self))
+
+
+def _claim_guarded_task_request_from_cbor(data: bytes) -> "ClaimGuardedTaskRequest":
+    return _decode_claim_guarded_task_request_value(cbor_decode(data))
+
+
+ClaimGuardedTaskRequest.to_cbor = _claim_guarded_task_request_to_cbor
+ClaimGuardedTaskRequest.from_cbor = staticmethod(_claim_guarded_task_request_from_cbor)
+
+def _encode_guarded_delivery_value(v: "GuardedDelivery") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["task"] = _encode_guarded_task_value(v.task)
+    csil_m["payload"] = v.payload
+    return csil_m
+
+def _decode_guarded_delivery_value(tree: Any) -> "GuardedDelivery":
+    tree = _csil_expect_map(tree)
+    return GuardedDelivery(
+        task=_decode_guarded_task_value(tree["task"]),
+        payload=_csil_expect_bytes(tree["payload"]),
+    )
+
+
+def _guarded_delivery_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_guarded_delivery_value(self))
+
+
+def _guarded_delivery_from_cbor(data: bytes) -> "GuardedDelivery":
+    return _decode_guarded_delivery_value(cbor_decode(data))
+
+
+GuardedDelivery.to_cbor = _guarded_delivery_to_cbor
+GuardedDelivery.from_cbor = staticmethod(_guarded_delivery_from_cbor)
+
+def _encode_claim_guarded_task_response_value(v: "ClaimGuardedTaskResponse") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_x = v.delivery
+    if csil_x is not None:
+        csil_m["delivery"] = _encode_guarded_delivery_value(csil_x)
+    csil_m["replayed"] = v.replayed
+    return csil_m
+
+def _decode_claim_guarded_task_response_value(tree: Any) -> "ClaimGuardedTaskResponse":
+    tree = _csil_expect_map(tree)
+    return ClaimGuardedTaskResponse(
+        delivery=(None if tree.get("delivery") is None else _decode_guarded_delivery_value(tree["delivery"])),
+        replayed=_csil_expect_bool(tree["replayed"]),
+    )
+
+
+def _claim_guarded_task_response_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_claim_guarded_task_response_value(self))
+
+
+def _claim_guarded_task_response_from_cbor(data: bytes) -> "ClaimGuardedTaskResponse":
+    return _decode_claim_guarded_task_response_value(cbor_decode(data))
+
+
+ClaimGuardedTaskResponse.to_cbor = _claim_guarded_task_response_to_cbor
+ClaimGuardedTaskResponse.from_cbor = staticmethod(_claim_guarded_task_response_from_cbor)
+
+def _encode_claim_guarded_task_group_request_value(v: "ClaimGuardedTaskGroupRequest") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["queues"] = v.queues
+    csil_m["operation_id"] = v.operation_id
+    csil_m["current_state"] = v.current_state
+    csil_m["override_timeout"] = v.override_timeout
+    csil_m["override_current_state"] = v.override_current_state
+    csil_m["override_auto_target_state"] = v.override_auto_target_state
+    return csil_m
+
+def _decode_claim_guarded_task_group_request_value(tree: Any) -> "ClaimGuardedTaskGroupRequest":
+    tree = _csil_expect_map(tree)
+    return ClaimGuardedTaskGroupRequest(
+        operation_id=_csil_expect_text(tree["operation_id"]),
+        queues=[_csil_expect_text(csil_e) for csil_e in _csil_expect_array(tree["queues"])],
+        current_state=_csil_expect_text(tree["current_state"]),
+        override_timeout=_csil_expect_int(tree["override_timeout"]),
+        override_current_state=_csil_expect_text(tree["override_current_state"]),
+        override_auto_target_state=_csil_expect_text(tree["override_auto_target_state"]),
+    )
+
+
+def _claim_guarded_task_group_request_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_claim_guarded_task_group_request_value(self))
+
+
+def _claim_guarded_task_group_request_from_cbor(data: bytes) -> "ClaimGuardedTaskGroupRequest":
+    return _decode_claim_guarded_task_group_request_value(cbor_decode(data))
+
+
+ClaimGuardedTaskGroupRequest.to_cbor = _claim_guarded_task_group_request_to_cbor
+ClaimGuardedTaskGroupRequest.from_cbor = staticmethod(_claim_guarded_task_group_request_from_cbor)
+
+def _encode_claim_guarded_task_group_response_value(v: "ClaimGuardedTaskGroupResponse") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_x = v.delivery
+    if csil_x is not None:
+        csil_m["delivery"] = _encode_guarded_delivery_value(csil_x)
+    csil_m["replayed"] = v.replayed
+    return csil_m
+
+def _decode_claim_guarded_task_group_response_value(tree: Any) -> "ClaimGuardedTaskGroupResponse":
+    tree = _csil_expect_map(tree)
+    return ClaimGuardedTaskGroupResponse(
+        delivery=(None if tree.get("delivery") is None else _decode_guarded_delivery_value(tree["delivery"])),
+        replayed=_csil_expect_bool(tree["replayed"]),
+    )
+
+
+def _claim_guarded_task_group_response_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_claim_guarded_task_group_response_value(self))
+
+
+def _claim_guarded_task_group_response_from_cbor(data: bytes) -> "ClaimGuardedTaskGroupResponse":
+    return _decode_claim_guarded_task_group_response_value(cbor_decode(data))
+
+
+ClaimGuardedTaskGroupResponse.to_cbor = _claim_guarded_task_group_response_to_cbor
+ClaimGuardedTaskGroupResponse.from_cbor = staticmethod(_claim_guarded_task_group_response_from_cbor)
+
+def _encode_update_guarded_task_request_value(v: "UpdateGuardedTaskRequest") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["uuid"] = v.uuid
+    csil_m["queue"] = v.queue
+    csil_x = v.payload
+    if csil_x is not None:
+        csil_m["payload"] = csil_x
+    csil_m["timeout"] = v.timeout
+    csil_x = v.priority
+    if csil_x is not None:
+        csil_m["priority"] = csil_x
+    csil_m["new_state"] = v.new_state
+    csil_m["operation_id"] = v.operation_id
+    csil_x = v.expected_state
+    if csil_x is not None:
+        csil_m["expected_state"] = csil_x
+    csil_m["auto_target_state"] = v.auto_target_state
+    csil_m["expected_revision"] = v.expected_revision
+    return csil_m
+
+def _decode_update_guarded_task_request_value(tree: Any) -> "UpdateGuardedTaskRequest":
+    tree = _csil_expect_map(tree)
+    return UpdateGuardedTaskRequest(
+        operation_id=_csil_expect_text(tree["operation_id"]),
+        uuid=_csil_expect_text(tree["uuid"]),
+        queue=_csil_expect_text(tree["queue"]),
+        expected_revision=_csil_expect_int(tree["expected_revision"]),
+        expected_state=(None if tree.get("expected_state") is None else _csil_expect_text(tree["expected_state"])),
+        new_state=_csil_expect_text(tree["new_state"]),
+        auto_target_state=_csil_expect_text(tree["auto_target_state"]),
+        timeout=_csil_expect_int(tree["timeout"]),
+        payload=(None if tree.get("payload") is None else _csil_expect_bytes(tree["payload"])),
+        priority=(None if tree.get("priority") is None else _csil_expect_int(tree["priority"])),
+    )
+
+
+def _update_guarded_task_request_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_update_guarded_task_request_value(self))
+
+
+def _update_guarded_task_request_from_cbor(data: bytes) -> "UpdateGuardedTaskRequest":
+    return _decode_update_guarded_task_request_value(cbor_decode(data))
+
+
+UpdateGuardedTaskRequest.to_cbor = _update_guarded_task_request_to_cbor
+UpdateGuardedTaskRequest.from_cbor = staticmethod(_update_guarded_task_request_from_cbor)
+
+def _encode_update_guarded_task_response_value(v: "UpdateGuardedTaskResponse") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["task"] = _encode_guarded_task_value(v.task)
+    csil_m["replayed"] = v.replayed
+    return csil_m
+
+def _decode_update_guarded_task_response_value(tree: Any) -> "UpdateGuardedTaskResponse":
+    tree = _csil_expect_map(tree)
+    return UpdateGuardedTaskResponse(
+        task=_decode_guarded_task_value(tree["task"]),
+        replayed=_csil_expect_bool(tree["replayed"]),
+    )
+
+
+def _update_guarded_task_response_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_update_guarded_task_response_value(self))
+
+
+def _update_guarded_task_response_from_cbor(data: bytes) -> "UpdateGuardedTaskResponse":
+    return _decode_update_guarded_task_response_value(cbor_decode(data))
+
+
+UpdateGuardedTaskResponse.to_cbor = _update_guarded_task_response_to_cbor
+UpdateGuardedTaskResponse.from_cbor = staticmethod(_update_guarded_task_response_from_cbor)
+
+def _encode_complete_guarded_task_request_value(v: "CompleteGuardedTaskRequest") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["uuid"] = v.uuid
+    csil_m["queue"] = v.queue
+    csil_m["operation_id"] = v.operation_id
+    csil_x = v.expected_state
+    if csil_x is not None:
+        csil_m["expected_state"] = csil_x
+    csil_m["expected_revision"] = v.expected_revision
+    return csil_m
+
+def _decode_complete_guarded_task_request_value(tree: Any) -> "CompleteGuardedTaskRequest":
+    tree = _csil_expect_map(tree)
+    return CompleteGuardedTaskRequest(
+        operation_id=_csil_expect_text(tree["operation_id"]),
+        uuid=_csil_expect_text(tree["uuid"]),
+        queue=_csil_expect_text(tree["queue"]),
+        expected_revision=_csil_expect_int(tree["expected_revision"]),
+        expected_state=(None if tree.get("expected_state") is None else _csil_expect_text(tree["expected_state"])),
+    )
+
+
+def _complete_guarded_task_request_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_complete_guarded_task_request_value(self))
+
+
+def _complete_guarded_task_request_from_cbor(data: bytes) -> "CompleteGuardedTaskRequest":
+    return _decode_complete_guarded_task_request_value(cbor_decode(data))
+
+
+CompleteGuardedTaskRequest.to_cbor = _complete_guarded_task_request_to_cbor
+CompleteGuardedTaskRequest.from_cbor = staticmethod(_complete_guarded_task_request_from_cbor)
+
+def _encode_complete_guarded_task_response_value(v: "CompleteGuardedTaskResponse") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["task"] = _encode_guarded_task_value(v.task)
+    csil_m["replayed"] = v.replayed
+    return csil_m
+
+def _decode_complete_guarded_task_response_value(tree: Any) -> "CompleteGuardedTaskResponse":
+    tree = _csil_expect_map(tree)
+    return CompleteGuardedTaskResponse(
+        task=_decode_guarded_task_value(tree["task"]),
+        replayed=_csil_expect_bool(tree["replayed"]),
+    )
+
+
+def _complete_guarded_task_response_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_complete_guarded_task_response_value(self))
+
+
+def _complete_guarded_task_response_from_cbor(data: bytes) -> "CompleteGuardedTaskResponse":
+    return _decode_complete_guarded_task_response_value(cbor_decode(data))
+
+
+CompleteGuardedTaskResponse.to_cbor = _complete_guarded_task_response_to_cbor
+CompleteGuardedTaskResponse.from_cbor = staticmethod(_complete_guarded_task_response_from_cbor)
+
+def _encode_cancel_guarded_task_request_value(v: "CancelGuardedTaskRequest") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["uuid"] = v.uuid
+    csil_m["queue"] = v.queue
+    csil_m["operation_id"] = v.operation_id
+    csil_x = v.expected_state
+    if csil_x is not None:
+        csil_m["expected_state"] = csil_x
+    csil_m["expected_revision"] = v.expected_revision
+    return csil_m
+
+def _decode_cancel_guarded_task_request_value(tree: Any) -> "CancelGuardedTaskRequest":
+    tree = _csil_expect_map(tree)
+    return CancelGuardedTaskRequest(
+        operation_id=_csil_expect_text(tree["operation_id"]),
+        uuid=_csil_expect_text(tree["uuid"]),
+        queue=_csil_expect_text(tree["queue"]),
+        expected_revision=_csil_expect_int(tree["expected_revision"]),
+        expected_state=(None if tree.get("expected_state") is None else _csil_expect_text(tree["expected_state"])),
+    )
+
+
+def _cancel_guarded_task_request_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_cancel_guarded_task_request_value(self))
+
+
+def _cancel_guarded_task_request_from_cbor(data: bytes) -> "CancelGuardedTaskRequest":
+    return _decode_cancel_guarded_task_request_value(cbor_decode(data))
+
+
+CancelGuardedTaskRequest.to_cbor = _cancel_guarded_task_request_to_cbor
+CancelGuardedTaskRequest.from_cbor = staticmethod(_cancel_guarded_task_request_from_cbor)
+
+def _encode_cancel_guarded_task_response_value(v: "CancelGuardedTaskResponse") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["task"] = _encode_guarded_task_value(v.task)
+    csil_m["replayed"] = v.replayed
+    return csil_m
+
+def _decode_cancel_guarded_task_response_value(tree: Any) -> "CancelGuardedTaskResponse":
+    tree = _csil_expect_map(tree)
+    return CancelGuardedTaskResponse(
+        task=_decode_guarded_task_value(tree["task"]),
+        replayed=_csil_expect_bool(tree["replayed"]),
+    )
+
+
+def _cancel_guarded_task_response_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_cancel_guarded_task_response_value(self))
+
+
+def _cancel_guarded_task_response_from_cbor(data: bytes) -> "CancelGuardedTaskResponse":
+    return _decode_cancel_guarded_task_response_value(cbor_decode(data))
+
+
+CancelGuardedTaskResponse.to_cbor = _cancel_guarded_task_response_to_cbor
+CancelGuardedTaskResponse.from_cbor = staticmethod(_cancel_guarded_task_response_from_cbor)
+
+def _encode_get_guarded_task_request_value(v: "GetGuardedTaskRequest") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["uuid"] = v.uuid
+    csil_m["queue"] = v.queue
+    return csil_m
+
+def _decode_get_guarded_task_request_value(tree: Any) -> "GetGuardedTaskRequest":
+    tree = _csil_expect_map(tree)
+    return GetGuardedTaskRequest(
+        uuid=_csil_expect_text(tree["uuid"]),
+        queue=_csil_expect_text(tree["queue"]),
+    )
+
+
+def _get_guarded_task_request_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_get_guarded_task_request_value(self))
+
+
+def _get_guarded_task_request_from_cbor(data: bytes) -> "GetGuardedTaskRequest":
+    return _decode_get_guarded_task_request_value(cbor_decode(data))
+
+
+GetGuardedTaskRequest.to_cbor = _get_guarded_task_request_to_cbor
+GetGuardedTaskRequest.from_cbor = staticmethod(_get_guarded_task_request_from_cbor)
+
+def _encode_get_guarded_task_response_value(v: "GetGuardedTaskResponse") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_x = v.task
+    if csil_x is not None:
+        csil_m["task"] = _encode_guarded_task_value(csil_x)
+    return csil_m
+
+def _decode_get_guarded_task_response_value(tree: Any) -> "GetGuardedTaskResponse":
+    tree = _csil_expect_map(tree)
+    return GetGuardedTaskResponse(
+        task=(None if tree.get("task") is None else _decode_guarded_task_value(tree["task"])),
+    )
+
+
+def _get_guarded_task_response_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_get_guarded_task_response_value(self))
+
+
+def _get_guarded_task_response_from_cbor(data: bytes) -> "GetGuardedTaskResponse":
+    return _decode_get_guarded_task_response_value(cbor_decode(data))
+
+
+GetGuardedTaskResponse.to_cbor = _get_guarded_task_response_to_cbor
+GetGuardedTaskResponse.from_cbor = staticmethod(_get_guarded_task_response_from_cbor)
+
+def _encode_operation_receipt_value(v: "OperationReceipt") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["at"] = v.at
+    csil_m["op"] = v.op
+    csil_m["queue"] = v.queue
+    csil_m["task_uuid"] = v.task_uuid
+    csil_m["expires_at"] = v.expires_at
+    csil_m["operation_id"] = v.operation_id
+    csil_m["result_state"] = v.result_state
+    csil_m["result_revision"] = v.result_revision
+    return csil_m
+
+def _decode_operation_receipt_value(tree: Any) -> "OperationReceipt":
+    tree = _csil_expect_map(tree)
+    return OperationReceipt(
+        operation_id=_csil_expect_text(tree["operation_id"]),
+        op=_csil_expect_text(tree["op"]),
+        task_uuid=_csil_expect_text(tree["task_uuid"]),
+        queue=_csil_expect_text(tree["queue"]),
+        result_revision=_csil_expect_int(tree["result_revision"]),
+        result_state=_csil_expect_text(tree["result_state"]),
+        at=_csil_expect_int(tree["at"]),
+        expires_at=_csil_expect_int(tree["expires_at"]),
+    )
+
+
+def _operation_receipt_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_operation_receipt_value(self))
+
+
+def _operation_receipt_from_cbor(data: bytes) -> "OperationReceipt":
+    return _decode_operation_receipt_value(cbor_decode(data))
+
+
+OperationReceipt.to_cbor = _operation_receipt_to_cbor
+OperationReceipt.from_cbor = staticmethod(_operation_receipt_from_cbor)
+
+def _encode_lookup_operation_request_value(v: "LookupOperationRequest") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_m["operation_id"] = v.operation_id
+    return csil_m
+
+def _decode_lookup_operation_request_value(tree: Any) -> "LookupOperationRequest":
+    tree = _csil_expect_map(tree)
+    return LookupOperationRequest(
+        operation_id=_csil_expect_text(tree["operation_id"]),
+    )
+
+
+def _lookup_operation_request_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_lookup_operation_request_value(self))
+
+
+def _lookup_operation_request_from_cbor(data: bytes) -> "LookupOperationRequest":
+    return _decode_lookup_operation_request_value(cbor_decode(data))
+
+
+LookupOperationRequest.to_cbor = _lookup_operation_request_to_cbor
+LookupOperationRequest.from_cbor = staticmethod(_lookup_operation_request_from_cbor)
+
+def _encode_lookup_operation_response_value(v: "LookupOperationResponse") -> Dict[Any, Any]:
+    csil_m: Dict[Any, Any] = {}
+    csil_x = v.receipt
+    if csil_x is not None:
+        csil_m["receipt"] = _encode_operation_receipt_value(csil_x)
+    return csil_m
+
+def _decode_lookup_operation_response_value(tree: Any) -> "LookupOperationResponse":
+    tree = _csil_expect_map(tree)
+    return LookupOperationResponse(
+        receipt=(None if tree.get("receipt") is None else _decode_operation_receipt_value(tree["receipt"])),
+    )
+
+
+def _lookup_operation_response_to_cbor(self) -> bytes:
+    return cbor_encode(_encode_lookup_operation_response_value(self))
+
+
+def _lookup_operation_response_from_cbor(data: bytes) -> "LookupOperationResponse":
+    return _decode_lookup_operation_response_value(cbor_decode(data))
+
+
+LookupOperationResponse.to_cbor = _lookup_operation_response_to_cbor
+LookupOperationResponse.from_cbor = staticmethod(_lookup_operation_response_from_cbor)
+
 def _encode_service_error_value(v: "ServiceError") -> Dict[Any, Any]:
     csil_m: Dict[Any, Any] = {}
     csil_m["code"] = v.code

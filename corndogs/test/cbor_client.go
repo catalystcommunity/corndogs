@@ -24,11 +24,18 @@ type CorndogsClient struct {
 	conn net.Conn
 }
 
-// GetCorndogsClient returns a client pointed at the local server's TCP CSIL-RPC
-// port (:5080). Set CORNDOGS_TEST_TLS_CA to a PEM CA file to connect with TLS
-// and verify the server against that CA.
+// GetCorndogsClient returns a client pointed at the server's TCP CSIL-RPC port:
+// CORNDOGS_TEST_ADDR, or 127.0.0.1:5080. Set CORNDOGS_TEST_TLS_CA to a PEM CA
+// file to connect with TLS and verify the server against that CA.
 func GetCorndogsClient() *CorndogsClient {
-	return &CorndogsClient{addr: "127.0.0.1:5080"}
+	return &CorndogsClient{addr: testAddr()}
+}
+
+func testAddr() string {
+	if a := os.Getenv("CORNDOGS_TEST_ADDR"); a != "" {
+		return a
+	}
+	return "127.0.0.1:5080"
 }
 
 func testTLSConfig() (*tls.Config, error) {
@@ -104,7 +111,7 @@ func cborDo[Req any, Resp any](
 	}
 	if rr.Variant != nil && *rr.Variant == "ServiceError" {
 		if serr, derr := api.DecodeServiceError(rr.Payload); derr == nil {
-			return nil, fmt.Errorf("service error %d: %s", serr.Code, serr.Message)
+			return nil, &serr
 		}
 	}
 	resp, err := decode(rr.Payload)

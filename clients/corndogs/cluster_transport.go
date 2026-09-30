@@ -6,8 +6,9 @@
 // It needs no separate discovery channel: a write that lands on a follower returns
 // a "not-leader leader=<addr>" redirect, so the client learns the leader and caches
 // it; on a connection failure it rotates to the next seed. A not-leader response
-// means the write was rejected before it executed, so retrying is safe. It keeps a
-// persistent, multiplexed StreamTransport per node it talks to.
+// means the write was rejected before it executed, so retrying is safe. Other
+// failures are retried only as Call describes. It keeps a persistent, multiplexed
+// StreamTransport per node it talks to.
 package corndogs
 
 import (
@@ -96,8 +97,15 @@ func (t *ClusterTransport) target() string {
 func (t *ClusterTransport) setLeader(a string) { t.mu.Lock(); t.leader = a; t.mu.Unlock() }
 func (t *ClusterTransport) clearLeader()       { t.mu.Lock(); t.leader = ""; t.mu.Unlock() }
 
-// Call sends the request to the current leader, following not-leader redirects and
-// rotating seeds on connection failure.
+// Call sends the request to the current leader, following not-leader redirects
+// and rotating seeds when a node is unreachable.
+//
+// It retries only when that is safe (see retryable): a redirect or a failure
+// before the request was sent, for every operation; an uncertain outcome only
+// for the operations in ReplaySafe, with the same bytes (same submission_key or
+// operation_id). An uncertain legacy mutation returns ErrOutcomeUncertain and
+// is never replayed, because a replay could run it twice. A commit timeout of a
+// cluster write is uncertain too: the leader applied it before the timeout.
 func (t *ClusterTransport) Call(ctx context.Context, service, op string, req []byte) ([]byte, error) {
 	attempts := len(t.Seeds) + 5
 	var lastErr error
@@ -106,7 +114,7 @@ func (t *ClusterTransport) Call(ctx context.Context, service, op string, req []b
 		if addr == "" {
 			return nil, &ClientError{Err: fmt.Errorf("cluster: no seeds configured")}
 		}
-		resp, err := t.transportFor(addr).Call(ctx, service, op, req)
+		resp, err := t.transportFor(addr).callOnce(ctx, service, op, req)
 		if err == nil {
 			t.setLeader(addr)
 			return resp, nil
@@ -120,11 +128,13 @@ func (t *ClusterTransport) Call(ctx context.Context, service, op string, req []b
 			}
 			continue
 		}
-		if isServiceError(err) {
-			return nil, err // genuine application error — do not retry
+		if !retryable(op, err) {
+			return nil, err
 		}
 		t.clearLeader() // connection/transport failure — rotate to a seed
-		sleepBackoff(ctx, i)
+		if !sleepBackoff(ctx, i) {
+			break
+		}
 	}
 	if lastErr == nil {
 		lastErr = &ClientError{Err: fmt.Errorf("cluster: exhausted retries")}
@@ -161,21 +171,18 @@ func redirectLeader(err error) (string, bool) {
 	return "", true
 }
 
-func isServiceError(err error) bool {
-	if ce, ok := err.(*ClientError); ok {
-		return ce.Code != 0 || ce.Message != ""
-	}
-	return false
-}
-
-func sleepBackoff(ctx context.Context, attempt int) {
+// sleepBackoff waits before the next attempt. It returns false when ctx ends
+// first.
+func sleepBackoff(ctx context.Context, attempt int) bool {
 	d := time.Duration(50*(attempt+1)) * time.Millisecond
 	if d > 500*time.Millisecond {
 		d = 500 * time.Millisecond
 	}
 	select {
 	case <-ctx.Done():
+		return false
 	case <-time.After(d):
+		return true
 	}
 }
 

@@ -117,12 +117,14 @@ class TcpTransport(
                 val frame = readFrame(inp)
                 if (frame == null) {
                     reset()
-                    throw TransportError("corndogs: connection closed")
+                    throw TransportError("corndogs: outcome uncertain: connection closed")
                 }
                 return parseResponse(frame)
             } catch (e: IOException) {
+                // The request may have reached the server. It is not sent again:
+                // a legacy mutation could run twice.
                 reset()
-                throw TransportError("corndogs: ${e.message}", e)
+                throw TransportError("corndogs: outcome uncertain: ${e.message}", e)
             }
         }
     }

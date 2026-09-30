@@ -83,6 +83,56 @@ rescue
 end
 ```
 
+## Resilience operations
+
+Use these operations when a retry must not create a second task or apply a
+stale change. They need a Corndogs 0.8.0 or later server. An older server
+returns transport status 2 (unknown operation). After that error, do not send
+the legacy operation instead.
+
+- Make one `submission_key` for each logical submission. Send the same key on each retry.
+- Make one `operation_id` for each claim, update, completion, or cancellation. Send the same id on each retry.
+- Send the `revision` from the claim or from the last result as `expected_revision`.
+- An error with "outcome uncertain" in its message means that the request possibly ran. Retry a resilience operation with the same request. Do not retry a legacy mutation automatically.
+
+```elixir
+alias Csilgen.Generated.CorndogsClient, as: C
+
+sub =
+  C.submit_keyed_task(client, %Csilgen.Generated.SubmitKeyedTaskRequest{
+    submission_key: "order-1234", guarded: true, queue: "orders", current_state: "submitted",
+    auto_target_state: "submitted-working", timeout: 60, payload: bytes, priority: 0
+  })
+# sub.replayed is true when the server already accepted this key.
+
+case C.claim_guarded_task(client, %Csilgen.Generated.ClaimGuardedTaskRequest{
+       operation_id: "claim-7f3a", queue: "orders", current_state: "submitted",
+       override_timeout: 0, override_current_state: "", override_auto_target_state: ""
+     }).delivery do
+  nil -> :empty
+  d ->
+    C.complete_guarded_task(client, %Csilgen.Generated.CompleteGuardedTaskRequest{
+      operation_id: "done-7f3a", uuid: d.task.task.uuid, queue: "orders",
+      expected_revision: d.task.revision
+    })
+end
+```
+
+The server returns a `ServiceError` with one of these codes:
+
+| Code | Meaning |
+| --- | --- |
+| 1 | Invalid argument |
+| 2 | Submission key required |
+| 3 | Task guard required |
+| 4 | Submission key conflict |
+| 5 | Revision conflict |
+| 6 | Operation conflict |
+| 7 | Task not found |
+| 8 | Claim superseded |
+
+Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md).
+
 ## Notes
 
 - **Transport:** CSIL-RPC over TCP, framed with a 4-byte length prefix. HTTP is not

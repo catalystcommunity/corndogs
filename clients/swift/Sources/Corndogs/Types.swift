@@ -509,6 +509,566 @@ public struct GetQueueAndStateCountsResponse: Equatable, Sendable {
     ]
 }
 
+/// GetServerInfoRequest is a generated CSIL record type.
+public struct GetServerInfoRequest: Equatable, Sendable {
+
+    public init() {
+    }
+}
+
+/// GetServerInfoResponse is a generated CSIL record type.
+public struct GetServerInfoResponse: Equatable, Sendable {
+    /// wire key: server_version
+    public let serverVersion: String
+    public let features: [String]
+    /// wire key: submission_key_policy
+    public let submissionKeyPolicy: String
+    /// wire key: task_guard_policy
+    public let taskGuardPolicy: String
+    /// wire key: receipt_retention_seconds
+    public let receiptRetentionSeconds: Int64
+
+    public init(serverVersion: String, features: [String], submissionKeyPolicy: String, taskGuardPolicy: String, receiptRetentionSeconds: Int64) {
+        self.serverVersion = serverVersion
+        self.features = features
+        self.submissionKeyPolicy = submissionKeyPolicy
+        self.taskGuardPolicy = taskGuardPolicy
+        self.receiptRetentionSeconds = receiptRetentionSeconds
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "serverVersion": "server_version",
+        "features": "features",
+        "submissionKeyPolicy": "submission_key_policy",
+        "taskGuardPolicy": "task_guard_policy",
+        "receiptRetentionSeconds": "receipt_retention_seconds"
+    ]
+}
+
+/// GuardedTask is a generated CSIL record type.
+public struct GuardedTask: Equatable, Sendable {
+    public let task: Task
+    public let guarded: Bool
+    public let revision: Int64
+    public let terminal: Bool
+
+    public init(task: Task, guarded: Bool, revision: Int64, terminal: Bool) {
+        self.task = task
+        self.guarded = guarded
+        self.revision = revision
+        self.terminal = terminal
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "task": "task",
+        "guarded": "guarded",
+        "revision": "revision",
+        "terminal": "terminal"
+    ]
+}
+
+/// SubmissionReceipt is a generated CSIL record type.
+public struct SubmissionReceipt: Equatable, Sendable {
+    public let queue: String
+    /// wire key: submission_key
+    public let submissionKey: String
+    /// wire key: task_uuid
+    public let taskUuid: String
+    /// wire key: accepted_at
+    public let acceptedAt: Int64
+    /// wire key: expires_at
+    public let expiresAt: Int64
+    public let guarded: Bool
+
+    public init(queue: String, submissionKey: String, taskUuid: String, acceptedAt: Int64, expiresAt: Int64, guarded: Bool) {
+        self.queue = queue
+        self.submissionKey = submissionKey
+        self.taskUuid = taskUuid
+        self.acceptedAt = acceptedAt
+        self.expiresAt = expiresAt
+        self.guarded = guarded
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "queue": "queue",
+        "submissionKey": "submission_key",
+        "taskUuid": "task_uuid",
+        "acceptedAt": "accepted_at",
+        "expiresAt": "expires_at",
+        "guarded": "guarded"
+    ]
+}
+
+/// SubmitKeyedTaskRequest is a generated CSIL record type.
+public struct SubmitKeyedTaskRequest: Equatable, Sendable {
+    /// wire key: submission_key
+    public let submissionKey: String
+    public let guarded: Bool
+    public let queue: String
+    /// wire key: current_state
+    public let currentState: String
+    /// wire key: auto_target_state
+    public let autoTargetState: String
+    public let timeout: Int64
+    public let payload: [UInt8]
+    public let priority: Int64
+
+    public init(submissionKey: String, guarded: Bool, queue: String, currentState: String, autoTargetState: String, timeout: Int64, payload: [UInt8], priority: Int64) {
+        self.submissionKey = submissionKey
+        self.guarded = guarded
+        self.queue = queue
+        self.currentState = currentState
+        self.autoTargetState = autoTargetState
+        self.timeout = timeout
+        self.payload = payload
+        self.priority = priority
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "submissionKey": "submission_key",
+        "guarded": "guarded",
+        "queue": "queue",
+        "currentState": "current_state",
+        "autoTargetState": "auto_target_state",
+        "timeout": "timeout",
+        "payload": "payload",
+        "priority": "priority"
+    ]
+}
+
+/// SubmitKeyedTaskResponse is a generated CSIL record type.
+public struct SubmitKeyedTaskResponse: Equatable, Sendable {
+    public let receipt: SubmissionReceipt
+    public let replayed: Bool
+    public let task: GuardedTask?
+
+    public init(receipt: SubmissionReceipt, replayed: Bool, task: GuardedTask? = nil) {
+        self.receipt = receipt
+        self.replayed = replayed
+        self.task = task
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "receipt": "receipt",
+        "replayed": "replayed",
+        "task": "task"
+    ]
+}
+
+/// LookupSubmissionRequest is a generated CSIL record type.
+public struct LookupSubmissionRequest: Equatable, Sendable {
+    public let queue: String
+    /// wire key: submission_key
+    public let submissionKey: String
+
+    public init(queue: String, submissionKey: String) {
+        self.queue = queue
+        self.submissionKey = submissionKey
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "queue": "queue",
+        "submissionKey": "submission_key"
+    ]
+}
+
+/// LookupSubmissionResponse is a generated CSIL record type.
+public struct LookupSubmissionResponse: Equatable, Sendable {
+    public let receipt: SubmissionReceipt?
+    public let task: GuardedTask?
+
+    public init(receipt: SubmissionReceipt? = nil, task: GuardedTask? = nil) {
+        self.receipt = receipt
+        self.task = task
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "receipt": "receipt",
+        "task": "task"
+    ]
+}
+
+/// ClaimGuardedTaskRequest is a generated CSIL record type.
+public struct ClaimGuardedTaskRequest: Equatable, Sendable {
+    /// wire key: operation_id
+    public let operationId: String
+    public let queue: String
+    /// wire key: current_state
+    public let currentState: String
+    /// wire key: override_timeout
+    public let overrideTimeout: Int64
+    /// wire key: override_current_state
+    public let overrideCurrentState: String
+    /// wire key: override_auto_target_state
+    public let overrideAutoTargetState: String
+
+    public init(operationId: String, queue: String, currentState: String, overrideTimeout: Int64, overrideCurrentState: String, overrideAutoTargetState: String) {
+        self.operationId = operationId
+        self.queue = queue
+        self.currentState = currentState
+        self.overrideTimeout = overrideTimeout
+        self.overrideCurrentState = overrideCurrentState
+        self.overrideAutoTargetState = overrideAutoTargetState
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "operationId": "operation_id",
+        "queue": "queue",
+        "currentState": "current_state",
+        "overrideTimeout": "override_timeout",
+        "overrideCurrentState": "override_current_state",
+        "overrideAutoTargetState": "override_auto_target_state"
+    ]
+}
+
+/// GuardedDelivery is a generated CSIL record type.
+public struct GuardedDelivery: Equatable, Sendable {
+    public let task: GuardedTask
+    public let payload: [UInt8]
+
+    public init(task: GuardedTask, payload: [UInt8]) {
+        self.task = task
+        self.payload = payload
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "task": "task",
+        "payload": "payload"
+    ]
+}
+
+/// ClaimGuardedTaskResponse is a generated CSIL record type.
+public struct ClaimGuardedTaskResponse: Equatable, Sendable {
+    public let delivery: GuardedDelivery?
+    public let replayed: Bool
+
+    public init(delivery: GuardedDelivery? = nil, replayed: Bool) {
+        self.delivery = delivery
+        self.replayed = replayed
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "delivery": "delivery",
+        "replayed": "replayed"
+    ]
+}
+
+/// ClaimGuardedTaskGroupRequest is a generated CSIL record type.
+public struct ClaimGuardedTaskGroupRequest: Equatable, Sendable {
+    /// wire key: operation_id
+    public let operationId: String
+    public let queues: [String]
+    /// wire key: current_state
+    public let currentState: String
+    /// wire key: override_timeout
+    public let overrideTimeout: Int64
+    /// wire key: override_current_state
+    public let overrideCurrentState: String
+    /// wire key: override_auto_target_state
+    public let overrideAutoTargetState: String
+
+    public init(operationId: String, queues: [String], currentState: String, overrideTimeout: Int64, overrideCurrentState: String, overrideAutoTargetState: String) {
+        self.operationId = operationId
+        self.queues = queues
+        self.currentState = currentState
+        self.overrideTimeout = overrideTimeout
+        self.overrideCurrentState = overrideCurrentState
+        self.overrideAutoTargetState = overrideAutoTargetState
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "operationId": "operation_id",
+        "queues": "queues",
+        "currentState": "current_state",
+        "overrideTimeout": "override_timeout",
+        "overrideCurrentState": "override_current_state",
+        "overrideAutoTargetState": "override_auto_target_state"
+    ]
+}
+
+/// ClaimGuardedTaskGroupResponse is a generated CSIL record type.
+public struct ClaimGuardedTaskGroupResponse: Equatable, Sendable {
+    public let delivery: GuardedDelivery?
+    public let replayed: Bool
+
+    public init(delivery: GuardedDelivery? = nil, replayed: Bool) {
+        self.delivery = delivery
+        self.replayed = replayed
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "delivery": "delivery",
+        "replayed": "replayed"
+    ]
+}
+
+/// UpdateGuardedTaskRequest is a generated CSIL record type.
+public struct UpdateGuardedTaskRequest: Equatable, Sendable {
+    /// wire key: operation_id
+    public let operationId: String
+    public let uuid: String
+    public let queue: String
+    /// wire key: expected_revision
+    public let expectedRevision: Int64
+    /// wire key: expected_state
+    public let expectedState: String?
+    /// wire key: new_state
+    public let newState: String
+    /// wire key: auto_target_state
+    public let autoTargetState: String
+    public let timeout: Int64
+    public let payload: [UInt8]?
+    public let priority: Int64?
+
+    public init(operationId: String, uuid: String, queue: String, expectedRevision: Int64, expectedState: String? = nil, newState: String, autoTargetState: String, timeout: Int64, payload: [UInt8]? = nil, priority: Int64? = nil) {
+        self.operationId = operationId
+        self.uuid = uuid
+        self.queue = queue
+        self.expectedRevision = expectedRevision
+        self.expectedState = expectedState
+        self.newState = newState
+        self.autoTargetState = autoTargetState
+        self.timeout = timeout
+        self.payload = payload
+        self.priority = priority
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "operationId": "operation_id",
+        "uuid": "uuid",
+        "queue": "queue",
+        "expectedRevision": "expected_revision",
+        "expectedState": "expected_state",
+        "newState": "new_state",
+        "autoTargetState": "auto_target_state",
+        "timeout": "timeout",
+        "payload": "payload",
+        "priority": "priority"
+    ]
+}
+
+/// UpdateGuardedTaskResponse is a generated CSIL record type.
+public struct UpdateGuardedTaskResponse: Equatable, Sendable {
+    public let task: GuardedTask
+    public let replayed: Bool
+
+    public init(task: GuardedTask, replayed: Bool) {
+        self.task = task
+        self.replayed = replayed
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "task": "task",
+        "replayed": "replayed"
+    ]
+}
+
+/// CompleteGuardedTaskRequest is a generated CSIL record type.
+public struct CompleteGuardedTaskRequest: Equatable, Sendable {
+    /// wire key: operation_id
+    public let operationId: String
+    public let uuid: String
+    public let queue: String
+    /// wire key: expected_revision
+    public let expectedRevision: Int64
+    /// wire key: expected_state
+    public let expectedState: String?
+
+    public init(operationId: String, uuid: String, queue: String, expectedRevision: Int64, expectedState: String? = nil) {
+        self.operationId = operationId
+        self.uuid = uuid
+        self.queue = queue
+        self.expectedRevision = expectedRevision
+        self.expectedState = expectedState
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "operationId": "operation_id",
+        "uuid": "uuid",
+        "queue": "queue",
+        "expectedRevision": "expected_revision",
+        "expectedState": "expected_state"
+    ]
+}
+
+/// CompleteGuardedTaskResponse is a generated CSIL record type.
+public struct CompleteGuardedTaskResponse: Equatable, Sendable {
+    public let task: GuardedTask
+    public let replayed: Bool
+
+    public init(task: GuardedTask, replayed: Bool) {
+        self.task = task
+        self.replayed = replayed
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "task": "task",
+        "replayed": "replayed"
+    ]
+}
+
+/// CancelGuardedTaskRequest is a generated CSIL record type.
+public struct CancelGuardedTaskRequest: Equatable, Sendable {
+    /// wire key: operation_id
+    public let operationId: String
+    public let uuid: String
+    public let queue: String
+    /// wire key: expected_revision
+    public let expectedRevision: Int64
+    /// wire key: expected_state
+    public let expectedState: String?
+
+    public init(operationId: String, uuid: String, queue: String, expectedRevision: Int64, expectedState: String? = nil) {
+        self.operationId = operationId
+        self.uuid = uuid
+        self.queue = queue
+        self.expectedRevision = expectedRevision
+        self.expectedState = expectedState
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "operationId": "operation_id",
+        "uuid": "uuid",
+        "queue": "queue",
+        "expectedRevision": "expected_revision",
+        "expectedState": "expected_state"
+    ]
+}
+
+/// CancelGuardedTaskResponse is a generated CSIL record type.
+public struct CancelGuardedTaskResponse: Equatable, Sendable {
+    public let task: GuardedTask
+    public let replayed: Bool
+
+    public init(task: GuardedTask, replayed: Bool) {
+        self.task = task
+        self.replayed = replayed
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "task": "task",
+        "replayed": "replayed"
+    ]
+}
+
+/// GetGuardedTaskRequest is a generated CSIL record type.
+public struct GetGuardedTaskRequest: Equatable, Sendable {
+    public let uuid: String
+    public let queue: String
+
+    public init(uuid: String, queue: String) {
+        self.uuid = uuid
+        self.queue = queue
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "uuid": "uuid",
+        "queue": "queue"
+    ]
+}
+
+/// GetGuardedTaskResponse is a generated CSIL record type.
+public struct GetGuardedTaskResponse: Equatable, Sendable {
+    public let task: GuardedTask?
+
+    public init(task: GuardedTask? = nil) {
+        self.task = task
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "task": "task"
+    ]
+}
+
+/// OperationReceipt is a generated CSIL record type.
+public struct OperationReceipt: Equatable, Sendable {
+    /// wire key: operation_id
+    public let operationId: String
+    public let op: String
+    /// wire key: task_uuid
+    public let taskUuid: String
+    public let queue: String
+    /// wire key: result_revision
+    public let resultRevision: Int64
+    /// wire key: result_state
+    public let resultState: String
+    public let at: Int64
+    /// wire key: expires_at
+    public let expiresAt: Int64
+
+    public init(operationId: String, op: String, taskUuid: String, queue: String, resultRevision: Int64, resultState: String, at: Int64, expiresAt: Int64) {
+        self.operationId = operationId
+        self.op = op
+        self.taskUuid = taskUuid
+        self.queue = queue
+        self.resultRevision = resultRevision
+        self.resultState = resultState
+        self.at = at
+        self.expiresAt = expiresAt
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "operationId": "operation_id",
+        "op": "op",
+        "taskUuid": "task_uuid",
+        "queue": "queue",
+        "resultRevision": "result_revision",
+        "resultState": "result_state",
+        "at": "at",
+        "expiresAt": "expires_at"
+    ]
+}
+
+/// LookupOperationRequest is a generated CSIL record type.
+public struct LookupOperationRequest: Equatable, Sendable {
+    /// wire key: operation_id
+    public let operationId: String
+
+    public init(operationId: String) {
+        self.operationId = operationId
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "operationId": "operation_id"
+    ]
+}
+
+/// LookupOperationResponse is a generated CSIL record type.
+public struct LookupOperationResponse: Equatable, Sendable {
+    public let receipt: OperationReceipt?
+
+    public init(receipt: OperationReceipt? = nil) {
+        self.receipt = receipt
+    }
+
+    /// CBOR wire keys (verbatim) keyed by Swift property name.
+    public static let wireKeys: [String: String] = [
+        "receipt": "receipt"
+    ]
+}
+
 /// ServiceError is a generated CSIL record type.
 public struct ServiceError: Equatable, Sendable {
     public let code: UInt64

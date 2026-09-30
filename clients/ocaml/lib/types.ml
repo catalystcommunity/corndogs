@@ -110,4 +110,134 @@ and get_queue_and_state_counts_response = {
   queue_and_state_counts : queue_and_state_counts_map;
 }
 
+and get_server_info_request = unit
+
+and get_server_info_response = {
+  server_version : string;
+  features : string list;
+  submission_key_policy : string;
+  task_guard_policy : string;
+  receipt_retention_seconds : int64;
+}
+
+and guarded_task = {
+  task : task;
+  guarded : bool;
+  revision : int64;
+  terminal : bool;
+}
+
+and submission_receipt = {
+  queue : string;
+  submission_key : string;
+  task_uuid : string;
+  accepted_at : int64;
+  expires_at : int64;
+  guarded : bool;
+}
+
+and submit_keyed_task_request = {
+  submission_key : string;
+  guarded : bool;
+  queue : string;
+  current_state : string;
+  auto_target_state : string;
+  timeout : int64;
+  payload : bytes;
+  priority : int64;
+}
+
+and submit_keyed_task_response = {
+  receipt : submission_receipt;
+  replayed : bool;
+  task : guarded_task option;
+}
+
+and lookup_submission_request = { queue : string; submission_key : string }
+
+and lookup_submission_response = {
+  receipt : submission_receipt option;
+  task : guarded_task option;
+}
+
+and claim_guarded_task_request = {
+  operation_id : string;
+  queue : string;
+  current_state : string;
+  override_timeout : int64;
+  override_current_state : string;
+  override_auto_target_state : string;
+}
+
+and guarded_delivery = { task : guarded_task; payload : bytes }
+
+and claim_guarded_task_response = {
+  delivery : guarded_delivery option;
+  replayed : bool;
+}
+
+and claim_guarded_task_group_request = {
+  operation_id : string;
+  queues : string list;
+  current_state : string;
+  override_timeout : int64;
+  override_current_state : string;
+  override_auto_target_state : string;
+}
+
+and claim_guarded_task_group_response = {
+  delivery : guarded_delivery option;
+  replayed : bool;
+}
+
+and update_guarded_task_request = {
+  operation_id : string;
+  uuid : string;
+  queue : string;
+  expected_revision : int64;
+  expected_state : string option;
+  new_state : string;
+  auto_target_state : string;
+  timeout : int64;
+  payload : bytes option;
+  priority : int64 option;
+}
+
+and update_guarded_task_response = { task : guarded_task; replayed : bool }
+
+and complete_guarded_task_request = {
+  operation_id : string;
+  uuid : string;
+  queue : string;
+  expected_revision : int64;
+  expected_state : string option;
+}
+
+and complete_guarded_task_response = { task : guarded_task; replayed : bool }
+
+and cancel_guarded_task_request = {
+  operation_id : string;
+  uuid : string;
+  queue : string;
+  expected_revision : int64;
+  expected_state : string option;
+}
+
+and cancel_guarded_task_response = { task : guarded_task; replayed : bool }
+and get_guarded_task_request = { uuid : string; queue : string }
+and get_guarded_task_response = { task : guarded_task option }
+
+and operation_receipt = {
+  operation_id : string;
+  op : string;
+  task_uuid : string;
+  queue : string;
+  result_revision : int64;
+  result_state : string;
+  at : int64;
+  expires_at : int64;
+}
+
+and lookup_operation_request = { operation_id : string }
+and lookup_operation_response = { receipt : operation_receipt option }
 and service_error = { code : int64; message : string }

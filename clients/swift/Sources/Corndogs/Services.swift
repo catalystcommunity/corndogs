@@ -22,5 +22,15 @@ public protocol CorndogsService {
     func getQueueTaskCounts(_ request: GetQueueTaskCountsRequest) throws -> GetQueueTaskCountsResponse
     func getTaskStateCounts(_ request: GetTaskStateCountsRequest) throws -> GetTaskStateCountsResponse
     func getQueueAndStateCounts(_ request: GetQueueAndStateCountsRequest) throws -> GetQueueAndStateCountsResponse
+    func getServerInfo(_ request: GetServerInfoRequest) throws -> GetServerInfoResponse
+    func submitKeyedTask(_ request: SubmitKeyedTaskRequest) throws -> SubmitKeyedTaskResponse
+    func lookupSubmission(_ request: LookupSubmissionRequest) throws -> LookupSubmissionResponse
+    func claimGuardedTask(_ request: ClaimGuardedTaskRequest) throws -> ClaimGuardedTaskResponse
+    func claimGuardedTaskGroup(_ request: ClaimGuardedTaskGroupRequest) throws -> ClaimGuardedTaskGroupResponse
+    func updateGuardedTask(_ request: UpdateGuardedTaskRequest) throws -> UpdateGuardedTaskResponse
+    func completeGuardedTask(_ request: CompleteGuardedTaskRequest) throws -> CompleteGuardedTaskResponse
+    func cancelGuardedTask(_ request: CancelGuardedTaskRequest) throws -> CancelGuardedTaskResponse
+    func getGuardedTask(_ request: GetGuardedTaskRequest) throws -> GetGuardedTaskResponse
+    func lookupOperation(_ request: LookupOperationRequest) throws -> LookupOperationResponse
 }
 

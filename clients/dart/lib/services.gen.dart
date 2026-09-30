@@ -33,4 +33,18 @@ abstract interface class CorndogsServiceHandler {
   GetQueueAndStateCountsResponse getQueueAndStateCounts(
     GetQueueAndStateCountsRequest request,
   );
+  GetServerInfoResponse getServerInfo(GetServerInfoRequest request);
+  SubmitKeyedTaskResponse submitKeyedTask(SubmitKeyedTaskRequest request);
+  LookupSubmissionResponse lookupSubmission(LookupSubmissionRequest request);
+  ClaimGuardedTaskResponse claimGuardedTask(ClaimGuardedTaskRequest request);
+  ClaimGuardedTaskGroupResponse claimGuardedTaskGroup(
+    ClaimGuardedTaskGroupRequest request,
+  );
+  UpdateGuardedTaskResponse updateGuardedTask(UpdateGuardedTaskRequest request);
+  CompleteGuardedTaskResponse completeGuardedTask(
+    CompleteGuardedTaskRequest request,
+  );
+  CancelGuardedTaskResponse cancelGuardedTask(CancelGuardedTaskRequest request);
+  GetGuardedTaskResponse getGuardedTask(GetGuardedTaskRequest request);
+  LookupOperationResponse lookupOperation(LookupOperationRequest request);
 }

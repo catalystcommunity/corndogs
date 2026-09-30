@@ -53,5 +53,25 @@ public sealed class CorndogsClient(ICsilTransport transport)
         Codec.Decode<GetTaskStateCountsResponse>(transport.Call("CorndogsService", "GetTaskStateCounts", Codec.Encode(getTaskStateCountsRequest)));
     public GetQueueAndStateCountsResponse GetQueueAndStateCounts(GetQueueAndStateCountsRequest getQueueAndStateCountsRequest) =>
         Codec.Decode<GetQueueAndStateCountsResponse>(transport.Call("CorndogsService", "GetQueueAndStateCounts", Codec.Encode(getQueueAndStateCountsRequest)));
+    public GetServerInfoResponse GetServerInfo(GetServerInfoRequest getServerInfoRequest) =>
+        Codec.Decode<GetServerInfoResponse>(transport.Call("CorndogsService", "GetServerInfo", Codec.Encode(getServerInfoRequest)));
+    public SubmitKeyedTaskResponse SubmitKeyedTask(SubmitKeyedTaskRequest submitKeyedTaskRequest) =>
+        Codec.Decode<SubmitKeyedTaskResponse>(transport.Call("CorndogsService", "SubmitKeyedTask", Codec.Encode(submitKeyedTaskRequest)));
+    public LookupSubmissionResponse LookupSubmission(LookupSubmissionRequest lookupSubmissionRequest) =>
+        Codec.Decode<LookupSubmissionResponse>(transport.Call("CorndogsService", "LookupSubmission", Codec.Encode(lookupSubmissionRequest)));
+    public ClaimGuardedTaskResponse ClaimGuardedTask(ClaimGuardedTaskRequest claimGuardedTaskRequest) =>
+        Codec.Decode<ClaimGuardedTaskResponse>(transport.Call("CorndogsService", "ClaimGuardedTask", Codec.Encode(claimGuardedTaskRequest)));
+    public ClaimGuardedTaskGroupResponse ClaimGuardedTaskGroup(ClaimGuardedTaskGroupRequest claimGuardedTaskGroupRequest) =>
+        Codec.Decode<ClaimGuardedTaskGroupResponse>(transport.Call("CorndogsService", "ClaimGuardedTaskGroup", Codec.Encode(claimGuardedTaskGroupRequest)));
+    public UpdateGuardedTaskResponse UpdateGuardedTask(UpdateGuardedTaskRequest updateGuardedTaskRequest) =>
+        Codec.Decode<UpdateGuardedTaskResponse>(transport.Call("CorndogsService", "UpdateGuardedTask", Codec.Encode(updateGuardedTaskRequest)));
+    public CompleteGuardedTaskResponse CompleteGuardedTask(CompleteGuardedTaskRequest completeGuardedTaskRequest) =>
+        Codec.Decode<CompleteGuardedTaskResponse>(transport.Call("CorndogsService", "CompleteGuardedTask", Codec.Encode(completeGuardedTaskRequest)));
+    public CancelGuardedTaskResponse CancelGuardedTask(CancelGuardedTaskRequest cancelGuardedTaskRequest) =>
+        Codec.Decode<CancelGuardedTaskResponse>(transport.Call("CorndogsService", "CancelGuardedTask", Codec.Encode(cancelGuardedTaskRequest)));
+    public GetGuardedTaskResponse GetGuardedTask(GetGuardedTaskRequest getGuardedTaskRequest) =>
+        Codec.Decode<GetGuardedTaskResponse>(transport.Call("CorndogsService", "GetGuardedTask", Codec.Encode(getGuardedTaskRequest)));
+    public LookupOperationResponse LookupOperation(LookupOperationRequest lookupOperationRequest) =>
+        Codec.Decode<LookupOperationResponse>(transport.Call("CorndogsService", "LookupOperation", Codec.Encode(lookupOperationRequest)));
 }
 

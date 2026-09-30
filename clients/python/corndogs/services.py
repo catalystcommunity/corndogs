@@ -79,3 +79,53 @@ class CorndogsServiceHandlers(ABC):
         """GetQueueAndStateCounts"""
         ...
 
+    @abstractmethod
+    def get_server_info(self, req: GetServerInfoRequest, ctx: dict) -> Union[GetServerInfoResponse, ServiceError]:
+        """GetServerInfo"""
+        ...
+
+    @abstractmethod
+    def submit_keyed_task(self, req: SubmitKeyedTaskRequest, ctx: dict) -> Union[SubmitKeyedTaskResponse, ServiceError]:
+        """SubmitKeyedTask"""
+        ...
+
+    @abstractmethod
+    def lookup_submission(self, req: LookupSubmissionRequest, ctx: dict) -> Union[LookupSubmissionResponse, ServiceError]:
+        """LookupSubmission"""
+        ...
+
+    @abstractmethod
+    def claim_guarded_task(self, req: ClaimGuardedTaskRequest, ctx: dict) -> Union[ClaimGuardedTaskResponse, ServiceError]:
+        """ClaimGuardedTask"""
+        ...
+
+    @abstractmethod
+    def claim_guarded_task_group(self, req: ClaimGuardedTaskGroupRequest, ctx: dict) -> Union[ClaimGuardedTaskGroupResponse, ServiceError]:
+        """ClaimGuardedTaskGroup"""
+        ...
+
+    @abstractmethod
+    def update_guarded_task(self, req: UpdateGuardedTaskRequest, ctx: dict) -> Union[UpdateGuardedTaskResponse, ServiceError]:
+        """UpdateGuardedTask"""
+        ...
+
+    @abstractmethod
+    def complete_guarded_task(self, req: CompleteGuardedTaskRequest, ctx: dict) -> Union[CompleteGuardedTaskResponse, ServiceError]:
+        """CompleteGuardedTask"""
+        ...
+
+    @abstractmethod
+    def cancel_guarded_task(self, req: CancelGuardedTaskRequest, ctx: dict) -> Union[CancelGuardedTaskResponse, ServiceError]:
+        """CancelGuardedTask"""
+        ...
+
+    @abstractmethod
+    def get_guarded_task(self, req: GetGuardedTaskRequest, ctx: dict) -> Union[GetGuardedTaskResponse, ServiceError]:
+        """GetGuardedTask"""
+        ...
+
+    @abstractmethod
+    def lookup_operation(self, req: LookupOperationRequest, ctx: dict) -> Union[LookupOperationResponse, ServiceError]:
+        """LookupOperation"""
+        ...
+

@@ -2,7 +2,9 @@ package filestore
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 
 	bolt "go.etcd.io/bbolt"
@@ -30,8 +32,14 @@ type Mutation struct {
 // transaction, stamped with a monotonic LSN. Followers apply a batch atomically
 // and in LSN order; the LSN is also each node's replication position (AppliedLSN
 // in the cluster election).
+//
+// Epoch is the leadership epoch of the leader that produced the batch. It is not
+// part of EncodeBatch: the peer frame carries it next to the batch, and the
+// replication log keeps it in its epoch index. A zero Epoch means a batch from a
+// release that did not record epochs.
 type MutationBatch struct {
 	LSN       uint64
+	Epoch     uint64
 	Mutations []Mutation
 }
 
@@ -62,7 +70,9 @@ func (c *captureBuf) del(bucket, key []byte) {
 func (c *captureBuf) reset() { c.muts = c.muts[:0] }
 
 // applyBatch applies a batch to a bbolt transaction verbatim. Buckets are created
-// if missing so a follower bootstrapping from an empty database converges.
+// if missing so a follower bootstrapping from an empty database converges. It
+// also records the batch position in the meta bucket, in the same transaction,
+// so a restarted follower knows exactly which history its data reflects.
 func applyBatch(tx *bolt.Tx, b MutationBatch) error {
 	for _, name := range bucketsForReplication {
 		if _, err := tx.CreateBucketIfNotExists(name); err != nil {
@@ -84,7 +94,76 @@ func applyBatch(tx *bolt.Tx, b MutationBatch) error {
 			return err
 		}
 	}
-	return nil
+	meta, err := tx.CreateBucketIfNotExists(bucketMeta)
+	if err != nil {
+		return err
+	}
+	return putReplPosition(meta, b.LSN, b.Epoch)
+}
+
+// keyReplPosition holds the replication position (LSN, epoch) that the local
+// data reflects. A follower writes it in each apply transaction. A leader writes
+// it before it takes a snapshot, so a restored snapshot carries its exact
+// position.
+var keyReplPosition = []byte("repl-position")
+
+func putReplPosition(meta *bolt.Bucket, lsn, epoch uint64) error {
+	var v [16]byte
+	binary.BigEndian.PutUint64(v[:8], lsn)
+	binary.BigEndian.PutUint64(v[8:], epoch)
+	return meta.Put(keyReplPosition, v[:])
+}
+
+// ReadReplPosition returns the replication position stored in db. ok is false
+// when no position was stored.
+func ReadReplPosition(db *bolt.DB) (lsn, epoch uint64, ok bool, err error) {
+	err = db.View(func(tx *bolt.Tx) error {
+		meta := tx.Bucket(bucketMeta)
+		if meta == nil {
+			return nil
+		}
+		v := meta.Get(keyReplPosition)
+		if v == nil {
+			return nil
+		}
+		if len(v) != 16 {
+			return fmt.Errorf("filestore: replication position has %d bytes, want 16", len(v))
+		}
+		lsn, epoch, ok = binary.BigEndian.Uint64(v[:8]), binary.BigEndian.Uint64(v[8:]), true
+		return nil
+	})
+	return lsn, epoch, ok, err
+}
+
+// StampReplPosition records the replication position in its own transaction.
+// Call it only when no store write can run at the same time, for example on the
+// cluster engine goroutine, which serializes every clustered write.
+func StampReplPosition(db *bolt.DB, lsn, epoch uint64) error {
+	return db.Update(func(tx *bolt.Tx) error {
+		meta, err := tx.CreateBucketIfNotExists(bucketMeta)
+		if err != nil {
+			return err
+		}
+		return putReplPosition(meta, lsn, epoch)
+	})
+}
+
+// HasTaskData reports whether db holds any live or archived task. A node with
+// task data but no known replication position cannot trust LSN 0 as its start.
+func HasTaskData(db *bolt.DB) (bool, error) {
+	found := false
+	err := db.View(func(tx *bolt.Tx) error {
+		for _, name := range [][]byte{bucketTasks, bucketGuarded, bucketArchived} {
+			if b := tx.Bucket(name); b != nil {
+				if k, _ := b.Cursor().First(); k != nil {
+					found = true
+					return nil
+				}
+			}
+		}
+		return nil
+	})
+	return found, err
 }
 
 // ApplyBatch applies a batch to a bbolt database in its own transaction. Follower
@@ -143,15 +222,40 @@ func EncodeBatch(w io.Writer, b MutationBatch) error {
 	return bw.Flush()
 }
 
+// Decode limits. A torn or corrupt log tail can contain any bytes, so the decoder
+// never allocates from a length field before the bytes arrive: it preallocates at
+// most decodePrealloc entries and copies field bytes as they are read.
+const (
+	maxBatchMutations = 1 << 24
+	maxMutationField  = 1 << 31
+	decodePrealloc    = 1024
+	readChunk         = 64 << 10
+)
+
+// readFull reads exactly n bytes. It grows its buffer only as data arrives, so a
+// false length on a truncated stream fails with io.ErrUnexpectedEOF instead of
+// one large allocation.
 func readFull(r io.Reader, n uint32) ([]byte, error) {
 	if n == 0 {
 		return nil, nil
 	}
-	buf := make([]byte, n)
-	if _, err := io.ReadFull(r, buf); err != nil {
+	if n <= readChunk {
+		buf := make([]byte, n)
+		if _, err := io.ReadFull(r, buf); err != nil {
+			return nil, err
+		}
+		return buf, nil
+	}
+	var buf bytes.Buffer
+	buf.Grow(readChunk)
+	got, err := io.CopyN(&buf, r, int64(n))
+	if err != nil {
+		if err == io.EOF && got < int64(n) {
+			return nil, io.ErrUnexpectedEOF
+		}
 		return nil, err
 	}
-	return buf, nil
+	return buf.Bytes(), nil
 }
 
 // DecodeBatch reads one batch previously written by EncodeBatch. It returns
@@ -167,7 +271,10 @@ func DecodeBatch(r io.Reader) (MutationBatch, error) {
 		return MutationBatch{}, unexpected(err)
 	}
 	n := binary.BigEndian.Uint32(cnt[:4])
-	b.Mutations = make([]Mutation, 0, n)
+	if n > maxBatchMutations {
+		return MutationBatch{}, fmt.Errorf("filestore: batch LSN %d has %d mutations; limit is %d", b.LSN, n, maxBatchMutations)
+	}
+	b.Mutations = make([]Mutation, 0, min(n, decodePrealloc))
 	for i := uint32(0); i < n; i++ {
 		var fl [1]byte
 		if _, err := io.ReadFull(r, fl[:1]); err != nil {
@@ -181,7 +288,11 @@ func DecodeBatch(r io.Reader) (MutationBatch, error) {
 			if _, err := io.ReadFull(r, l[:4]); err != nil {
 				return MutationBatch{}, unexpected(err)
 			}
-			data, err := readFull(r, binary.BigEndian.Uint32(l[:4]))
+			fieldLen := binary.BigEndian.Uint32(l[:4])
+			if fieldLen > maxMutationField {
+				return MutationBatch{}, fmt.Errorf("filestore: batch LSN %d has a %d-byte field; limit is %d", b.LSN, fieldLen, maxMutationField)
+			}
+			data, err := readFull(r, fieldLen)
 			if err != nil {
 				return MutationBatch{}, unexpected(err)
 			}
@@ -210,4 +321,8 @@ var bucketsForReplication = [][]byte{
 	bucketDeadlines,
 	bucketArchived,
 	bucketCounts,
+	bucketGuarded,
+	bucketSubmissions,
+	bucketOperations,
+	bucketReceiptExpiry,
 }

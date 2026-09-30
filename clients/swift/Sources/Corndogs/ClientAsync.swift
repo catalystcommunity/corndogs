@@ -77,5 +77,55 @@ public struct CorndogsAsyncClient {
         return try GetQueueAndStateCountsResponse.fromCbor(csilResp)
     }
 
+    public func getServerInfo(_ request: GetServerInfoRequest) async throws -> GetServerInfoResponse {
+        let csilResp = try await transport.call(service: "CorndogsService", op: "GetServerInfo", request: request.toCbor())
+        return try GetServerInfoResponse.fromCbor(csilResp)
+    }
+
+    public func submitKeyedTask(_ request: SubmitKeyedTaskRequest) async throws -> SubmitKeyedTaskResponse {
+        let csilResp = try await transport.call(service: "CorndogsService", op: "SubmitKeyedTask", request: request.toCbor())
+        return try SubmitKeyedTaskResponse.fromCbor(csilResp)
+    }
+
+    public func lookupSubmission(_ request: LookupSubmissionRequest) async throws -> LookupSubmissionResponse {
+        let csilResp = try await transport.call(service: "CorndogsService", op: "LookupSubmission", request: request.toCbor())
+        return try LookupSubmissionResponse.fromCbor(csilResp)
+    }
+
+    public func claimGuardedTask(_ request: ClaimGuardedTaskRequest) async throws -> ClaimGuardedTaskResponse {
+        let csilResp = try await transport.call(service: "CorndogsService", op: "ClaimGuardedTask", request: request.toCbor())
+        return try ClaimGuardedTaskResponse.fromCbor(csilResp)
+    }
+
+    public func claimGuardedTaskGroup(_ request: ClaimGuardedTaskGroupRequest) async throws -> ClaimGuardedTaskGroupResponse {
+        let csilResp = try await transport.call(service: "CorndogsService", op: "ClaimGuardedTaskGroup", request: request.toCbor())
+        return try ClaimGuardedTaskGroupResponse.fromCbor(csilResp)
+    }
+
+    public func updateGuardedTask(_ request: UpdateGuardedTaskRequest) async throws -> UpdateGuardedTaskResponse {
+        let csilResp = try await transport.call(service: "CorndogsService", op: "UpdateGuardedTask", request: request.toCbor())
+        return try UpdateGuardedTaskResponse.fromCbor(csilResp)
+    }
+
+    public func completeGuardedTask(_ request: CompleteGuardedTaskRequest) async throws -> CompleteGuardedTaskResponse {
+        let csilResp = try await transport.call(service: "CorndogsService", op: "CompleteGuardedTask", request: request.toCbor())
+        return try CompleteGuardedTaskResponse.fromCbor(csilResp)
+    }
+
+    public func cancelGuardedTask(_ request: CancelGuardedTaskRequest) async throws -> CancelGuardedTaskResponse {
+        let csilResp = try await transport.call(service: "CorndogsService", op: "CancelGuardedTask", request: request.toCbor())
+        return try CancelGuardedTaskResponse.fromCbor(csilResp)
+    }
+
+    public func getGuardedTask(_ request: GetGuardedTaskRequest) async throws -> GetGuardedTaskResponse {
+        let csilResp = try await transport.call(service: "CorndogsService", op: "GetGuardedTask", request: request.toCbor())
+        return try GetGuardedTaskResponse.fromCbor(csilResp)
+    }
+
+    public func lookupOperation(_ request: LookupOperationRequest) async throws -> LookupOperationResponse {
+        let csilResp = try await transport.call(service: "CorndogsService", op: "LookupOperation", request: request.toCbor())
+        return try LookupOperationResponse.fromCbor(csilResp)
+    }
+
 }
 

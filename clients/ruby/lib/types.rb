@@ -176,6 +176,223 @@ GetQueueAndStateCountsRequest = Data.define
 # queue_and_state_counts [QueueAndStateCountsMap]
 GetQueueAndStateCountsResponse = Data.define(:queue_and_state_counts)
 
+GetServerInfoRequest = Data.define
+
+# features lists the contract features that this server enforces, for
+# example "submission-keys-v1" and "task-guards-v1". A policy is
+# "compatibility" (legacy operations are accepted) or "required" (legacy
+# operations that the feature replaces are rejected before they change data).
+# server_version [String]
+# features [Array<String>]
+# submission_key_policy [String]
+# task_guard_policy [String]
+# receipt_retention_seconds [Integer]
+GetServerInfoResponse = Data.define(:server_version, :features, :submission_key_policy, :task_guard_policy, :receipt_retention_seconds)
+
+# A task with its protection data. revision changes on each mutation of the
+# task, including claims and timeout releases, so it identifies one claim.
+# guarded is true when legacy operations cannot change the task. terminal is
+# true when the task is completed or canceled.
+# task [Task]
+# guarded [Boolean]
+# revision [Integer]
+# terminal [Boolean]
+GuardedTask = Data.define(:task, :guarded, :revision, :terminal)
+
+# The durable record of an accepted keyed submission. accepted_at and
+# expires_at are Unix nanoseconds. After expires_at the server no longer
+# deduplicates this key.
+# queue [String]
+# submission_key [String]
+# task_uuid [String]
+# accepted_at [Integer]
+# expires_at [Integer]
+# guarded [Boolean]
+SubmissionReceipt = Data.define(:queue, :submission_key, :task_uuid, :accepted_at, :expires_at, :guarded)
+
+# SubmitKeyedTask creates a task at most once for each (queue,
+# submission_key) during the receipt retention period. The server compares
+# the request fields exactly as sent, before it applies defaults.
+# - The same key with the same request returns the original receipt and the
+# current task, with replayed = true. It does not create or change a task.
+# - The same key with a different request returns ServiceError code 4.
+# - An empty key returns ServiceError code 1. Keys have 1 to 128 bytes.
+# guarded = true puts the task under task guards permanently.
+# submission_key [String]
+# guarded [Boolean]
+# queue [String]
+# current_state [String]
+# auto_target_state [String]
+# timeout [Integer]
+# payload [String]
+# priority [Integer]
+SubmitKeyedTaskRequest = Data.define(:submission_key, :guarded, :queue, :current_state, :auto_target_state, :timeout, :payload, :priority)
+
+# receipt [SubmissionReceipt]
+# replayed [Boolean]
+# task [GuardedTask]
+SubmitKeyedTaskResponse = Data.define(:receipt, :replayed, :task) do
+  def initialize(receipt:, replayed:, task: nil)
+    super
+  end
+end
+
+# LookupSubmission reads a receipt. It does not change data. An absent
+# receipt means that the server has no unexpired record of the key. In a
+# cluster, only the leader answers.
+# queue [String]
+# submission_key [String]
+LookupSubmissionRequest = Data.define(:queue, :submission_key)
+
+# receipt [SubmissionReceipt]
+# task [GuardedTask]
+LookupSubmissionResponse = Data.define(:receipt, :task) do
+  def initialize(receipt: nil, task: nil)
+    super
+  end
+end
+
+# ClaimGuardedTask claims the next task like GetNextTask and returns its
+# revision. It can claim guarded and legacy tasks. operation_id identifies
+# this claim. A retry with the same operation_id and request returns the same
+# claim with replayed = true while the claim still holds the task, or
+# ServiceError code 8 after the task changed.
+# operation_id [String]
+# queue [String]
+# current_state [String]
+# override_timeout [Integer]
+# override_current_state [String]
+# override_auto_target_state [String]
+ClaimGuardedTaskRequest = Data.define(:operation_id, :queue, :current_state, :override_timeout, :override_current_state, :override_auto_target_state)
+
+# A claimed task and its opaque payload bytes.
+# task [GuardedTask]
+# payload [String]
+GuardedDelivery = Data.define(:task, :payload)
+
+# delivery [GuardedDelivery]
+# replayed [Boolean]
+ClaimGuardedTaskResponse = Data.define(:delivery, :replayed) do
+  def initialize(replayed:, delivery: nil)
+    super
+  end
+end
+
+# ClaimGuardedTaskGroup is GetNextTaskGroup with the ClaimGuardedTask rules.
+# operation_id [String]
+# queues [Array<String>]
+# current_state [String]
+# override_timeout [Integer]
+# override_current_state [String]
+# override_auto_target_state [String]
+ClaimGuardedTaskGroupRequest = Data.define(:operation_id, :queues, :current_state, :override_timeout, :override_current_state, :override_auto_target_state)
+
+# delivery [GuardedDelivery]
+# replayed [Boolean]
+ClaimGuardedTaskGroupResponse = Data.define(:delivery, :replayed) do
+  def initialize(replayed:, delivery: nil)
+    super
+  end
+end
+
+# UpdateGuardedTask is UpdateTask with an atomic guard. The server changes
+# the task only if uuid and queue identify it, its revision equals
+# expected_revision, and its state equals expected_state when that field is
+# present. Otherwise it returns ServiceError code 5 and changes nothing.
+# operation_id makes a retry safe: the same operation_id and request return
+# the first result with replayed = true.
+# operation_id [String]
+# uuid [String]
+# queue [String]
+# expected_revision [Integer]
+# expected_state [String]
+# new_state [String]
+# auto_target_state [String]
+# timeout [Integer]
+# payload [String]
+# priority [Integer]
+UpdateGuardedTaskRequest = Data.define(:operation_id, :uuid, :queue, :expected_revision, :expected_state, :new_state, :auto_target_state, :timeout, :payload, :priority) do
+  def initialize(operation_id:, uuid:, queue:, expected_revision:, new_state:, auto_target_state:, timeout:, expected_state: nil, payload: nil, priority: nil)
+    super
+  end
+end
+
+# task [GuardedTask]
+# replayed [Boolean]
+UpdateGuardedTaskResponse = Data.define(:task, :replayed)
+
+# CompleteGuardedTask and CancelGuardedTask archive the task with the same
+# guard and retry rules as UpdateGuardedTask. A task that waits without a
+# worker needs no claim: send its current revision.
+# operation_id [String]
+# uuid [String]
+# queue [String]
+# expected_revision [Integer]
+# expected_state [String]
+CompleteGuardedTaskRequest = Data.define(:operation_id, :uuid, :queue, :expected_revision, :expected_state) do
+  def initialize(operation_id:, uuid:, queue:, expected_revision:, expected_state: nil)
+    super
+  end
+end
+
+# task [GuardedTask]
+# replayed [Boolean]
+CompleteGuardedTaskResponse = Data.define(:task, :replayed)
+
+# operation_id [String]
+# uuid [String]
+# queue [String]
+# expected_revision [Integer]
+# expected_state [String]
+CancelGuardedTaskRequest = Data.define(:operation_id, :uuid, :queue, :expected_revision, :expected_state) do
+  def initialize(operation_id:, uuid:, queue:, expected_revision:, expected_state: nil)
+    super
+  end
+end
+
+# task [GuardedTask]
+# replayed [Boolean]
+CancelGuardedTaskResponse = Data.define(:task, :replayed)
+
+# GetGuardedTask reads a live or archived task with its revision. In a
+# cluster, only the leader answers.
+# uuid [String]
+# queue [String]
+GetGuardedTaskRequest = Data.define(:uuid, :queue)
+
+# task [GuardedTask]
+GetGuardedTaskResponse = Data.define(:task) do
+  def initialize(task: nil)
+    super
+  end
+end
+
+# The durable record of one guarded mutation. op is the operation name.
+# result_revision and result_state describe the task after the operation.
+# at and expires_at are Unix nanoseconds.
+# operation_id [String]
+# op [String]
+# task_uuid [String]
+# queue [String]
+# result_revision [Integer]
+# result_state [String]
+# at [Integer]
+# expires_at [Integer]
+OperationReceipt = Data.define(:operation_id, :op, :task_uuid, :queue, :result_revision, :result_state, :at, :expires_at)
+
+# LookupOperation reads the receipt of a guarded mutation. It does not change
+# data. An absent receipt means that the server has no unexpired record of
+# the operation. In a cluster, only the leader answers.
+# operation_id [String]
+LookupOperationRequest = Data.define(:operation_id)
+
+# receipt [OperationReceipt]
+LookupOperationResponse = Data.define(:receipt) do
+  def initialize(receipt: nil)
+    super
+  end
+end
+
 # code [Integer]
 # message [String]
 ServiceError = Data.define(:code, :message)

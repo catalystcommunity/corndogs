@@ -128,6 +128,197 @@ GetQueueAndStateCountsResponse = {
     queue_and_state_counts: QueueAndStateCountsMap
 }
 
+;; ---------------------------------------------------------------------------
+;; Resilience contract. These operations are additive. The legacy operations
+;; above keep their request and response shapes. A server that does not know
+;; an operation below returns transport status 2 (unknown operation), so a
+;; client that needs these guarantees never downgrades silently.
+;;
+;; Two features have separate names and separate server settings:
+;; - Submission keys (SubmitKeyedTask, LookupSubmission) stop duplicate tasks
+;;   when a caller retries a submission.
+;; - Task guards (ClaimGuardedTask, ClaimGuardedTaskGroup, UpdateGuardedTask,
+;;   CompleteGuardedTask, CancelGuardedTask, GetGuardedTask, LookupOperation)
+;;   reject stale workers and stale transitions with a task revision.
+;;
+;; ServiceError codes for these rules:
+;;   1 invalid argument (for example an empty key or operation_id)
+;;   2 submission key required (legacy SubmitTask in required mode)
+;;   3 task guard required (legacy mutation in required mode, legacy mutation
+;;     of a guarded task, or an unguarded submission in required mode)
+;;   4 submission key conflict (same key, different request)
+;;   5 revision conflict (expected_revision, expected_state, or queue differs)
+;;   6 operation conflict (same operation_id, different request)
+;;   7 task not found
+;;   8 claim superseded (a replayed claim no longer holds the task)
+;; ---------------------------------------------------------------------------
+
+GetServerInfoRequest = {}
+;;; features lists the contract features that this server enforces, for
+;;; example "submission-keys-v1" and "task-guards-v1". A policy is
+;;; "compatibility" (legacy operations are accepted) or "required" (legacy
+;;; operations that the feature replaces are rejected before they change data).
+GetServerInfoResponse = {
+    server_version: text,
+    features: [* text],
+    submission_key_policy: text,
+    task_guard_policy: text,
+    receipt_retention_seconds: int
+}
+
+;;; A task with its protection data. revision changes on each mutation of the
+;;; task, including claims and timeout releases, so it identifies one claim.
+;;; guarded is true when legacy operations cannot change the task. terminal is
+;;; true when the task is completed or canceled.
+GuardedTask = {
+    task: Task,
+    guarded: bool,
+    revision: int,
+    terminal: bool
+}
+
+;;; The durable record of an accepted keyed submission. accepted_at and
+;;; expires_at are Unix nanoseconds. After expires_at the server no longer
+;;; deduplicates this key.
+SubmissionReceipt = {
+    queue: text,
+    submission_key: text,
+    task_uuid: text,
+    accepted_at: int,
+    expires_at: int,
+    guarded: bool
+}
+
+;;; SubmitKeyedTask creates a task at most once for each (queue,
+;;; submission_key) during the receipt retention period. The server compares
+;;; the request fields exactly as sent, before it applies defaults.
+;;; - The same key with the same request returns the original receipt and the
+;;;   current task, with replayed = true. It does not create or change a task.
+;;; - The same key with a different request returns ServiceError code 4.
+;;; - An empty key returns ServiceError code 1. Keys have 1 to 128 bytes.
+;;; guarded = true puts the task under task guards permanently.
+SubmitKeyedTaskRequest = {
+    submission_key: text,
+    guarded: bool,
+    queue: text,
+    current_state: text,
+    auto_target_state: text,
+    timeout: int,
+    payload: bytes,
+    priority: int
+}
+SubmitKeyedTaskResponse = {
+    receipt: SubmissionReceipt,
+    replayed: bool,
+    ? task: GuardedTask
+}
+
+;;; LookupSubmission reads a receipt. It does not change data. An absent
+;;; receipt means that the server has no unexpired record of the key. In a
+;;; cluster, only the leader answers.
+LookupSubmissionRequest = { queue: text, submission_key: text }
+LookupSubmissionResponse = {
+    ? receipt: SubmissionReceipt,
+    ? task: GuardedTask
+}
+
+;;; ClaimGuardedTask claims the next task like GetNextTask and returns its
+;;; revision. It can claim guarded and legacy tasks. operation_id identifies
+;;; this claim. A retry with the same operation_id and request returns the same
+;;; claim with replayed = true while the claim still holds the task, or
+;;; ServiceError code 8 after the task changed.
+ClaimGuardedTaskRequest = {
+    operation_id: text,
+    queue: text,
+    current_state: text,
+    override_timeout: int,
+    override_current_state: text,
+    override_auto_target_state: text
+}
+;;; A claimed task and its opaque payload bytes.
+GuardedDelivery = {
+    task: GuardedTask,
+    payload: bytes
+}
+ClaimGuardedTaskResponse = { ? delivery: GuardedDelivery, replayed: bool }
+
+;;; ClaimGuardedTaskGroup is GetNextTaskGroup with the ClaimGuardedTask rules.
+ClaimGuardedTaskGroupRequest = {
+    operation_id: text,
+    queues: [* text],
+    current_state: text,
+    override_timeout: int,
+    override_current_state: text,
+    override_auto_target_state: text
+}
+ClaimGuardedTaskGroupResponse = { ? delivery: GuardedDelivery, replayed: bool }
+
+;;; UpdateGuardedTask is UpdateTask with an atomic guard. The server changes
+;;; the task only if uuid and queue identify it, its revision equals
+;;; expected_revision, and its state equals expected_state when that field is
+;;; present. Otherwise it returns ServiceError code 5 and changes nothing.
+;;; operation_id makes a retry safe: the same operation_id and request return
+;;; the first result with replayed = true.
+UpdateGuardedTaskRequest = {
+    operation_id: text,
+    uuid: text,
+    queue: text,
+    expected_revision: int,
+    ? expected_state: text,
+    new_state: text,
+    auto_target_state: text,
+    timeout: int,
+    ? payload: bytes,
+    ? priority: int
+}
+UpdateGuardedTaskResponse = { task: GuardedTask, replayed: bool }
+
+;;; CompleteGuardedTask and CancelGuardedTask archive the task with the same
+;;; guard and retry rules as UpdateGuardedTask. A task that waits without a
+;;; worker needs no claim: send its current revision.
+CompleteGuardedTaskRequest = {
+    operation_id: text,
+    uuid: text,
+    queue: text,
+    expected_revision: int,
+    ? expected_state: text
+}
+CompleteGuardedTaskResponse = { task: GuardedTask, replayed: bool }
+
+CancelGuardedTaskRequest = {
+    operation_id: text,
+    uuid: text,
+    queue: text,
+    expected_revision: int,
+    ? expected_state: text
+}
+CancelGuardedTaskResponse = { task: GuardedTask, replayed: bool }
+
+;;; GetGuardedTask reads a live or archived task with its revision. In a
+;;; cluster, only the leader answers.
+GetGuardedTaskRequest = { uuid: text, queue: text }
+GetGuardedTaskResponse = { ? task: GuardedTask }
+
+;;; The durable record of one guarded mutation. op is the operation name.
+;;; result_revision and result_state describe the task after the operation.
+;;; at and expires_at are Unix nanoseconds.
+OperationReceipt = {
+    operation_id: text,
+    op: text,
+    task_uuid: text,
+    queue: text,
+    result_revision: int,
+    result_state: text,
+    at: int,
+    expires_at: int
+}
+
+;;; LookupOperation reads the receipt of a guarded mutation. It does not change
+;;; data. An absent receipt means that the server has no unexpired record of
+;;; the operation. In a cluster, only the leader answers.
+LookupOperationRequest = { operation_id: text }
+LookupOperationResponse = { ? receipt: OperationReceipt }
+
 ServiceError = { code: uint, message: text }
 
 service CorndogsService {
@@ -142,5 +333,15 @@ service CorndogsService {
     GetQueues: GetQueuesRequest -> GetQueuesResponse / ServiceError,
     GetQueueTaskCounts: GetQueueTaskCountsRequest -> GetQueueTaskCountsResponse / ServiceError,
     GetTaskStateCounts: GetTaskStateCountsRequest -> GetTaskStateCountsResponse / ServiceError,
-    GetQueueAndStateCounts: GetQueueAndStateCountsRequest -> GetQueueAndStateCountsResponse / ServiceError
+    GetQueueAndStateCounts: GetQueueAndStateCountsRequest -> GetQueueAndStateCountsResponse / ServiceError,
+    GetServerInfo: GetServerInfoRequest -> GetServerInfoResponse / ServiceError,
+    SubmitKeyedTask: SubmitKeyedTaskRequest -> SubmitKeyedTaskResponse / ServiceError,
+    LookupSubmission: LookupSubmissionRequest -> LookupSubmissionResponse / ServiceError,
+    ClaimGuardedTask: ClaimGuardedTaskRequest -> ClaimGuardedTaskResponse / ServiceError,
+    ClaimGuardedTaskGroup: ClaimGuardedTaskGroupRequest -> ClaimGuardedTaskGroupResponse / ServiceError,
+    UpdateGuardedTask: UpdateGuardedTaskRequest -> UpdateGuardedTaskResponse / ServiceError,
+    CompleteGuardedTask: CompleteGuardedTaskRequest -> CompleteGuardedTaskResponse / ServiceError,
+    CancelGuardedTask: CancelGuardedTaskRequest -> CancelGuardedTaskResponse / ServiceError,
+    GetGuardedTask: GetGuardedTaskRequest -> GetGuardedTaskResponse / ServiceError,
+    LookupOperation: LookupOperationRequest -> LookupOperationResponse / ServiceError
 }

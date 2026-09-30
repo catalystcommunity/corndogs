@@ -1079,6 +1079,660 @@ public final class CsilCbor {
         return decGetQueueAndStateCountsResponse(decode(data));
     }
 
+    static CborValue encGetServerInfoRequest(GetServerInfoRequest v) {
+        List<CborEntry> csilEntries = new ArrayList<>(0);
+        return new CborMap(csilEntries);
+    }
+
+    static GetServerInfoRequest decGetServerInfoRequest(CborValue csilRoot) {
+        return new GetServerInfoRequest();
+    }
+
+    public static byte[] encodeGetServerInfoRequest(GetServerInfoRequest v) {
+        return encode(encGetServerInfoRequest(v));
+    }
+
+    public static GetServerInfoRequest decodeGetServerInfoRequest(byte[] data) {
+        return decGetServerInfoRequest(decode(data));
+    }
+
+    static CborValue encGetServerInfoResponse(GetServerInfoResponse v) {
+        List<CborEntry> csilEntries = new ArrayList<>(5);
+        csilEntries.add(new CborEntry(new CborText("features"), encArray(v.features(), csilElem0 -> new CborText(csilElem0))));
+        csilEntries.add(new CborEntry(new CborText("server_version"), new CborText(v.serverVersion())));
+        csilEntries.add(new CborEntry(new CborText("task_guard_policy"), new CborText(v.taskGuardPolicy())));
+        csilEntries.add(new CborEntry(new CborText("submission_key_policy"), new CborText(v.submissionKeyPolicy())));
+        csilEntries.add(new CborEntry(new CborText("receipt_retention_seconds"), new CborInt(v.receiptRetentionSeconds())));
+        return new CborMap(csilEntries);
+    }
+
+    static GetServerInfoResponse decGetServerInfoResponse(CborValue csilRoot) {
+        String serverVersion = asText(require(csilRoot, "server_version"));
+        List<String> features = decArray(require(csilRoot, "features"), csilE0 -> asText(csilE0));
+        String submissionKeyPolicy = asText(require(csilRoot, "submission_key_policy"));
+        String taskGuardPolicy = asText(require(csilRoot, "task_guard_policy"));
+        long receiptRetentionSeconds = asI64(require(csilRoot, "receipt_retention_seconds"));
+        return new GetServerInfoResponse(serverVersion, features, submissionKeyPolicy, taskGuardPolicy, receiptRetentionSeconds);
+    }
+
+    public static byte[] encodeGetServerInfoResponse(GetServerInfoResponse v) {
+        return encode(encGetServerInfoResponse(v));
+    }
+
+    public static GetServerInfoResponse decodeGetServerInfoResponse(byte[] data) {
+        return decGetServerInfoResponse(decode(data));
+    }
+
+    static CborValue encGuardedTask(GuardedTask v) {
+        List<CborEntry> csilEntries = new ArrayList<>(4);
+        csilEntries.add(new CborEntry(new CborText("task"), encTask(v.task())));
+        csilEntries.add(new CborEntry(new CborText("guarded"), new CborBool(v.guarded())));
+        csilEntries.add(new CborEntry(new CborText("revision"), new CborInt(v.revision())));
+        csilEntries.add(new CborEntry(new CborText("terminal"), new CborBool(v.terminal())));
+        return new CborMap(csilEntries);
+    }
+
+    static GuardedTask decGuardedTask(CborValue csilRoot) {
+        Task task = decTask(require(csilRoot, "task"));
+        boolean guarded = asBool(require(csilRoot, "guarded"));
+        long revision = asI64(require(csilRoot, "revision"));
+        boolean terminal = asBool(require(csilRoot, "terminal"));
+        return new GuardedTask(task, guarded, revision, terminal);
+    }
+
+    public static byte[] encodeGuardedTask(GuardedTask v) {
+        return encode(encGuardedTask(v));
+    }
+
+    public static GuardedTask decodeGuardedTask(byte[] data) {
+        return decGuardedTask(decode(data));
+    }
+
+    static CborValue encSubmissionReceipt(SubmissionReceipt v) {
+        List<CborEntry> csilEntries = new ArrayList<>(6);
+        csilEntries.add(new CborEntry(new CborText("queue"), new CborText(v.queue())));
+        csilEntries.add(new CborEntry(new CborText("guarded"), new CborBool(v.guarded())));
+        csilEntries.add(new CborEntry(new CborText("task_uuid"), new CborText(v.taskUuid())));
+        csilEntries.add(new CborEntry(new CborText("expires_at"), new CborInt(v.expiresAt())));
+        csilEntries.add(new CborEntry(new CborText("accepted_at"), new CborInt(v.acceptedAt())));
+        csilEntries.add(new CborEntry(new CborText("submission_key"), new CborText(v.submissionKey())));
+        return new CborMap(csilEntries);
+    }
+
+    static SubmissionReceipt decSubmissionReceipt(CborValue csilRoot) {
+        String queue = asText(require(csilRoot, "queue"));
+        String submissionKey = asText(require(csilRoot, "submission_key"));
+        String taskUuid = asText(require(csilRoot, "task_uuid"));
+        long acceptedAt = asI64(require(csilRoot, "accepted_at"));
+        long expiresAt = asI64(require(csilRoot, "expires_at"));
+        boolean guarded = asBool(require(csilRoot, "guarded"));
+        return new SubmissionReceipt(queue, submissionKey, taskUuid, acceptedAt, expiresAt, guarded);
+    }
+
+    public static byte[] encodeSubmissionReceipt(SubmissionReceipt v) {
+        return encode(encSubmissionReceipt(v));
+    }
+
+    public static SubmissionReceipt decodeSubmissionReceipt(byte[] data) {
+        return decSubmissionReceipt(decode(data));
+    }
+
+    static CborValue encSubmitKeyedTaskRequest(SubmitKeyedTaskRequest v) {
+        List<CborEntry> csilEntries = new ArrayList<>(8);
+        csilEntries.add(new CborEntry(new CborText("queue"), new CborText(v.queue())));
+        csilEntries.add(new CborEntry(new CborText("guarded"), new CborBool(v.guarded())));
+        csilEntries.add(new CborEntry(new CborText("payload"), new CborBytes(v.payload())));
+        csilEntries.add(new CborEntry(new CborText("timeout"), new CborInt(v.timeout())));
+        csilEntries.add(new CborEntry(new CborText("priority"), new CborInt(v.priority())));
+        csilEntries.add(new CborEntry(new CborText("current_state"), new CborText(v.currentState())));
+        csilEntries.add(new CborEntry(new CborText("submission_key"), new CborText(v.submissionKey())));
+        csilEntries.add(new CborEntry(new CborText("auto_target_state"), new CborText(v.autoTargetState())));
+        return new CborMap(csilEntries);
+    }
+
+    static SubmitKeyedTaskRequest decSubmitKeyedTaskRequest(CborValue csilRoot) {
+        String submissionKey = asText(require(csilRoot, "submission_key"));
+        boolean guarded = asBool(require(csilRoot, "guarded"));
+        String queue = asText(require(csilRoot, "queue"));
+        String currentState = asText(require(csilRoot, "current_state"));
+        String autoTargetState = asText(require(csilRoot, "auto_target_state"));
+        long timeout = asI64(require(csilRoot, "timeout"));
+        byte[] payload = asBytes(require(csilRoot, "payload"));
+        long priority = asI64(require(csilRoot, "priority"));
+        return new SubmitKeyedTaskRequest(submissionKey, guarded, queue, currentState, autoTargetState, timeout, payload, priority);
+    }
+
+    public static byte[] encodeSubmitKeyedTaskRequest(SubmitKeyedTaskRequest v) {
+        return encode(encSubmitKeyedTaskRequest(v));
+    }
+
+    public static SubmitKeyedTaskRequest decodeSubmitKeyedTaskRequest(byte[] data) {
+        return decSubmitKeyedTaskRequest(decode(data));
+    }
+
+    static CborValue encSubmitKeyedTaskResponse(SubmitKeyedTaskResponse v) {
+        List<CborEntry> csilEntries = new ArrayList<>(3);
+        if (v.task() != null) {
+            csilEntries.add(new CborEntry(new CborText("task"), encGuardedTask(v.task())));
+        }
+        csilEntries.add(new CborEntry(new CborText("receipt"), encSubmissionReceipt(v.receipt())));
+        csilEntries.add(new CborEntry(new CborText("replayed"), new CborBool(v.replayed())));
+        return new CborMap(csilEntries);
+    }
+
+    static SubmitKeyedTaskResponse decSubmitKeyedTaskResponse(CborValue csilRoot) {
+        SubmissionReceipt receipt = decSubmissionReceipt(require(csilRoot, "receipt"));
+        boolean replayed = asBool(require(csilRoot, "replayed"));
+        GuardedTask task;
+        {
+            CborValue csilField = mapGet(csilRoot, "task");
+            task = csilField != null ? decGuardedTask(csilField) : null;
+        }
+        return new SubmitKeyedTaskResponse(receipt, replayed, task);
+    }
+
+    public static byte[] encodeSubmitKeyedTaskResponse(SubmitKeyedTaskResponse v) {
+        return encode(encSubmitKeyedTaskResponse(v));
+    }
+
+    public static SubmitKeyedTaskResponse decodeSubmitKeyedTaskResponse(byte[] data) {
+        return decSubmitKeyedTaskResponse(decode(data));
+    }
+
+    static CborValue encLookupSubmissionRequest(LookupSubmissionRequest v) {
+        List<CborEntry> csilEntries = new ArrayList<>(2);
+        csilEntries.add(new CborEntry(new CborText("queue"), new CborText(v.queue())));
+        csilEntries.add(new CborEntry(new CborText("submission_key"), new CborText(v.submissionKey())));
+        return new CborMap(csilEntries);
+    }
+
+    static LookupSubmissionRequest decLookupSubmissionRequest(CborValue csilRoot) {
+        String queue = asText(require(csilRoot, "queue"));
+        String submissionKey = asText(require(csilRoot, "submission_key"));
+        return new LookupSubmissionRequest(queue, submissionKey);
+    }
+
+    public static byte[] encodeLookupSubmissionRequest(LookupSubmissionRequest v) {
+        return encode(encLookupSubmissionRequest(v));
+    }
+
+    public static LookupSubmissionRequest decodeLookupSubmissionRequest(byte[] data) {
+        return decLookupSubmissionRequest(decode(data));
+    }
+
+    static CborValue encLookupSubmissionResponse(LookupSubmissionResponse v) {
+        List<CborEntry> csilEntries = new ArrayList<>(2);
+        if (v.task() != null) {
+            csilEntries.add(new CborEntry(new CborText("task"), encGuardedTask(v.task())));
+        }
+        if (v.receipt() != null) {
+            csilEntries.add(new CborEntry(new CborText("receipt"), encSubmissionReceipt(v.receipt())));
+        }
+        return new CborMap(csilEntries);
+    }
+
+    static LookupSubmissionResponse decLookupSubmissionResponse(CborValue csilRoot) {
+        SubmissionReceipt receipt;
+        {
+            CborValue csilField = mapGet(csilRoot, "receipt");
+            receipt = csilField != null ? decSubmissionReceipt(csilField) : null;
+        }
+        GuardedTask task;
+        {
+            CborValue csilField = mapGet(csilRoot, "task");
+            task = csilField != null ? decGuardedTask(csilField) : null;
+        }
+        return new LookupSubmissionResponse(receipt, task);
+    }
+
+    public static byte[] encodeLookupSubmissionResponse(LookupSubmissionResponse v) {
+        return encode(encLookupSubmissionResponse(v));
+    }
+
+    public static LookupSubmissionResponse decodeLookupSubmissionResponse(byte[] data) {
+        return decLookupSubmissionResponse(decode(data));
+    }
+
+    static CborValue encClaimGuardedTaskRequest(ClaimGuardedTaskRequest v) {
+        List<CborEntry> csilEntries = new ArrayList<>(6);
+        csilEntries.add(new CborEntry(new CborText("queue"), new CborText(v.queue())));
+        csilEntries.add(new CborEntry(new CborText("operation_id"), new CborText(v.operationId())));
+        csilEntries.add(new CborEntry(new CborText("current_state"), new CborText(v.currentState())));
+        csilEntries.add(new CborEntry(new CborText("override_timeout"), new CborInt(v.overrideTimeout())));
+        csilEntries.add(new CborEntry(new CborText("override_current_state"), new CborText(v.overrideCurrentState())));
+        csilEntries.add(new CborEntry(new CborText("override_auto_target_state"), new CborText(v.overrideAutoTargetState())));
+        return new CborMap(csilEntries);
+    }
+
+    static ClaimGuardedTaskRequest decClaimGuardedTaskRequest(CborValue csilRoot) {
+        String operationId = asText(require(csilRoot, "operation_id"));
+        String queue = asText(require(csilRoot, "queue"));
+        String currentState = asText(require(csilRoot, "current_state"));
+        long overrideTimeout = asI64(require(csilRoot, "override_timeout"));
+        String overrideCurrentState = asText(require(csilRoot, "override_current_state"));
+        String overrideAutoTargetState = asText(require(csilRoot, "override_auto_target_state"));
+        return new ClaimGuardedTaskRequest(operationId, queue, currentState, overrideTimeout, overrideCurrentState, overrideAutoTargetState);
+    }
+
+    public static byte[] encodeClaimGuardedTaskRequest(ClaimGuardedTaskRequest v) {
+        return encode(encClaimGuardedTaskRequest(v));
+    }
+
+    public static ClaimGuardedTaskRequest decodeClaimGuardedTaskRequest(byte[] data) {
+        return decClaimGuardedTaskRequest(decode(data));
+    }
+
+    static CborValue encGuardedDelivery(GuardedDelivery v) {
+        List<CborEntry> csilEntries = new ArrayList<>(2);
+        csilEntries.add(new CborEntry(new CborText("task"), encGuardedTask(v.task())));
+        csilEntries.add(new CborEntry(new CborText("payload"), new CborBytes(v.payload())));
+        return new CborMap(csilEntries);
+    }
+
+    static GuardedDelivery decGuardedDelivery(CborValue csilRoot) {
+        GuardedTask task = decGuardedTask(require(csilRoot, "task"));
+        byte[] payload = asBytes(require(csilRoot, "payload"));
+        return new GuardedDelivery(task, payload);
+    }
+
+    public static byte[] encodeGuardedDelivery(GuardedDelivery v) {
+        return encode(encGuardedDelivery(v));
+    }
+
+    public static GuardedDelivery decodeGuardedDelivery(byte[] data) {
+        return decGuardedDelivery(decode(data));
+    }
+
+    static CborValue encClaimGuardedTaskResponse(ClaimGuardedTaskResponse v) {
+        List<CborEntry> csilEntries = new ArrayList<>(2);
+        if (v.delivery() != null) {
+            csilEntries.add(new CborEntry(new CborText("delivery"), encGuardedDelivery(v.delivery())));
+        }
+        csilEntries.add(new CborEntry(new CborText("replayed"), new CborBool(v.replayed())));
+        return new CborMap(csilEntries);
+    }
+
+    static ClaimGuardedTaskResponse decClaimGuardedTaskResponse(CborValue csilRoot) {
+        GuardedDelivery delivery;
+        {
+            CborValue csilField = mapGet(csilRoot, "delivery");
+            delivery = csilField != null ? decGuardedDelivery(csilField) : null;
+        }
+        boolean replayed = asBool(require(csilRoot, "replayed"));
+        return new ClaimGuardedTaskResponse(delivery, replayed);
+    }
+
+    public static byte[] encodeClaimGuardedTaskResponse(ClaimGuardedTaskResponse v) {
+        return encode(encClaimGuardedTaskResponse(v));
+    }
+
+    public static ClaimGuardedTaskResponse decodeClaimGuardedTaskResponse(byte[] data) {
+        return decClaimGuardedTaskResponse(decode(data));
+    }
+
+    static CborValue encClaimGuardedTaskGroupRequest(ClaimGuardedTaskGroupRequest v) {
+        List<CborEntry> csilEntries = new ArrayList<>(6);
+        csilEntries.add(new CborEntry(new CborText("queues"), encArray(v.queues(), csilElem0 -> new CborText(csilElem0))));
+        csilEntries.add(new CborEntry(new CborText("operation_id"), new CborText(v.operationId())));
+        csilEntries.add(new CborEntry(new CborText("current_state"), new CborText(v.currentState())));
+        csilEntries.add(new CborEntry(new CborText("override_timeout"), new CborInt(v.overrideTimeout())));
+        csilEntries.add(new CborEntry(new CborText("override_current_state"), new CborText(v.overrideCurrentState())));
+        csilEntries.add(new CborEntry(new CborText("override_auto_target_state"), new CborText(v.overrideAutoTargetState())));
+        return new CborMap(csilEntries);
+    }
+
+    static ClaimGuardedTaskGroupRequest decClaimGuardedTaskGroupRequest(CborValue csilRoot) {
+        String operationId = asText(require(csilRoot, "operation_id"));
+        List<String> queues = decArray(require(csilRoot, "queues"), csilE0 -> asText(csilE0));
+        String currentState = asText(require(csilRoot, "current_state"));
+        long overrideTimeout = asI64(require(csilRoot, "override_timeout"));
+        String overrideCurrentState = asText(require(csilRoot, "override_current_state"));
+        String overrideAutoTargetState = asText(require(csilRoot, "override_auto_target_state"));
+        return new ClaimGuardedTaskGroupRequest(operationId, queues, currentState, overrideTimeout, overrideCurrentState, overrideAutoTargetState);
+    }
+
+    public static byte[] encodeClaimGuardedTaskGroupRequest(ClaimGuardedTaskGroupRequest v) {
+        return encode(encClaimGuardedTaskGroupRequest(v));
+    }
+
+    public static ClaimGuardedTaskGroupRequest decodeClaimGuardedTaskGroupRequest(byte[] data) {
+        return decClaimGuardedTaskGroupRequest(decode(data));
+    }
+
+    static CborValue encClaimGuardedTaskGroupResponse(ClaimGuardedTaskGroupResponse v) {
+        List<CborEntry> csilEntries = new ArrayList<>(2);
+        if (v.delivery() != null) {
+            csilEntries.add(new CborEntry(new CborText("delivery"), encGuardedDelivery(v.delivery())));
+        }
+        csilEntries.add(new CborEntry(new CborText("replayed"), new CborBool(v.replayed())));
+        return new CborMap(csilEntries);
+    }
+
+    static ClaimGuardedTaskGroupResponse decClaimGuardedTaskGroupResponse(CborValue csilRoot) {
+        GuardedDelivery delivery;
+        {
+            CborValue csilField = mapGet(csilRoot, "delivery");
+            delivery = csilField != null ? decGuardedDelivery(csilField) : null;
+        }
+        boolean replayed = asBool(require(csilRoot, "replayed"));
+        return new ClaimGuardedTaskGroupResponse(delivery, replayed);
+    }
+
+    public static byte[] encodeClaimGuardedTaskGroupResponse(ClaimGuardedTaskGroupResponse v) {
+        return encode(encClaimGuardedTaskGroupResponse(v));
+    }
+
+    public static ClaimGuardedTaskGroupResponse decodeClaimGuardedTaskGroupResponse(byte[] data) {
+        return decClaimGuardedTaskGroupResponse(decode(data));
+    }
+
+    static CborValue encUpdateGuardedTaskRequest(UpdateGuardedTaskRequest v) {
+        List<CborEntry> csilEntries = new ArrayList<>(10);
+        csilEntries.add(new CborEntry(new CborText("uuid"), new CborText(v.uuid())));
+        csilEntries.add(new CborEntry(new CborText("queue"), new CborText(v.queue())));
+        if (v.payload() != null) {
+            csilEntries.add(new CborEntry(new CborText("payload"), new CborBytes(v.payload())));
+        }
+        csilEntries.add(new CborEntry(new CborText("timeout"), new CborInt(v.timeout())));
+        if (v.priority() != null) {
+            csilEntries.add(new CborEntry(new CborText("priority"), new CborInt(v.priority())));
+        }
+        csilEntries.add(new CborEntry(new CborText("new_state"), new CborText(v.newState())));
+        csilEntries.add(new CborEntry(new CborText("operation_id"), new CborText(v.operationId())));
+        if (v.expectedState() != null) {
+            csilEntries.add(new CborEntry(new CborText("expected_state"), new CborText(v.expectedState())));
+        }
+        csilEntries.add(new CborEntry(new CborText("auto_target_state"), new CborText(v.autoTargetState())));
+        csilEntries.add(new CborEntry(new CborText("expected_revision"), new CborInt(v.expectedRevision())));
+        return new CborMap(csilEntries);
+    }
+
+    static UpdateGuardedTaskRequest decUpdateGuardedTaskRequest(CborValue csilRoot) {
+        String operationId = asText(require(csilRoot, "operation_id"));
+        String uuid = asText(require(csilRoot, "uuid"));
+        String queue = asText(require(csilRoot, "queue"));
+        long expectedRevision = asI64(require(csilRoot, "expected_revision"));
+        String expectedState;
+        {
+            CborValue csilField = mapGet(csilRoot, "expected_state");
+            expectedState = csilField != null ? asText(csilField) : null;
+        }
+        String newState = asText(require(csilRoot, "new_state"));
+        String autoTargetState = asText(require(csilRoot, "auto_target_state"));
+        long timeout = asI64(require(csilRoot, "timeout"));
+        byte[] payload;
+        {
+            CborValue csilField = mapGet(csilRoot, "payload");
+            payload = csilField != null ? asBytes(csilField) : null;
+        }
+        Long priority;
+        {
+            CborValue csilField = mapGet(csilRoot, "priority");
+            priority = csilField != null ? asI64(csilField) : null;
+        }
+        return new UpdateGuardedTaskRequest(operationId, uuid, queue, expectedRevision, expectedState, newState, autoTargetState, timeout, payload, priority);
+    }
+
+    public static byte[] encodeUpdateGuardedTaskRequest(UpdateGuardedTaskRequest v) {
+        return encode(encUpdateGuardedTaskRequest(v));
+    }
+
+    public static UpdateGuardedTaskRequest decodeUpdateGuardedTaskRequest(byte[] data) {
+        return decUpdateGuardedTaskRequest(decode(data));
+    }
+
+    static CborValue encUpdateGuardedTaskResponse(UpdateGuardedTaskResponse v) {
+        List<CborEntry> csilEntries = new ArrayList<>(2);
+        csilEntries.add(new CborEntry(new CborText("task"), encGuardedTask(v.task())));
+        csilEntries.add(new CborEntry(new CborText("replayed"), new CborBool(v.replayed())));
+        return new CborMap(csilEntries);
+    }
+
+    static UpdateGuardedTaskResponse decUpdateGuardedTaskResponse(CborValue csilRoot) {
+        GuardedTask task = decGuardedTask(require(csilRoot, "task"));
+        boolean replayed = asBool(require(csilRoot, "replayed"));
+        return new UpdateGuardedTaskResponse(task, replayed);
+    }
+
+    public static byte[] encodeUpdateGuardedTaskResponse(UpdateGuardedTaskResponse v) {
+        return encode(encUpdateGuardedTaskResponse(v));
+    }
+
+    public static UpdateGuardedTaskResponse decodeUpdateGuardedTaskResponse(byte[] data) {
+        return decUpdateGuardedTaskResponse(decode(data));
+    }
+
+    static CborValue encCompleteGuardedTaskRequest(CompleteGuardedTaskRequest v) {
+        List<CborEntry> csilEntries = new ArrayList<>(5);
+        csilEntries.add(new CborEntry(new CborText("uuid"), new CborText(v.uuid())));
+        csilEntries.add(new CborEntry(new CborText("queue"), new CborText(v.queue())));
+        csilEntries.add(new CborEntry(new CborText("operation_id"), new CborText(v.operationId())));
+        if (v.expectedState() != null) {
+            csilEntries.add(new CborEntry(new CborText("expected_state"), new CborText(v.expectedState())));
+        }
+        csilEntries.add(new CborEntry(new CborText("expected_revision"), new CborInt(v.expectedRevision())));
+        return new CborMap(csilEntries);
+    }
+
+    static CompleteGuardedTaskRequest decCompleteGuardedTaskRequest(CborValue csilRoot) {
+        String operationId = asText(require(csilRoot, "operation_id"));
+        String uuid = asText(require(csilRoot, "uuid"));
+        String queue = asText(require(csilRoot, "queue"));
+        long expectedRevision = asI64(require(csilRoot, "expected_revision"));
+        String expectedState;
+        {
+            CborValue csilField = mapGet(csilRoot, "expected_state");
+            expectedState = csilField != null ? asText(csilField) : null;
+        }
+        return new CompleteGuardedTaskRequest(operationId, uuid, queue, expectedRevision, expectedState);
+    }
+
+    public static byte[] encodeCompleteGuardedTaskRequest(CompleteGuardedTaskRequest v) {
+        return encode(encCompleteGuardedTaskRequest(v));
+    }
+
+    public static CompleteGuardedTaskRequest decodeCompleteGuardedTaskRequest(byte[] data) {
+        return decCompleteGuardedTaskRequest(decode(data));
+    }
+
+    static CborValue encCompleteGuardedTaskResponse(CompleteGuardedTaskResponse v) {
+        List<CborEntry> csilEntries = new ArrayList<>(2);
+        csilEntries.add(new CborEntry(new CborText("task"), encGuardedTask(v.task())));
+        csilEntries.add(new CborEntry(new CborText("replayed"), new CborBool(v.replayed())));
+        return new CborMap(csilEntries);
+    }
+
+    static CompleteGuardedTaskResponse decCompleteGuardedTaskResponse(CborValue csilRoot) {
+        GuardedTask task = decGuardedTask(require(csilRoot, "task"));
+        boolean replayed = asBool(require(csilRoot, "replayed"));
+        return new CompleteGuardedTaskResponse(task, replayed);
+    }
+
+    public static byte[] encodeCompleteGuardedTaskResponse(CompleteGuardedTaskResponse v) {
+        return encode(encCompleteGuardedTaskResponse(v));
+    }
+
+    public static CompleteGuardedTaskResponse decodeCompleteGuardedTaskResponse(byte[] data) {
+        return decCompleteGuardedTaskResponse(decode(data));
+    }
+
+    static CborValue encCancelGuardedTaskRequest(CancelGuardedTaskRequest v) {
+        List<CborEntry> csilEntries = new ArrayList<>(5);
+        csilEntries.add(new CborEntry(new CborText("uuid"), new CborText(v.uuid())));
+        csilEntries.add(new CborEntry(new CborText("queue"), new CborText(v.queue())));
+        csilEntries.add(new CborEntry(new CborText("operation_id"), new CborText(v.operationId())));
+        if (v.expectedState() != null) {
+            csilEntries.add(new CborEntry(new CborText("expected_state"), new CborText(v.expectedState())));
+        }
+        csilEntries.add(new CborEntry(new CborText("expected_revision"), new CborInt(v.expectedRevision())));
+        return new CborMap(csilEntries);
+    }
+
+    static CancelGuardedTaskRequest decCancelGuardedTaskRequest(CborValue csilRoot) {
+        String operationId = asText(require(csilRoot, "operation_id"));
+        String uuid = asText(require(csilRoot, "uuid"));
+        String queue = asText(require(csilRoot, "queue"));
+        long expectedRevision = asI64(require(csilRoot, "expected_revision"));
+        String expectedState;
+        {
+            CborValue csilField = mapGet(csilRoot, "expected_state");
+            expectedState = csilField != null ? asText(csilField) : null;
+        }
+        return new CancelGuardedTaskRequest(operationId, uuid, queue, expectedRevision, expectedState);
+    }
+
+    public static byte[] encodeCancelGuardedTaskRequest(CancelGuardedTaskRequest v) {
+        return encode(encCancelGuardedTaskRequest(v));
+    }
+
+    public static CancelGuardedTaskRequest decodeCancelGuardedTaskRequest(byte[] data) {
+        return decCancelGuardedTaskRequest(decode(data));
+    }
+
+    static CborValue encCancelGuardedTaskResponse(CancelGuardedTaskResponse v) {
+        List<CborEntry> csilEntries = new ArrayList<>(2);
+        csilEntries.add(new CborEntry(new CborText("task"), encGuardedTask(v.task())));
+        csilEntries.add(new CborEntry(new CborText("replayed"), new CborBool(v.replayed())));
+        return new CborMap(csilEntries);
+    }
+
+    static CancelGuardedTaskResponse decCancelGuardedTaskResponse(CborValue csilRoot) {
+        GuardedTask task = decGuardedTask(require(csilRoot, "task"));
+        boolean replayed = asBool(require(csilRoot, "replayed"));
+        return new CancelGuardedTaskResponse(task, replayed);
+    }
+
+    public static byte[] encodeCancelGuardedTaskResponse(CancelGuardedTaskResponse v) {
+        return encode(encCancelGuardedTaskResponse(v));
+    }
+
+    public static CancelGuardedTaskResponse decodeCancelGuardedTaskResponse(byte[] data) {
+        return decCancelGuardedTaskResponse(decode(data));
+    }
+
+    static CborValue encGetGuardedTaskRequest(GetGuardedTaskRequest v) {
+        List<CborEntry> csilEntries = new ArrayList<>(2);
+        csilEntries.add(new CborEntry(new CborText("uuid"), new CborText(v.uuid())));
+        csilEntries.add(new CborEntry(new CborText("queue"), new CborText(v.queue())));
+        return new CborMap(csilEntries);
+    }
+
+    static GetGuardedTaskRequest decGetGuardedTaskRequest(CborValue csilRoot) {
+        String uuid = asText(require(csilRoot, "uuid"));
+        String queue = asText(require(csilRoot, "queue"));
+        return new GetGuardedTaskRequest(uuid, queue);
+    }
+
+    public static byte[] encodeGetGuardedTaskRequest(GetGuardedTaskRequest v) {
+        return encode(encGetGuardedTaskRequest(v));
+    }
+
+    public static GetGuardedTaskRequest decodeGetGuardedTaskRequest(byte[] data) {
+        return decGetGuardedTaskRequest(decode(data));
+    }
+
+    static CborValue encGetGuardedTaskResponse(GetGuardedTaskResponse v) {
+        List<CborEntry> csilEntries = new ArrayList<>(1);
+        if (v.task() != null) {
+            csilEntries.add(new CborEntry(new CborText("task"), encGuardedTask(v.task())));
+        }
+        return new CborMap(csilEntries);
+    }
+
+    static GetGuardedTaskResponse decGetGuardedTaskResponse(CborValue csilRoot) {
+        GuardedTask task;
+        {
+            CborValue csilField = mapGet(csilRoot, "task");
+            task = csilField != null ? decGuardedTask(csilField) : null;
+        }
+        return new GetGuardedTaskResponse(task);
+    }
+
+    public static byte[] encodeGetGuardedTaskResponse(GetGuardedTaskResponse v) {
+        return encode(encGetGuardedTaskResponse(v));
+    }
+
+    public static GetGuardedTaskResponse decodeGetGuardedTaskResponse(byte[] data) {
+        return decGetGuardedTaskResponse(decode(data));
+    }
+
+    static CborValue encOperationReceipt(OperationReceipt v) {
+        List<CborEntry> csilEntries = new ArrayList<>(8);
+        csilEntries.add(new CborEntry(new CborText("at"), new CborInt(v.at())));
+        csilEntries.add(new CborEntry(new CborText("op"), new CborText(v.op())));
+        csilEntries.add(new CborEntry(new CborText("queue"), new CborText(v.queue())));
+        csilEntries.add(new CborEntry(new CborText("task_uuid"), new CborText(v.taskUuid())));
+        csilEntries.add(new CborEntry(new CborText("expires_at"), new CborInt(v.expiresAt())));
+        csilEntries.add(new CborEntry(new CborText("operation_id"), new CborText(v.operationId())));
+        csilEntries.add(new CborEntry(new CborText("result_state"), new CborText(v.resultState())));
+        csilEntries.add(new CborEntry(new CborText("result_revision"), new CborInt(v.resultRevision())));
+        return new CborMap(csilEntries);
+    }
+
+    static OperationReceipt decOperationReceipt(CborValue csilRoot) {
+        String operationId = asText(require(csilRoot, "operation_id"));
+        String op = asText(require(csilRoot, "op"));
+        String taskUuid = asText(require(csilRoot, "task_uuid"));
+        String queue = asText(require(csilRoot, "queue"));
+        long resultRevision = asI64(require(csilRoot, "result_revision"));
+        String resultState = asText(require(csilRoot, "result_state"));
+        long at = asI64(require(csilRoot, "at"));
+        long expiresAt = asI64(require(csilRoot, "expires_at"));
+        return new OperationReceipt(operationId, op, taskUuid, queue, resultRevision, resultState, at, expiresAt);
+    }
+
+    public static byte[] encodeOperationReceipt(OperationReceipt v) {
+        return encode(encOperationReceipt(v));
+    }
+
+    public static OperationReceipt decodeOperationReceipt(byte[] data) {
+        return decOperationReceipt(decode(data));
+    }
+
+    static CborValue encLookupOperationRequest(LookupOperationRequest v) {
+        List<CborEntry> csilEntries = new ArrayList<>(1);
+        csilEntries.add(new CborEntry(new CborText("operation_id"), new CborText(v.operationId())));
+        return new CborMap(csilEntries);
+    }
+
+    static LookupOperationRequest decLookupOperationRequest(CborValue csilRoot) {
+        String operationId = asText(require(csilRoot, "operation_id"));
+        return new LookupOperationRequest(operationId);
+    }
+
+    public static byte[] encodeLookupOperationRequest(LookupOperationRequest v) {
+        return encode(encLookupOperationRequest(v));
+    }
+
+    public static LookupOperationRequest decodeLookupOperationRequest(byte[] data) {
+        return decLookupOperationRequest(decode(data));
+    }
+
+    static CborValue encLookupOperationResponse(LookupOperationResponse v) {
+        List<CborEntry> csilEntries = new ArrayList<>(1);
+        if (v.receipt() != null) {
+            csilEntries.add(new CborEntry(new CborText("receipt"), encOperationReceipt(v.receipt())));
+        }
+        return new CborMap(csilEntries);
+    }
+
+    static LookupOperationResponse decLookupOperationResponse(CborValue csilRoot) {
+        OperationReceipt receipt;
+        {
+            CborValue csilField = mapGet(csilRoot, "receipt");
+            receipt = csilField != null ? decOperationReceipt(csilField) : null;
+        }
+        return new LookupOperationResponse(receipt);
+    }
+
+    public static byte[] encodeLookupOperationResponse(LookupOperationResponse v) {
+        return encode(encLookupOperationResponse(v));
+    }
+
+    public static LookupOperationResponse decodeLookupOperationResponse(byte[] data) {
+        return decLookupOperationResponse(decode(data));
+    }
+
     static CborValue encServiceError(ServiceError v) {
         List<CborEntry> csilEntries = new ArrayList<>(2);
         csilEntries.add(new CborEntry(new CborText("code"), new CborUint(v.code())));
