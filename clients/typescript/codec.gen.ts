@@ -2,7 +2,7 @@
 // Source: <csil spec>
 // Target: typescript-codec
 
-import type { CancelTaskRequest, CancelTaskResponse, CleanUpTimedOutRequest, CleanUpTimedOutResponse, CompleteTaskRequest, CompleteTaskResponse, GetNextTaskGroupRequest, GetNextTaskGroupResponse, GetNextTaskRequest, GetNextTaskResponse, GetQueueAndStateCountsRequest, GetQueueAndStateCountsResponse, GetQueueTaskCountsRequest, GetQueueTaskCountsResponse, GetQueuesRequest, GetQueuesResponse, GetTaskStateByIDRequest, GetTaskStateByIDResponse, GetTaskStateCountsRequest, GetTaskStateCountsResponse, QueueAndStateCounts, QueueAndStateCountsMap, ServiceError, StringInt64Map, SubmitTaskRequest, SubmitTaskResponse, Task, TaskDelivery, UpdateTaskRequest, UpdateTaskResponse } from "./types.gen.ts";
+import type { CancelGuardedTaskRequest, CancelGuardedTaskResponse, CancelTaskRequest, CancelTaskResponse, ClaimGuardedTaskGroupRequest, ClaimGuardedTaskGroupResponse, ClaimGuardedTaskRequest, ClaimGuardedTaskResponse, CleanUpTimedOutRequest, CleanUpTimedOutResponse, CompleteGuardedTaskRequest, CompleteGuardedTaskResponse, CompleteTaskRequest, CompleteTaskResponse, GetGuardedTaskRequest, GetGuardedTaskResponse, GetNextTaskGroupRequest, GetNextTaskGroupResponse, GetNextTaskRequest, GetNextTaskResponse, GetQueueAndStateCountsRequest, GetQueueAndStateCountsResponse, GetQueueTaskCountsRequest, GetQueueTaskCountsResponse, GetQueuesRequest, GetQueuesResponse, GetServerInfoRequest, GetServerInfoResponse, GetTaskStateByIDRequest, GetTaskStateByIDResponse, GetTaskStateCountsRequest, GetTaskStateCountsResponse, GuardedDelivery, GuardedTask, LookupOperationRequest, LookupOperationResponse, LookupSubmissionRequest, LookupSubmissionResponse, OperationReceipt, QueueAndStateCounts, QueueAndStateCountsMap, ServiceError, StringInt64Map, SubmissionReceipt, SubmitKeyedTaskRequest, SubmitKeyedTaskResponse, SubmitTaskRequest, SubmitTaskResponse, Task, TaskDelivery, UpdateGuardedTaskRequest, UpdateGuardedTaskResponse, UpdateTaskRequest, UpdateTaskResponse } from "./types.gen.ts";
 
 /** A CBOR semantic tag wrapping an inner value (e.g. tag 0 timestamp, tag 4 decimal). */
 export type CborTag = { readonly tag: number; readonly value: CborValue };
@@ -952,6 +952,612 @@ export function toGetQueueAndStateCountsResponseCbor(v: GetQueueAndStateCountsRe
 
 export function fromGetQueueAndStateCountsResponseCbor(bytes: Uint8Array): GetQueueAndStateCountsResponse {
   return fromGetQueueAndStateCountsResponseCborValue(decode(bytes));
+}
+
+export function toGetServerInfoRequestCborValue(v: GetServerInfoRequest): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  return csilMap;
+}
+
+export function fromGetServerInfoRequestCborValue(value: CborValue): GetServerInfoRequest {
+  void value;
+  return {} as GetServerInfoRequest;
+}
+
+export function toGetServerInfoRequestCbor(v: GetServerInfoRequest): Uint8Array {
+  return encodeValue(toGetServerInfoRequestCborValue(v));
+}
+
+export function fromGetServerInfoRequestCbor(bytes: Uint8Array): GetServerInfoRequest {
+  return fromGetServerInfoRequestCborValue(decode(bytes));
+}
+
+export function toGetServerInfoResponseCborValue(v: GetServerInfoResponse): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("features", v.features);
+  csilMap.set("server_version", v.serverVersion);
+  csilMap.set("task_guard_policy", v.taskGuardPolicy);
+  csilMap.set("submission_key_policy", v.submissionKeyPolicy);
+  csilMap.set("receipt_retention_seconds", v.receiptRetentionSeconds);
+  return csilMap;
+}
+
+export function fromGetServerInfoResponseCborValue(value: CborValue): GetServerInfoResponse {
+  return {
+    serverVersion: asString(requireKey(value, "server_version")),
+    features: asArray(requireKey(value, "features")).map((csilE) => asString(csilE)),
+    submissionKeyPolicy: asString(requireKey(value, "submission_key_policy")),
+    taskGuardPolicy: asString(requireKey(value, "task_guard_policy")),
+    receiptRetentionSeconds: asNumber(requireKey(value, "receipt_retention_seconds")),
+  };
+}
+
+export function toGetServerInfoResponseCbor(v: GetServerInfoResponse): Uint8Array {
+  return encodeValue(toGetServerInfoResponseCborValue(v));
+}
+
+export function fromGetServerInfoResponseCbor(bytes: Uint8Array): GetServerInfoResponse {
+  return fromGetServerInfoResponseCborValue(decode(bytes));
+}
+
+export function toGuardedTaskCborValue(v: GuardedTask): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("task", toTaskCborValue(v.task));
+  csilMap.set("guarded", v.guarded);
+  csilMap.set("revision", v.revision);
+  csilMap.set("terminal", v.terminal);
+  return csilMap;
+}
+
+export function fromGuardedTaskCborValue(value: CborValue): GuardedTask {
+  return {
+    task: fromTaskCborValue(requireKey(value, "task")),
+    guarded: asBool(requireKey(value, "guarded")),
+    revision: asNumber(requireKey(value, "revision")),
+    terminal: asBool(requireKey(value, "terminal")),
+  };
+}
+
+export function toGuardedTaskCbor(v: GuardedTask): Uint8Array {
+  return encodeValue(toGuardedTaskCborValue(v));
+}
+
+export function fromGuardedTaskCbor(bytes: Uint8Array): GuardedTask {
+  return fromGuardedTaskCborValue(decode(bytes));
+}
+
+export function toSubmissionReceiptCborValue(v: SubmissionReceipt): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("queue", v.queue);
+  csilMap.set("guarded", v.guarded);
+  csilMap.set("task_uuid", v.taskUuid);
+  csilMap.set("expires_at", v.expiresAt);
+  csilMap.set("accepted_at", v.acceptedAt);
+  csilMap.set("submission_key", v.submissionKey);
+  return csilMap;
+}
+
+export function fromSubmissionReceiptCborValue(value: CborValue): SubmissionReceipt {
+  return {
+    queue: asString(requireKey(value, "queue")),
+    submissionKey: asString(requireKey(value, "submission_key")),
+    taskUuid: asString(requireKey(value, "task_uuid")),
+    acceptedAt: asNumber(requireKey(value, "accepted_at")),
+    expiresAt: asNumber(requireKey(value, "expires_at")),
+    guarded: asBool(requireKey(value, "guarded")),
+  };
+}
+
+export function toSubmissionReceiptCbor(v: SubmissionReceipt): Uint8Array {
+  return encodeValue(toSubmissionReceiptCborValue(v));
+}
+
+export function fromSubmissionReceiptCbor(bytes: Uint8Array): SubmissionReceipt {
+  return fromSubmissionReceiptCborValue(decode(bytes));
+}
+
+export function toSubmitKeyedTaskRequestCborValue(v: SubmitKeyedTaskRequest): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("queue", v.queue);
+  csilMap.set("guarded", v.guarded);
+  csilMap.set("payload", v.payload);
+  csilMap.set("timeout", v.timeout);
+  csilMap.set("priority", v.priority);
+  csilMap.set("current_state", v.currentState);
+  csilMap.set("submission_key", v.submissionKey);
+  csilMap.set("auto_target_state", v.autoTargetState);
+  return csilMap;
+}
+
+export function fromSubmitKeyedTaskRequestCborValue(value: CborValue): SubmitKeyedTaskRequest {
+  return {
+    submissionKey: asString(requireKey(value, "submission_key")),
+    guarded: asBool(requireKey(value, "guarded")),
+    queue: asString(requireKey(value, "queue")),
+    currentState: asString(requireKey(value, "current_state")),
+    autoTargetState: asString(requireKey(value, "auto_target_state")),
+    timeout: asNumber(requireKey(value, "timeout")),
+    payload: asBytes(requireKey(value, "payload")),
+    priority: asNumber(requireKey(value, "priority")),
+  };
+}
+
+export function toSubmitKeyedTaskRequestCbor(v: SubmitKeyedTaskRequest): Uint8Array {
+  return encodeValue(toSubmitKeyedTaskRequestCborValue(v));
+}
+
+export function fromSubmitKeyedTaskRequestCbor(bytes: Uint8Array): SubmitKeyedTaskRequest {
+  return fromSubmitKeyedTaskRequestCborValue(decode(bytes));
+}
+
+export function toSubmitKeyedTaskResponseCborValue(v: SubmitKeyedTaskResponse): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  if (v.task !== undefined) csilMap.set("task", toGuardedTaskCborValue(v.task));
+  csilMap.set("receipt", toSubmissionReceiptCborValue(v.receipt));
+  csilMap.set("replayed", v.replayed);
+  return csilMap;
+}
+
+export function fromSubmitKeyedTaskResponseCborValue(value: CborValue): SubmitKeyedTaskResponse {
+  return {
+    receipt: fromSubmissionReceiptCborValue(requireKey(value, "receipt")),
+    replayed: asBool(requireKey(value, "replayed")),
+    task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromGuardedTaskCborValue(csilV))(mapGet(value, "task")),
+  };
+}
+
+export function toSubmitKeyedTaskResponseCbor(v: SubmitKeyedTaskResponse): Uint8Array {
+  return encodeValue(toSubmitKeyedTaskResponseCborValue(v));
+}
+
+export function fromSubmitKeyedTaskResponseCbor(bytes: Uint8Array): SubmitKeyedTaskResponse {
+  return fromSubmitKeyedTaskResponseCborValue(decode(bytes));
+}
+
+export function toLookupSubmissionRequestCborValue(v: LookupSubmissionRequest): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("queue", v.queue);
+  csilMap.set("submission_key", v.submissionKey);
+  return csilMap;
+}
+
+export function fromLookupSubmissionRequestCborValue(value: CborValue): LookupSubmissionRequest {
+  return {
+    queue: asString(requireKey(value, "queue")),
+    submissionKey: asString(requireKey(value, "submission_key")),
+  };
+}
+
+export function toLookupSubmissionRequestCbor(v: LookupSubmissionRequest): Uint8Array {
+  return encodeValue(toLookupSubmissionRequestCborValue(v));
+}
+
+export function fromLookupSubmissionRequestCbor(bytes: Uint8Array): LookupSubmissionRequest {
+  return fromLookupSubmissionRequestCborValue(decode(bytes));
+}
+
+export function toLookupSubmissionResponseCborValue(v: LookupSubmissionResponse): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  if (v.task !== undefined) csilMap.set("task", toGuardedTaskCborValue(v.task));
+  if (v.receipt !== undefined) csilMap.set("receipt", toSubmissionReceiptCborValue(v.receipt));
+  return csilMap;
+}
+
+export function fromLookupSubmissionResponseCborValue(value: CborValue): LookupSubmissionResponse {
+  return {
+    receipt: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromSubmissionReceiptCborValue(csilV))(mapGet(value, "receipt")),
+    task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromGuardedTaskCborValue(csilV))(mapGet(value, "task")),
+  };
+}
+
+export function toLookupSubmissionResponseCbor(v: LookupSubmissionResponse): Uint8Array {
+  return encodeValue(toLookupSubmissionResponseCborValue(v));
+}
+
+export function fromLookupSubmissionResponseCbor(bytes: Uint8Array): LookupSubmissionResponse {
+  return fromLookupSubmissionResponseCborValue(decode(bytes));
+}
+
+export function toClaimGuardedTaskRequestCborValue(v: ClaimGuardedTaskRequest): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("queue", v.queue);
+  csilMap.set("operation_id", v.operationId);
+  csilMap.set("current_state", v.currentState);
+  csilMap.set("override_timeout", v.overrideTimeout);
+  csilMap.set("override_current_state", v.overrideCurrentState);
+  csilMap.set("override_auto_target_state", v.overrideAutoTargetState);
+  return csilMap;
+}
+
+export function fromClaimGuardedTaskRequestCborValue(value: CborValue): ClaimGuardedTaskRequest {
+  return {
+    operationId: asString(requireKey(value, "operation_id")),
+    queue: asString(requireKey(value, "queue")),
+    currentState: asString(requireKey(value, "current_state")),
+    overrideTimeout: asNumber(requireKey(value, "override_timeout")),
+    overrideCurrentState: asString(requireKey(value, "override_current_state")),
+    overrideAutoTargetState: asString(requireKey(value, "override_auto_target_state")),
+  };
+}
+
+export function toClaimGuardedTaskRequestCbor(v: ClaimGuardedTaskRequest): Uint8Array {
+  return encodeValue(toClaimGuardedTaskRequestCborValue(v));
+}
+
+export function fromClaimGuardedTaskRequestCbor(bytes: Uint8Array): ClaimGuardedTaskRequest {
+  return fromClaimGuardedTaskRequestCborValue(decode(bytes));
+}
+
+export function toGuardedDeliveryCborValue(v: GuardedDelivery): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("task", toGuardedTaskCborValue(v.task));
+  csilMap.set("payload", v.payload);
+  return csilMap;
+}
+
+export function fromGuardedDeliveryCborValue(value: CborValue): GuardedDelivery {
+  return {
+    task: fromGuardedTaskCborValue(requireKey(value, "task")),
+    payload: asBytes(requireKey(value, "payload")),
+  };
+}
+
+export function toGuardedDeliveryCbor(v: GuardedDelivery): Uint8Array {
+  return encodeValue(toGuardedDeliveryCborValue(v));
+}
+
+export function fromGuardedDeliveryCbor(bytes: Uint8Array): GuardedDelivery {
+  return fromGuardedDeliveryCborValue(decode(bytes));
+}
+
+export function toClaimGuardedTaskResponseCborValue(v: ClaimGuardedTaskResponse): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  if (v.delivery !== undefined) csilMap.set("delivery", toGuardedDeliveryCborValue(v.delivery));
+  csilMap.set("replayed", v.replayed);
+  return csilMap;
+}
+
+export function fromClaimGuardedTaskResponseCborValue(value: CborValue): ClaimGuardedTaskResponse {
+  return {
+    delivery: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromGuardedDeliveryCborValue(csilV))(mapGet(value, "delivery")),
+    replayed: asBool(requireKey(value, "replayed")),
+  };
+}
+
+export function toClaimGuardedTaskResponseCbor(v: ClaimGuardedTaskResponse): Uint8Array {
+  return encodeValue(toClaimGuardedTaskResponseCborValue(v));
+}
+
+export function fromClaimGuardedTaskResponseCbor(bytes: Uint8Array): ClaimGuardedTaskResponse {
+  return fromClaimGuardedTaskResponseCborValue(decode(bytes));
+}
+
+export function toClaimGuardedTaskGroupRequestCborValue(v: ClaimGuardedTaskGroupRequest): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("queues", v.queues);
+  csilMap.set("operation_id", v.operationId);
+  csilMap.set("current_state", v.currentState);
+  csilMap.set("override_timeout", v.overrideTimeout);
+  csilMap.set("override_current_state", v.overrideCurrentState);
+  csilMap.set("override_auto_target_state", v.overrideAutoTargetState);
+  return csilMap;
+}
+
+export function fromClaimGuardedTaskGroupRequestCborValue(value: CborValue): ClaimGuardedTaskGroupRequest {
+  return {
+    operationId: asString(requireKey(value, "operation_id")),
+    queues: asArray(requireKey(value, "queues")).map((csilE) => asString(csilE)),
+    currentState: asString(requireKey(value, "current_state")),
+    overrideTimeout: asNumber(requireKey(value, "override_timeout")),
+    overrideCurrentState: asString(requireKey(value, "override_current_state")),
+    overrideAutoTargetState: asString(requireKey(value, "override_auto_target_state")),
+  };
+}
+
+export function toClaimGuardedTaskGroupRequestCbor(v: ClaimGuardedTaskGroupRequest): Uint8Array {
+  return encodeValue(toClaimGuardedTaskGroupRequestCborValue(v));
+}
+
+export function fromClaimGuardedTaskGroupRequestCbor(bytes: Uint8Array): ClaimGuardedTaskGroupRequest {
+  return fromClaimGuardedTaskGroupRequestCborValue(decode(bytes));
+}
+
+export function toClaimGuardedTaskGroupResponseCborValue(v: ClaimGuardedTaskGroupResponse): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  if (v.delivery !== undefined) csilMap.set("delivery", toGuardedDeliveryCborValue(v.delivery));
+  csilMap.set("replayed", v.replayed);
+  return csilMap;
+}
+
+export function fromClaimGuardedTaskGroupResponseCborValue(value: CborValue): ClaimGuardedTaskGroupResponse {
+  return {
+    delivery: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromGuardedDeliveryCborValue(csilV))(mapGet(value, "delivery")),
+    replayed: asBool(requireKey(value, "replayed")),
+  };
+}
+
+export function toClaimGuardedTaskGroupResponseCbor(v: ClaimGuardedTaskGroupResponse): Uint8Array {
+  return encodeValue(toClaimGuardedTaskGroupResponseCborValue(v));
+}
+
+export function fromClaimGuardedTaskGroupResponseCbor(bytes: Uint8Array): ClaimGuardedTaskGroupResponse {
+  return fromClaimGuardedTaskGroupResponseCborValue(decode(bytes));
+}
+
+export function toUpdateGuardedTaskRequestCborValue(v: UpdateGuardedTaskRequest): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("uuid", v.uuid);
+  csilMap.set("queue", v.queue);
+  if (v.payload !== undefined) csilMap.set("payload", v.payload);
+  csilMap.set("timeout", v.timeout);
+  if (v.priority !== undefined) csilMap.set("priority", v.priority);
+  csilMap.set("new_state", v.newState);
+  csilMap.set("operation_id", v.operationId);
+  if (v.expectedState !== undefined) csilMap.set("expected_state", v.expectedState);
+  csilMap.set("auto_target_state", v.autoTargetState);
+  csilMap.set("expected_revision", v.expectedRevision);
+  return csilMap;
+}
+
+export function fromUpdateGuardedTaskRequestCborValue(value: CborValue): UpdateGuardedTaskRequest {
+  return {
+    operationId: asString(requireKey(value, "operation_id")),
+    uuid: asString(requireKey(value, "uuid")),
+    queue: asString(requireKey(value, "queue")),
+    expectedRevision: asNumber(requireKey(value, "expected_revision")),
+    expectedState: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : asString(csilV))(mapGet(value, "expected_state")),
+    newState: asString(requireKey(value, "new_state")),
+    autoTargetState: asString(requireKey(value, "auto_target_state")),
+    timeout: asNumber(requireKey(value, "timeout")),
+    payload: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : asBytes(csilV))(mapGet(value, "payload")),
+    priority: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : asNumber(csilV))(mapGet(value, "priority")),
+  };
+}
+
+export function toUpdateGuardedTaskRequestCbor(v: UpdateGuardedTaskRequest): Uint8Array {
+  return encodeValue(toUpdateGuardedTaskRequestCborValue(v));
+}
+
+export function fromUpdateGuardedTaskRequestCbor(bytes: Uint8Array): UpdateGuardedTaskRequest {
+  return fromUpdateGuardedTaskRequestCborValue(decode(bytes));
+}
+
+export function toUpdateGuardedTaskResponseCborValue(v: UpdateGuardedTaskResponse): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("task", toGuardedTaskCborValue(v.task));
+  csilMap.set("replayed", v.replayed);
+  return csilMap;
+}
+
+export function fromUpdateGuardedTaskResponseCborValue(value: CborValue): UpdateGuardedTaskResponse {
+  return {
+    task: fromGuardedTaskCborValue(requireKey(value, "task")),
+    replayed: asBool(requireKey(value, "replayed")),
+  };
+}
+
+export function toUpdateGuardedTaskResponseCbor(v: UpdateGuardedTaskResponse): Uint8Array {
+  return encodeValue(toUpdateGuardedTaskResponseCborValue(v));
+}
+
+export function fromUpdateGuardedTaskResponseCbor(bytes: Uint8Array): UpdateGuardedTaskResponse {
+  return fromUpdateGuardedTaskResponseCborValue(decode(bytes));
+}
+
+export function toCompleteGuardedTaskRequestCborValue(v: CompleteGuardedTaskRequest): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("uuid", v.uuid);
+  csilMap.set("queue", v.queue);
+  csilMap.set("operation_id", v.operationId);
+  if (v.expectedState !== undefined) csilMap.set("expected_state", v.expectedState);
+  csilMap.set("expected_revision", v.expectedRevision);
+  return csilMap;
+}
+
+export function fromCompleteGuardedTaskRequestCborValue(value: CborValue): CompleteGuardedTaskRequest {
+  return {
+    operationId: asString(requireKey(value, "operation_id")),
+    uuid: asString(requireKey(value, "uuid")),
+    queue: asString(requireKey(value, "queue")),
+    expectedRevision: asNumber(requireKey(value, "expected_revision")),
+    expectedState: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : asString(csilV))(mapGet(value, "expected_state")),
+  };
+}
+
+export function toCompleteGuardedTaskRequestCbor(v: CompleteGuardedTaskRequest): Uint8Array {
+  return encodeValue(toCompleteGuardedTaskRequestCborValue(v));
+}
+
+export function fromCompleteGuardedTaskRequestCbor(bytes: Uint8Array): CompleteGuardedTaskRequest {
+  return fromCompleteGuardedTaskRequestCborValue(decode(bytes));
+}
+
+export function toCompleteGuardedTaskResponseCborValue(v: CompleteGuardedTaskResponse): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("task", toGuardedTaskCborValue(v.task));
+  csilMap.set("replayed", v.replayed);
+  return csilMap;
+}
+
+export function fromCompleteGuardedTaskResponseCborValue(value: CborValue): CompleteGuardedTaskResponse {
+  return {
+    task: fromGuardedTaskCborValue(requireKey(value, "task")),
+    replayed: asBool(requireKey(value, "replayed")),
+  };
+}
+
+export function toCompleteGuardedTaskResponseCbor(v: CompleteGuardedTaskResponse): Uint8Array {
+  return encodeValue(toCompleteGuardedTaskResponseCborValue(v));
+}
+
+export function fromCompleteGuardedTaskResponseCbor(bytes: Uint8Array): CompleteGuardedTaskResponse {
+  return fromCompleteGuardedTaskResponseCborValue(decode(bytes));
+}
+
+export function toCancelGuardedTaskRequestCborValue(v: CancelGuardedTaskRequest): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("uuid", v.uuid);
+  csilMap.set("queue", v.queue);
+  csilMap.set("operation_id", v.operationId);
+  if (v.expectedState !== undefined) csilMap.set("expected_state", v.expectedState);
+  csilMap.set("expected_revision", v.expectedRevision);
+  return csilMap;
+}
+
+export function fromCancelGuardedTaskRequestCborValue(value: CborValue): CancelGuardedTaskRequest {
+  return {
+    operationId: asString(requireKey(value, "operation_id")),
+    uuid: asString(requireKey(value, "uuid")),
+    queue: asString(requireKey(value, "queue")),
+    expectedRevision: asNumber(requireKey(value, "expected_revision")),
+    expectedState: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : asString(csilV))(mapGet(value, "expected_state")),
+  };
+}
+
+export function toCancelGuardedTaskRequestCbor(v: CancelGuardedTaskRequest): Uint8Array {
+  return encodeValue(toCancelGuardedTaskRequestCborValue(v));
+}
+
+export function fromCancelGuardedTaskRequestCbor(bytes: Uint8Array): CancelGuardedTaskRequest {
+  return fromCancelGuardedTaskRequestCborValue(decode(bytes));
+}
+
+export function toCancelGuardedTaskResponseCborValue(v: CancelGuardedTaskResponse): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("task", toGuardedTaskCborValue(v.task));
+  csilMap.set("replayed", v.replayed);
+  return csilMap;
+}
+
+export function fromCancelGuardedTaskResponseCborValue(value: CborValue): CancelGuardedTaskResponse {
+  return {
+    task: fromGuardedTaskCborValue(requireKey(value, "task")),
+    replayed: asBool(requireKey(value, "replayed")),
+  };
+}
+
+export function toCancelGuardedTaskResponseCbor(v: CancelGuardedTaskResponse): Uint8Array {
+  return encodeValue(toCancelGuardedTaskResponseCborValue(v));
+}
+
+export function fromCancelGuardedTaskResponseCbor(bytes: Uint8Array): CancelGuardedTaskResponse {
+  return fromCancelGuardedTaskResponseCborValue(decode(bytes));
+}
+
+export function toGetGuardedTaskRequestCborValue(v: GetGuardedTaskRequest): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("uuid", v.uuid);
+  csilMap.set("queue", v.queue);
+  return csilMap;
+}
+
+export function fromGetGuardedTaskRequestCborValue(value: CborValue): GetGuardedTaskRequest {
+  return {
+    uuid: asString(requireKey(value, "uuid")),
+    queue: asString(requireKey(value, "queue")),
+  };
+}
+
+export function toGetGuardedTaskRequestCbor(v: GetGuardedTaskRequest): Uint8Array {
+  return encodeValue(toGetGuardedTaskRequestCborValue(v));
+}
+
+export function fromGetGuardedTaskRequestCbor(bytes: Uint8Array): GetGuardedTaskRequest {
+  return fromGetGuardedTaskRequestCborValue(decode(bytes));
+}
+
+export function toGetGuardedTaskResponseCborValue(v: GetGuardedTaskResponse): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  if (v.task !== undefined) csilMap.set("task", toGuardedTaskCborValue(v.task));
+  return csilMap;
+}
+
+export function fromGetGuardedTaskResponseCborValue(value: CborValue): GetGuardedTaskResponse {
+  return {
+    task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromGuardedTaskCborValue(csilV))(mapGet(value, "task")),
+  };
+}
+
+export function toGetGuardedTaskResponseCbor(v: GetGuardedTaskResponse): Uint8Array {
+  return encodeValue(toGetGuardedTaskResponseCborValue(v));
+}
+
+export function fromGetGuardedTaskResponseCbor(bytes: Uint8Array): GetGuardedTaskResponse {
+  return fromGetGuardedTaskResponseCborValue(decode(bytes));
+}
+
+export function toOperationReceiptCborValue(v: OperationReceipt): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("at", v.at);
+  csilMap.set("op", v.op);
+  csilMap.set("queue", v.queue);
+  csilMap.set("task_uuid", v.taskUuid);
+  csilMap.set("expires_at", v.expiresAt);
+  csilMap.set("operation_id", v.operationId);
+  csilMap.set("result_state", v.resultState);
+  csilMap.set("result_revision", v.resultRevision);
+  return csilMap;
+}
+
+export function fromOperationReceiptCborValue(value: CborValue): OperationReceipt {
+  return {
+    operationId: asString(requireKey(value, "operation_id")),
+    op: asString(requireKey(value, "op")),
+    taskUuid: asString(requireKey(value, "task_uuid")),
+    queue: asString(requireKey(value, "queue")),
+    resultRevision: asNumber(requireKey(value, "result_revision")),
+    resultState: asString(requireKey(value, "result_state")),
+    at: asNumber(requireKey(value, "at")),
+    expiresAt: asNumber(requireKey(value, "expires_at")),
+  };
+}
+
+export function toOperationReceiptCbor(v: OperationReceipt): Uint8Array {
+  return encodeValue(toOperationReceiptCborValue(v));
+}
+
+export function fromOperationReceiptCbor(bytes: Uint8Array): OperationReceipt {
+  return fromOperationReceiptCborValue(decode(bytes));
+}
+
+export function toLookupOperationRequestCborValue(v: LookupOperationRequest): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  csilMap.set("operation_id", v.operationId);
+  return csilMap;
+}
+
+export function fromLookupOperationRequestCborValue(value: CborValue): LookupOperationRequest {
+  return {
+    operationId: asString(requireKey(value, "operation_id")),
+  };
+}
+
+export function toLookupOperationRequestCbor(v: LookupOperationRequest): Uint8Array {
+  return encodeValue(toLookupOperationRequestCborValue(v));
+}
+
+export function fromLookupOperationRequestCbor(bytes: Uint8Array): LookupOperationRequest {
+  return fromLookupOperationRequestCborValue(decode(bytes));
+}
+
+export function toLookupOperationResponseCborValue(v: LookupOperationResponse): CborValue {
+  const csilMap = new Map<CborValue, CborValue>();
+  if (v.receipt !== undefined) csilMap.set("receipt", toOperationReceiptCborValue(v.receipt));
+  return csilMap;
+}
+
+export function fromLookupOperationResponseCborValue(value: CborValue): LookupOperationResponse {
+  return {
+    receipt: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromOperationReceiptCborValue(csilV))(mapGet(value, "receipt")),
+  };
+}
+
+export function toLookupOperationResponseCbor(v: LookupOperationResponse): Uint8Array {
+  return encodeValue(toLookupOperationResponseCborValue(v));
+}
+
+export function fromLookupOperationResponseCbor(bytes: Uint8Array): LookupOperationResponse {
+  return fromLookupOperationResponseCborValue(decode(bytes));
 }
 
 export function toServiceErrorCborValue(v: ServiceError): CborValue {

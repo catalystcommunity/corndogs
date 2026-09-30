@@ -35,6 +35,26 @@ module Corndogs_service = struct
     get_task_state_counts : bytes -> outcome;
     (* request payload decodes to: get_queue_and_state_counts_request *)
     get_queue_and_state_counts : bytes -> outcome;
+    (* request payload decodes to: get_server_info_request *)
+    get_server_info : bytes -> outcome;
+    (* request payload decodes to: submit_keyed_task_request *)
+    submit_keyed_task : bytes -> outcome;
+    (* request payload decodes to: lookup_submission_request *)
+    lookup_submission : bytes -> outcome;
+    (* request payload decodes to: claim_guarded_task_request *)
+    claim_guarded_task : bytes -> outcome;
+    (* request payload decodes to: claim_guarded_task_group_request *)
+    claim_guarded_task_group : bytes -> outcome;
+    (* request payload decodes to: update_guarded_task_request *)
+    update_guarded_task : bytes -> outcome;
+    (* request payload decodes to: complete_guarded_task_request *)
+    complete_guarded_task : bytes -> outcome;
+    (* request payload decodes to: cancel_guarded_task_request *)
+    cancel_guarded_task : bytes -> outcome;
+    (* request payload decodes to: get_guarded_task_request *)
+    get_guarded_task : bytes -> outcome;
+    (* request payload decodes to: lookup_operation_request *)
+    lookup_operation : bytes -> outcome;
   }
 
   (* Verbose router: dispatch one request by operation name to its handler
@@ -53,5 +73,15 @@ module Corndogs_service = struct
     | "GetQueueTaskCounts" -> h.get_queue_task_counts payload
     | "GetTaskStateCounts" -> h.get_task_state_counts payload
     | "GetQueueAndStateCounts" -> h.get_queue_and_state_counts payload
+    | "GetServerInfo" -> h.get_server_info payload
+    | "SubmitKeyedTask" -> h.submit_keyed_task payload
+    | "LookupSubmission" -> h.lookup_submission payload
+    | "ClaimGuardedTask" -> h.claim_guarded_task payload
+    | "ClaimGuardedTaskGroup" -> h.claim_guarded_task_group payload
+    | "UpdateGuardedTask" -> h.update_guarded_task payload
+    | "CompleteGuardedTask" -> h.complete_guarded_task payload
+    | "CancelGuardedTask" -> h.cancel_guarded_task payload
+    | "GetGuardedTask" -> h.get_guarded_task payload
+    | "LookupOperation" -> h.lookup_operation payload
     | other -> transport_error ~status:2L ~message:("unknown op: " ^ other)
 end

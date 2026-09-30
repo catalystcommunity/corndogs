@@ -50,6 +50,46 @@ new Thread(() -> tr.runHeartbeat(15_000)).start();
 tr.ping();
 ```
 
+## Resilience operations
+
+Use these operations when a retry must not create a second task or apply a
+stale change. They need a Corndogs 0.8.0 or later server. An older server
+returns transport status 2 (unknown operation). After that error, do not send
+the legacy operation instead.
+
+- Make one `submission_key` for each logical submission. Send the same key on each retry.
+- Make one `operation_id` for each claim, update, completion, or cancellation. Send the same id on each retry.
+- Send the `revision` from the claim or from the last result as `expected_revision`.
+- An error with "outcome uncertain" in its message means that the request possibly ran. Retry a resilience operation with the same request. Do not retry a legacy mutation automatically.
+
+```java
+SubmitKeyedTaskResponse sub = client.submitKeyedTask(new SubmitKeyedTaskRequest(
+    "order-1234", true, "orders", "submitted", "submitted-working", 60L, bytes, 0L));
+// sub.replayed() is true when the server already accepted this key.
+
+GuardedDelivery d = client.claimGuardedTask(new ClaimGuardedTaskRequest(
+    "claim-7f3a", "orders", "submitted", 0L, "", "")).delivery();
+if (d != null) {
+    client.completeGuardedTask(new CompleteGuardedTaskRequest(
+        "done-7f3a", d.task().task().uuid(), "orders", d.task().revision(), null));
+}
+```
+
+The server returns a `ServiceError` with one of these codes:
+
+| Code | Meaning |
+| --- | --- |
+| 1 | Invalid argument |
+| 2 | Submission key required |
+| 3 | Task guard required |
+| 4 | Submission key conflict |
+| 5 | Revision conflict |
+| 6 | Operation conflict |
+| 7 | Task not found |
+| 8 | Claim superseded |
+
+Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md).
+
 ## Notes
 
 - **Transport:** CSIL-RPC over TCP, framed with a 4-byte big-endian length prefix

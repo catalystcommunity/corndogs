@@ -72,6 +72,55 @@ await transport.RunHeartbeatAsync(TimeSpan.FromSeconds(15));         // or await
 await transport.PingAsync();                                          // single one-shot heartbeat
 ```
 
+## Resilience operations
+
+Use these operations when a retry must not create a second task or apply a
+stale change. They need a Corndogs 0.8.0 or later server. An older server
+returns transport status 2 (unknown operation). After that error, do not send
+the legacy operation instead.
+
+- Make one `submission_key` for each logical submission. Send the same key on each retry.
+- Make one `operation_id` for each claim, update, completion, or cancellation. Send the same id on each retry.
+- Send the `revision` from the claim or from the last result as `expected_revision`.
+- An error with "outcome uncertain" in its message means that the request possibly ran. Retry a resilience operation with the same request. Do not retry a legacy mutation automatically.
+
+```csharp
+var sub = client.SubmitKeyedTask(new SubmitKeyedTaskRequest
+{
+    SubmissionKey = "order-1234", Guarded = true, Queue = "orders", CurrentState = "submitted",
+    AutoTargetState = "submitted-working", Timeout = 60, Payload = bytes, Priority = 0,
+});
+// sub.Replayed is true when the server already accepted this key.
+
+var d = client.ClaimGuardedTask(new ClaimGuardedTaskRequest
+{
+    OperationId = "claim-7f3a", Queue = "orders", CurrentState = "submitted",
+    OverrideTimeout = 0, OverrideCurrentState = "", OverrideAutoTargetState = "",
+}).Delivery;
+if (d is not null)
+{
+    client.CompleteGuardedTask(new CompleteGuardedTaskRequest
+    {
+        OperationId = "done-7f3a", Uuid = d.Task.Task.Uuid, Queue = "orders", ExpectedRevision = d.Task.Revision,
+    });
+}
+```
+
+The server returns a `ServiceError` with one of these codes:
+
+| Code | Meaning |
+| --- | --- |
+| 1 | Invalid argument |
+| 2 | Submission key required |
+| 3 | Task guard required |
+| 4 | Submission key conflict |
+| 5 | Revision conflict |
+| 6 | Operation conflict |
+| 7 | Task not found |
+| 8 | Claim superseded |
+
+Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md).
+
 ## Notes
 
 - **Transport:** CSIL-RPC over TCP, framed with a 4-byte length prefix. HTTP is not

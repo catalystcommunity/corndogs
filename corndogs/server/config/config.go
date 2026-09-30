@@ -96,3 +96,52 @@ func GetEnvAsDurationOrDefault(env, defaultValue string) time.Duration {
 	}
 	return durationValue
 }
+
+// Version is the server release. Release builds set it with
+// -ldflags "-X github.com/CatalystCommunity/corndogs/corndogs/server/config.Version=...".
+var Version = "dev"
+
+// Admission policies of the resilience contract. "compatibility" accepts the
+// legacy operations that a feature replaces; "required" rejects them before
+// they change data. The two features have separate settings, so an operator
+// can require submission keys after the producers upgrade and task guards
+// after the workers upgrade. The default is "compatibility" for both, so an
+// upgraded server keeps serving released clients.
+const (
+	PolicyCompatibility = "compatibility"
+	PolicyRequired      = "required"
+)
+
+var SubmissionKeyPolicy = GetEnvOrDefault("CORNDOGS_SUBMISSION_KEY_POLICY", PolicyCompatibility)
+var TaskGuardPolicy = GetEnvOrDefault("CORNDOGS_TASK_GUARD_POLICY", PolicyCompatibility)
+
+// ReceiptRetention is how long the server keeps submission and operation
+// receipts. A retry after this period is not deduplicated.
+var ReceiptRetention = GetEnvAsDurationOrDefault("CORNDOGS_RECEIPT_RETENTION", "1h")
+
+// MinReceiptRetention keeps the retention longer than any client retry budget.
+const MinReceiptRetention = time.Minute
+
+// ValidateResilience checks the policy settings. The server does not start with
+// an invalid value, because a typo must not weaken enforcement silently.
+func ValidateResilience() error {
+	for name, v := range map[string]string{
+		"CORNDOGS_SUBMISSION_KEY_POLICY": SubmissionKeyPolicy,
+		"CORNDOGS_TASK_GUARD_POLICY":     TaskGuardPolicy,
+	} {
+		if v != PolicyCompatibility && v != PolicyRequired {
+			return fmt.Errorf("%s must be %q or %q, got %q", name, PolicyCompatibility, PolicyRequired, v)
+		}
+	}
+	if ReceiptRetention < MinReceiptRetention {
+		return fmt.Errorf("CORNDOGS_RECEIPT_RETENTION must be at least %s, got %s", MinReceiptRetention, ReceiptRetention)
+	}
+	return nil
+}
+
+// KeysRequired reports whether legacy SubmitTask is rejected.
+func KeysRequired() bool { return SubmissionKeyPolicy == PolicyRequired }
+
+// GuardsRequired reports whether legacy mutations and unguarded submissions are
+// rejected.
+func GuardsRequired() bool { return TaskGuardPolicy == PolicyRequired }

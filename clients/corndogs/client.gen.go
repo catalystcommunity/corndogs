@@ -150,3 +150,93 @@ func (c *CorndogsClient) GetQueueAndStateCounts(ctx context.Context, req GetQueu
 	}
 	return DecodeGetQueueAndStateCountsResponse(csilResp)
 }
+
+func (c *CorndogsClient) GetServerInfo(ctx context.Context, req GetServerInfoRequest) (GetServerInfoResponse, error) {
+	var csilZero GetServerInfoResponse
+	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "GetServerInfo", EncodeGetServerInfoRequest(req))
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	return DecodeGetServerInfoResponse(csilResp)
+}
+
+func (c *CorndogsClient) SubmitKeyedTask(ctx context.Context, req SubmitKeyedTaskRequest) (SubmitKeyedTaskResponse, error) {
+	var csilZero SubmitKeyedTaskResponse
+	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "SubmitKeyedTask", EncodeSubmitKeyedTaskRequest(req))
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	return DecodeSubmitKeyedTaskResponse(csilResp)
+}
+
+func (c *CorndogsClient) LookupSubmission(ctx context.Context, req LookupSubmissionRequest) (LookupSubmissionResponse, error) {
+	var csilZero LookupSubmissionResponse
+	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "LookupSubmission", EncodeLookupSubmissionRequest(req))
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	return DecodeLookupSubmissionResponse(csilResp)
+}
+
+func (c *CorndogsClient) ClaimGuardedTask(ctx context.Context, req ClaimGuardedTaskRequest) (ClaimGuardedTaskResponse, error) {
+	var csilZero ClaimGuardedTaskResponse
+	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "ClaimGuardedTask", EncodeClaimGuardedTaskRequest(req))
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	return DecodeClaimGuardedTaskResponse(csilResp)
+}
+
+func (c *CorndogsClient) ClaimGuardedTaskGroup(ctx context.Context, req ClaimGuardedTaskGroupRequest) (ClaimGuardedTaskGroupResponse, error) {
+	var csilZero ClaimGuardedTaskGroupResponse
+	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "ClaimGuardedTaskGroup", EncodeClaimGuardedTaskGroupRequest(req))
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	return DecodeClaimGuardedTaskGroupResponse(csilResp)
+}
+
+func (c *CorndogsClient) UpdateGuardedTask(ctx context.Context, req UpdateGuardedTaskRequest) (UpdateGuardedTaskResponse, error) {
+	var csilZero UpdateGuardedTaskResponse
+	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "UpdateGuardedTask", EncodeUpdateGuardedTaskRequest(req))
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	return DecodeUpdateGuardedTaskResponse(csilResp)
+}
+
+func (c *CorndogsClient) CompleteGuardedTask(ctx context.Context, req CompleteGuardedTaskRequest) (CompleteGuardedTaskResponse, error) {
+	var csilZero CompleteGuardedTaskResponse
+	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "CompleteGuardedTask", EncodeCompleteGuardedTaskRequest(req))
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	return DecodeCompleteGuardedTaskResponse(csilResp)
+}
+
+func (c *CorndogsClient) CancelGuardedTask(ctx context.Context, req CancelGuardedTaskRequest) (CancelGuardedTaskResponse, error) {
+	var csilZero CancelGuardedTaskResponse
+	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "CancelGuardedTask", EncodeCancelGuardedTaskRequest(req))
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	return DecodeCancelGuardedTaskResponse(csilResp)
+}
+
+func (c *CorndogsClient) GetGuardedTask(ctx context.Context, req GetGuardedTaskRequest) (GetGuardedTaskResponse, error) {
+	var csilZero GetGuardedTaskResponse
+	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "GetGuardedTask", EncodeGetGuardedTaskRequest(req))
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	return DecodeGetGuardedTaskResponse(csilResp)
+}
+
+func (c *CorndogsClient) LookupOperation(ctx context.Context, req LookupOperationRequest) (LookupOperationResponse, error) {
+	var csilZero LookupOperationResponse
+	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "LookupOperation", EncodeLookupOperationRequest(req))
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	return DecodeLookupOperationResponse(csilResp)
+}

@@ -94,12 +94,14 @@ class TcpTransport
         reset
         raise
       rescue StandardError => e
+        # The request may have reached the server. It is not sent again:
+        # a legacy mutation could run twice.
         reset
-        raise TransportError, e.message
+        raise TransportError, "outcome uncertain: #{e.message}"
       end
       if resp.nil?
         reset
-        raise TransportError, "connection closed"
+        raise TransportError, "outcome uncertain: connection closed"
       end
       parse_response(resp)
     end

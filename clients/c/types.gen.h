@@ -42,6 +42,30 @@ typedef struct QueueAndStateCounts QueueAndStateCounts;
 typedef struct QueueAndStateCountsMap QueueAndStateCountsMap;
 typedef struct GetQueueAndStateCountsRequest GetQueueAndStateCountsRequest;
 typedef struct GetQueueAndStateCountsResponse GetQueueAndStateCountsResponse;
+typedef struct GetServerInfoRequest GetServerInfoRequest;
+typedef struct GetServerInfoResponse GetServerInfoResponse;
+typedef struct GuardedTask GuardedTask;
+typedef struct SubmissionReceipt SubmissionReceipt;
+typedef struct SubmitKeyedTaskRequest SubmitKeyedTaskRequest;
+typedef struct SubmitKeyedTaskResponse SubmitKeyedTaskResponse;
+typedef struct LookupSubmissionRequest LookupSubmissionRequest;
+typedef struct LookupSubmissionResponse LookupSubmissionResponse;
+typedef struct ClaimGuardedTaskRequest ClaimGuardedTaskRequest;
+typedef struct GuardedDelivery GuardedDelivery;
+typedef struct ClaimGuardedTaskResponse ClaimGuardedTaskResponse;
+typedef struct ClaimGuardedTaskGroupRequest ClaimGuardedTaskGroupRequest;
+typedef struct ClaimGuardedTaskGroupResponse ClaimGuardedTaskGroupResponse;
+typedef struct UpdateGuardedTaskRequest UpdateGuardedTaskRequest;
+typedef struct UpdateGuardedTaskResponse UpdateGuardedTaskResponse;
+typedef struct CompleteGuardedTaskRequest CompleteGuardedTaskRequest;
+typedef struct CompleteGuardedTaskResponse CompleteGuardedTaskResponse;
+typedef struct CancelGuardedTaskRequest CancelGuardedTaskRequest;
+typedef struct CancelGuardedTaskResponse CancelGuardedTaskResponse;
+typedef struct GetGuardedTaskRequest GetGuardedTaskRequest;
+typedef struct GetGuardedTaskResponse GetGuardedTaskResponse;
+typedef struct OperationReceipt OperationReceipt;
+typedef struct LookupOperationRequest LookupOperationRequest;
+typedef struct LookupOperationResponse LookupOperationResponse;
 typedef struct ServiceError ServiceError;
 
 /* StringInt64Map is a named map alias. */
@@ -231,6 +255,191 @@ typedef struct GetQueueAndStateCountsRequest {
 typedef struct GetQueueAndStateCountsResponse {
     QueueAndStateCountsMap queue_and_state_counts;
 } GetQueueAndStateCountsResponse;
+
+/* GetServerInfoRequest is a structured data type. */
+typedef struct GetServerInfoRequest {
+} GetServerInfoRequest;
+
+/* GetServerInfoResponse is a structured data type. */
+typedef struct GetServerInfoResponse {
+    char *server_version;
+    char **features;
+    size_t features_count;
+    char *submission_key_policy;
+    char *task_guard_policy;
+    int64_t receipt_retention_seconds;
+} GetServerInfoResponse;
+
+/* GuardedTask is a structured data type. */
+typedef struct GuardedTask {
+    Task task;
+    bool guarded;
+    int64_t revision;
+    bool terminal;
+} GuardedTask;
+
+/* SubmissionReceipt is a structured data type. */
+typedef struct SubmissionReceipt {
+    char *queue;
+    char *submission_key;
+    char *task_uuid;
+    int64_t accepted_at;
+    int64_t expires_at;
+    bool guarded;
+} SubmissionReceipt;
+
+/* SubmitKeyedTaskRequest is a structured data type. */
+typedef struct SubmitKeyedTaskRequest {
+    char *submission_key;
+    bool guarded;
+    char *queue;
+    char *current_state;
+    char *auto_target_state;
+    int64_t timeout;
+    CsilBytes payload;
+    int64_t priority;
+} SubmitKeyedTaskRequest;
+
+/* SubmitKeyedTaskResponse is a structured data type. */
+typedef struct SubmitKeyedTaskResponse {
+    SubmissionReceipt receipt;
+    bool replayed;
+    GuardedTask *task;
+} SubmitKeyedTaskResponse;
+
+/* LookupSubmissionRequest is a structured data type. */
+typedef struct LookupSubmissionRequest {
+    char *queue;
+    char *submission_key;
+} LookupSubmissionRequest;
+
+/* LookupSubmissionResponse is a structured data type. */
+typedef struct LookupSubmissionResponse {
+    SubmissionReceipt *receipt;
+    GuardedTask *task;
+} LookupSubmissionResponse;
+
+/* ClaimGuardedTaskRequest is a structured data type. */
+typedef struct ClaimGuardedTaskRequest {
+    char *operation_id;
+    char *queue;
+    char *current_state;
+    int64_t override_timeout;
+    char *override_current_state;
+    char *override_auto_target_state;
+} ClaimGuardedTaskRequest;
+
+/* GuardedDelivery is a structured data type. */
+typedef struct GuardedDelivery {
+    GuardedTask task;
+    CsilBytes payload;
+} GuardedDelivery;
+
+/* ClaimGuardedTaskResponse is a structured data type. */
+typedef struct ClaimGuardedTaskResponse {
+    GuardedDelivery *delivery;
+    bool replayed;
+} ClaimGuardedTaskResponse;
+
+/* ClaimGuardedTaskGroupRequest is a structured data type. */
+typedef struct ClaimGuardedTaskGroupRequest {
+    char *operation_id;
+    char **queues;
+    size_t queues_count;
+    char *current_state;
+    int64_t override_timeout;
+    char *override_current_state;
+    char *override_auto_target_state;
+} ClaimGuardedTaskGroupRequest;
+
+/* ClaimGuardedTaskGroupResponse is a structured data type. */
+typedef struct ClaimGuardedTaskGroupResponse {
+    GuardedDelivery *delivery;
+    bool replayed;
+} ClaimGuardedTaskGroupResponse;
+
+/* UpdateGuardedTaskRequest is a structured data type. */
+typedef struct UpdateGuardedTaskRequest {
+    char *operation_id;
+    char *uuid;
+    char *queue;
+    int64_t expected_revision;
+    char *expected_state;
+    char *new_state;
+    char *auto_target_state;
+    int64_t timeout;
+    CsilBytes *payload;
+    int64_t *priority;
+} UpdateGuardedTaskRequest;
+
+/* UpdateGuardedTaskResponse is a structured data type. */
+typedef struct UpdateGuardedTaskResponse {
+    GuardedTask task;
+    bool replayed;
+} UpdateGuardedTaskResponse;
+
+/* CompleteGuardedTaskRequest is a structured data type. */
+typedef struct CompleteGuardedTaskRequest {
+    char *operation_id;
+    char *uuid;
+    char *queue;
+    int64_t expected_revision;
+    char *expected_state;
+} CompleteGuardedTaskRequest;
+
+/* CompleteGuardedTaskResponse is a structured data type. */
+typedef struct CompleteGuardedTaskResponse {
+    GuardedTask task;
+    bool replayed;
+} CompleteGuardedTaskResponse;
+
+/* CancelGuardedTaskRequest is a structured data type. */
+typedef struct CancelGuardedTaskRequest {
+    char *operation_id;
+    char *uuid;
+    char *queue;
+    int64_t expected_revision;
+    char *expected_state;
+} CancelGuardedTaskRequest;
+
+/* CancelGuardedTaskResponse is a structured data type. */
+typedef struct CancelGuardedTaskResponse {
+    GuardedTask task;
+    bool replayed;
+} CancelGuardedTaskResponse;
+
+/* GetGuardedTaskRequest is a structured data type. */
+typedef struct GetGuardedTaskRequest {
+    char *uuid;
+    char *queue;
+} GetGuardedTaskRequest;
+
+/* GetGuardedTaskResponse is a structured data type. */
+typedef struct GetGuardedTaskResponse {
+    GuardedTask *task;
+} GetGuardedTaskResponse;
+
+/* OperationReceipt is a structured data type. */
+typedef struct OperationReceipt {
+    char *operation_id;
+    char *op;
+    char *task_uuid;
+    char *queue;
+    int64_t result_revision;
+    char *result_state;
+    int64_t at;
+    int64_t expires_at;
+} OperationReceipt;
+
+/* LookupOperationRequest is a structured data type. */
+typedef struct LookupOperationRequest {
+    char *operation_id;
+} LookupOperationRequest;
+
+/* LookupOperationResponse is a structured data type. */
+typedef struct LookupOperationResponse {
+    OperationReceipt *receipt;
+} LookupOperationResponse;
 
 /* ServiceError is a structured data type. */
 typedef struct ServiceError {

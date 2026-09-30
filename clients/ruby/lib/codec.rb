@@ -882,6 +882,707 @@ class GetQueueAndStateCountsResponse
   end
 end
 
+# CBOR codec for GetServerInfoRequest: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class GetServerInfoRequest
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new
+  end
+end
+
+# CBOR codec for GetServerInfoResponse: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class GetServerInfoResponse
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["features"] = (features).map { |csil_e| csil_e }
+    csil_map["server_version"] = server_version
+    csil_map["task_guard_policy"] = task_guard_policy
+    csil_map["submission_key_policy"] = submission_key_policy
+    csil_map["receipt_retention_seconds"] = receipt_retention_seconds
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      server_version: node["server_version"],
+      features: (node["features"]).map { |csil_e| csil_e },
+      submission_key_policy: node["submission_key_policy"],
+      task_guard_policy: node["task_guard_policy"],
+      receipt_retention_seconds: node["receipt_retention_seconds"]
+    )
+  end
+end
+
+# CBOR codec for GuardedTask: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class GuardedTask
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["task"] = (task).csil_to_tree
+    csil_map["guarded"] = guarded
+    csil_map["revision"] = revision
+    csil_map["terminal"] = terminal
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      task: Task.csil_from_tree(node["task"]),
+      guarded: node["guarded"],
+      revision: node["revision"],
+      terminal: node["terminal"]
+    )
+  end
+end
+
+# CBOR codec for SubmissionReceipt: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class SubmissionReceipt
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["queue"] = queue
+    csil_map["guarded"] = guarded
+    csil_map["task_uuid"] = task_uuid
+    csil_map["expires_at"] = expires_at
+    csil_map["accepted_at"] = accepted_at
+    csil_map["submission_key"] = submission_key
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      queue: node["queue"],
+      submission_key: node["submission_key"],
+      task_uuid: node["task_uuid"],
+      accepted_at: node["accepted_at"],
+      expires_at: node["expires_at"],
+      guarded: node["guarded"]
+    )
+  end
+end
+
+# CBOR codec for SubmitKeyedTaskRequest: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class SubmitKeyedTaskRequest
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["queue"] = queue
+    csil_map["guarded"] = guarded
+    csil_map["payload"] = (payload).b
+    csil_map["timeout"] = timeout
+    csil_map["priority"] = priority
+    csil_map["current_state"] = current_state
+    csil_map["submission_key"] = submission_key
+    csil_map["auto_target_state"] = auto_target_state
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      submission_key: node["submission_key"],
+      guarded: node["guarded"],
+      queue: node["queue"],
+      current_state: node["current_state"],
+      auto_target_state: node["auto_target_state"],
+      timeout: node["timeout"],
+      payload: node["payload"],
+      priority: node["priority"]
+    )
+  end
+end
+
+# CBOR codec for SubmitKeyedTaskResponse: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class SubmitKeyedTaskResponse
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["task"] = (task).csil_to_tree unless task.nil?
+    csil_map["receipt"] = (receipt).csil_to_tree
+    csil_map["replayed"] = replayed
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      receipt: SubmissionReceipt.csil_from_tree(node["receipt"]),
+      replayed: node["replayed"],
+      task: (node.key?("task") ? GuardedTask.csil_from_tree(node["task"]) : nil)
+    )
+  end
+end
+
+# CBOR codec for LookupSubmissionRequest: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class LookupSubmissionRequest
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["queue"] = queue
+    csil_map["submission_key"] = submission_key
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      queue: node["queue"],
+      submission_key: node["submission_key"]
+    )
+  end
+end
+
+# CBOR codec for LookupSubmissionResponse: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class LookupSubmissionResponse
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["task"] = (task).csil_to_tree unless task.nil?
+    csil_map["receipt"] = (receipt).csil_to_tree unless receipt.nil?
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      receipt: (node.key?("receipt") ? SubmissionReceipt.csil_from_tree(node["receipt"]) : nil),
+      task: (node.key?("task") ? GuardedTask.csil_from_tree(node["task"]) : nil)
+    )
+  end
+end
+
+# CBOR codec for ClaimGuardedTaskRequest: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class ClaimGuardedTaskRequest
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["queue"] = queue
+    csil_map["operation_id"] = operation_id
+    csil_map["current_state"] = current_state
+    csil_map["override_timeout"] = override_timeout
+    csil_map["override_current_state"] = override_current_state
+    csil_map["override_auto_target_state"] = override_auto_target_state
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      operation_id: node["operation_id"],
+      queue: node["queue"],
+      current_state: node["current_state"],
+      override_timeout: node["override_timeout"],
+      override_current_state: node["override_current_state"],
+      override_auto_target_state: node["override_auto_target_state"]
+    )
+  end
+end
+
+# CBOR codec for GuardedDelivery: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class GuardedDelivery
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["task"] = (task).csil_to_tree
+    csil_map["payload"] = (payload).b
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      task: GuardedTask.csil_from_tree(node["task"]),
+      payload: node["payload"]
+    )
+  end
+end
+
+# CBOR codec for ClaimGuardedTaskResponse: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class ClaimGuardedTaskResponse
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["delivery"] = (delivery).csil_to_tree unless delivery.nil?
+    csil_map["replayed"] = replayed
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      delivery: (node.key?("delivery") ? GuardedDelivery.csil_from_tree(node["delivery"]) : nil),
+      replayed: node["replayed"]
+    )
+  end
+end
+
+# CBOR codec for ClaimGuardedTaskGroupRequest: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class ClaimGuardedTaskGroupRequest
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["queues"] = (queues).map { |csil_e| csil_e }
+    csil_map["operation_id"] = operation_id
+    csil_map["current_state"] = current_state
+    csil_map["override_timeout"] = override_timeout
+    csil_map["override_current_state"] = override_current_state
+    csil_map["override_auto_target_state"] = override_auto_target_state
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      operation_id: node["operation_id"],
+      queues: (node["queues"]).map { |csil_e| csil_e },
+      current_state: node["current_state"],
+      override_timeout: node["override_timeout"],
+      override_current_state: node["override_current_state"],
+      override_auto_target_state: node["override_auto_target_state"]
+    )
+  end
+end
+
+# CBOR codec for ClaimGuardedTaskGroupResponse: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class ClaimGuardedTaskGroupResponse
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["delivery"] = (delivery).csil_to_tree unless delivery.nil?
+    csil_map["replayed"] = replayed
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      delivery: (node.key?("delivery") ? GuardedDelivery.csil_from_tree(node["delivery"]) : nil),
+      replayed: node["replayed"]
+    )
+  end
+end
+
+# CBOR codec for UpdateGuardedTaskRequest: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class UpdateGuardedTaskRequest
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["uuid"] = uuid
+    csil_map["queue"] = queue
+    csil_map["payload"] = (payload).b unless payload.nil?
+    csil_map["timeout"] = timeout
+    csil_map["priority"] = priority unless priority.nil?
+    csil_map["new_state"] = new_state
+    csil_map["operation_id"] = operation_id
+    csil_map["expected_state"] = expected_state unless expected_state.nil?
+    csil_map["auto_target_state"] = auto_target_state
+    csil_map["expected_revision"] = expected_revision
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      operation_id: node["operation_id"],
+      uuid: node["uuid"],
+      queue: node["queue"],
+      expected_revision: node["expected_revision"],
+      expected_state: (node.key?("expected_state") ? node["expected_state"] : nil),
+      new_state: node["new_state"],
+      auto_target_state: node["auto_target_state"],
+      timeout: node["timeout"],
+      payload: (node.key?("payload") ? node["payload"] : nil),
+      priority: (node.key?("priority") ? node["priority"] : nil)
+    )
+  end
+end
+
+# CBOR codec for UpdateGuardedTaskResponse: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class UpdateGuardedTaskResponse
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["task"] = (task).csil_to_tree
+    csil_map["replayed"] = replayed
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      task: GuardedTask.csil_from_tree(node["task"]),
+      replayed: node["replayed"]
+    )
+  end
+end
+
+# CBOR codec for CompleteGuardedTaskRequest: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class CompleteGuardedTaskRequest
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["uuid"] = uuid
+    csil_map["queue"] = queue
+    csil_map["operation_id"] = operation_id
+    csil_map["expected_state"] = expected_state unless expected_state.nil?
+    csil_map["expected_revision"] = expected_revision
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      operation_id: node["operation_id"],
+      uuid: node["uuid"],
+      queue: node["queue"],
+      expected_revision: node["expected_revision"],
+      expected_state: (node.key?("expected_state") ? node["expected_state"] : nil)
+    )
+  end
+end
+
+# CBOR codec for CompleteGuardedTaskResponse: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class CompleteGuardedTaskResponse
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["task"] = (task).csil_to_tree
+    csil_map["replayed"] = replayed
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      task: GuardedTask.csil_from_tree(node["task"]),
+      replayed: node["replayed"]
+    )
+  end
+end
+
+# CBOR codec for CancelGuardedTaskRequest: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class CancelGuardedTaskRequest
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["uuid"] = uuid
+    csil_map["queue"] = queue
+    csil_map["operation_id"] = operation_id
+    csil_map["expected_state"] = expected_state unless expected_state.nil?
+    csil_map["expected_revision"] = expected_revision
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      operation_id: node["operation_id"],
+      uuid: node["uuid"],
+      queue: node["queue"],
+      expected_revision: node["expected_revision"],
+      expected_state: (node.key?("expected_state") ? node["expected_state"] : nil)
+    )
+  end
+end
+
+# CBOR codec for CancelGuardedTaskResponse: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class CancelGuardedTaskResponse
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["task"] = (task).csil_to_tree
+    csil_map["replayed"] = replayed
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      task: GuardedTask.csil_from_tree(node["task"]),
+      replayed: node["replayed"]
+    )
+  end
+end
+
+# CBOR codec for GetGuardedTaskRequest: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class GetGuardedTaskRequest
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["uuid"] = uuid
+    csil_map["queue"] = queue
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      uuid: node["uuid"],
+      queue: node["queue"]
+    )
+  end
+end
+
+# CBOR codec for GetGuardedTaskResponse: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class GetGuardedTaskResponse
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["task"] = (task).csil_to_tree unless task.nil?
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      task: (node.key?("task") ? GuardedTask.csil_from_tree(node["task"]) : nil)
+    )
+  end
+end
+
+# CBOR codec for OperationReceipt: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class OperationReceipt
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["at"] = at
+    csil_map["op"] = op
+    csil_map["queue"] = queue
+    csil_map["task_uuid"] = task_uuid
+    csil_map["expires_at"] = expires_at
+    csil_map["operation_id"] = operation_id
+    csil_map["result_state"] = result_state
+    csil_map["result_revision"] = result_revision
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      operation_id: node["operation_id"],
+      op: node["op"],
+      task_uuid: node["task_uuid"],
+      queue: node["queue"],
+      result_revision: node["result_revision"],
+      result_state: node["result_state"],
+      at: node["at"],
+      expires_at: node["expires_at"]
+    )
+  end
+end
+
+# CBOR codec for LookupOperationRequest: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class LookupOperationRequest
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["operation_id"] = operation_id
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      operation_id: node["operation_id"]
+    )
+  end
+end
+
+# CBOR codec for LookupOperationResponse: a map keyed by the verbatim CSIL field names in
+# canonical RFC 8949 order.
+class LookupOperationResponse
+  def to_cbor
+    CsilCbor.encode(csil_to_tree)
+  end
+
+  def csil_to_tree
+    csil_map = {}
+    csil_map["receipt"] = (receipt).csil_to_tree unless receipt.nil?
+    csil_map
+  end
+
+  def self.from_cbor(bytes)
+    csil_from_tree(CsilCbor.decode(bytes))
+  end
+
+  def self.csil_from_tree(node)
+    new(
+      receipt: (node.key?("receipt") ? OperationReceipt.csil_from_tree(node["receipt"]) : nil)
+    )
+  end
+end
+
 # CBOR codec for ServiceError: a map keyed by the verbatim CSIL field names in
 # canonical RFC 8949 order.
 class ServiceError

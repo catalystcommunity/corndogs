@@ -1671,6 +1671,1742 @@ final class GetQueueAndStateCountsResponse {
       GetQueueAndStateCountsResponse.fromCborValue(CsilCbor.decode(bytes));
 }
 
+final class GetServerInfoRequest {
+  // (no named fields)
+
+  const GetServerInfoRequest();
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    return map;
+  }
+
+  factory GetServerInfoRequest.fromMap(Map<String, Object?> map) {
+    return GetServerInfoRequest();
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! GetServerInfoRequest) return false;
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory GetServerInfoRequest.fromCborValue(Object? cbor) {
+    return GetServerInfoRequest();
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory GetServerInfoRequest.fromCbor(List<int> bytes) =>
+      GetServerInfoRequest.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class GetServerInfoResponse {
+  final String serverVersion;
+  final List<String> features;
+  final String submissionKeyPolicy;
+  final String taskGuardPolicy;
+  final int receiptRetentionSeconds;
+
+  const GetServerInfoResponse({
+    required this.serverVersion,
+    required this.features,
+    required this.submissionKeyPolicy,
+    required this.taskGuardPolicy,
+    required this.receiptRetentionSeconds,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['server_version'] = serverVersion;
+    map['features'] = features;
+    map['submission_key_policy'] = submissionKeyPolicy;
+    map['task_guard_policy'] = taskGuardPolicy;
+    map['receipt_retention_seconds'] = receiptRetentionSeconds;
+    return map;
+  }
+
+  factory GetServerInfoResponse.fromMap(Map<String, Object?> map) {
+    return GetServerInfoResponse(
+      serverVersion: map['server_version'] as String,
+      features: map['features'] as List<String>,
+      submissionKeyPolicy: map['submission_key_policy'] as String,
+      taskGuardPolicy: map['task_guard_policy'] as String,
+      receiptRetentionSeconds: map['receipt_retention_seconds'] as int,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! GetServerInfoResponse) return false;
+    return serverVersion == other.serverVersion &&
+        features == other.features &&
+        submissionKeyPolicy == other.submissionKeyPolicy &&
+        taskGuardPolicy == other.taskGuardPolicy &&
+        receiptRetentionSeconds == other.receiptRetentionSeconds;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    serverVersion,
+    features,
+    submissionKeyPolicy,
+    taskGuardPolicy,
+    receiptRetentionSeconds,
+  ]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['server_version'] = serverVersion;
+    map['features'] = features;
+    map['submission_key_policy'] = submissionKeyPolicy;
+    map['task_guard_policy'] = taskGuardPolicy;
+    map['receipt_retention_seconds'] = receiptRetentionSeconds;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory GetServerInfoResponse.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return GetServerInfoResponse(
+      serverVersion: map['server_version'] as String,
+      features: (map['features'] as List)
+          .map((csilE) => csilE as String)
+          .cast<String>()
+          .toList(),
+      submissionKeyPolicy: map['submission_key_policy'] as String,
+      taskGuardPolicy: map['task_guard_policy'] as String,
+      receiptRetentionSeconds: map['receipt_retention_seconds'] as int,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory GetServerInfoResponse.fromCbor(List<int> bytes) =>
+      GetServerInfoResponse.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class GuardedTask {
+  final Task task;
+  final bool guarded;
+  final int revision;
+  final bool terminal;
+
+  const GuardedTask({
+    required this.task,
+    required this.guarded,
+    required this.revision,
+    required this.terminal,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['task'] = task;
+    map['guarded'] = guarded;
+    map['revision'] = revision;
+    map['terminal'] = terminal;
+    return map;
+  }
+
+  factory GuardedTask.fromMap(Map<String, Object?> map) {
+    return GuardedTask(
+      task: map['task'] as Task,
+      guarded: map['guarded'] as bool,
+      revision: map['revision'] as int,
+      terminal: map['terminal'] as bool,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! GuardedTask) return false;
+    return task == other.task &&
+        guarded == other.guarded &&
+        revision == other.revision &&
+        terminal == other.terminal;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([task, guarded, revision, terminal]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['task'] = task.toCborValue();
+    map['guarded'] = guarded;
+    map['revision'] = revision;
+    map['terminal'] = terminal;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory GuardedTask.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return GuardedTask(
+      task: Task.fromCborValue(map['task']),
+      guarded: map['guarded'] as bool,
+      revision: map['revision'] as int,
+      terminal: map['terminal'] as bool,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory GuardedTask.fromCbor(List<int> bytes) =>
+      GuardedTask.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class SubmissionReceipt {
+  final String queue;
+  final String submissionKey;
+  final String taskUuid;
+  final int acceptedAt;
+  final int expiresAt;
+  final bool guarded;
+
+  const SubmissionReceipt({
+    required this.queue,
+    required this.submissionKey,
+    required this.taskUuid,
+    required this.acceptedAt,
+    required this.expiresAt,
+    required this.guarded,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['queue'] = queue;
+    map['submission_key'] = submissionKey;
+    map['task_uuid'] = taskUuid;
+    map['accepted_at'] = acceptedAt;
+    map['expires_at'] = expiresAt;
+    map['guarded'] = guarded;
+    return map;
+  }
+
+  factory SubmissionReceipt.fromMap(Map<String, Object?> map) {
+    return SubmissionReceipt(
+      queue: map['queue'] as String,
+      submissionKey: map['submission_key'] as String,
+      taskUuid: map['task_uuid'] as String,
+      acceptedAt: map['accepted_at'] as int,
+      expiresAt: map['expires_at'] as int,
+      guarded: map['guarded'] as bool,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! SubmissionReceipt) return false;
+    return queue == other.queue &&
+        submissionKey == other.submissionKey &&
+        taskUuid == other.taskUuid &&
+        acceptedAt == other.acceptedAt &&
+        expiresAt == other.expiresAt &&
+        guarded == other.guarded;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    queue,
+    submissionKey,
+    taskUuid,
+    acceptedAt,
+    expiresAt,
+    guarded,
+  ]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['queue'] = queue;
+    map['submission_key'] = submissionKey;
+    map['task_uuid'] = taskUuid;
+    map['accepted_at'] = acceptedAt;
+    map['expires_at'] = expiresAt;
+    map['guarded'] = guarded;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory SubmissionReceipt.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return SubmissionReceipt(
+      queue: map['queue'] as String,
+      submissionKey: map['submission_key'] as String,
+      taskUuid: map['task_uuid'] as String,
+      acceptedAt: map['accepted_at'] as int,
+      expiresAt: map['expires_at'] as int,
+      guarded: map['guarded'] as bool,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory SubmissionReceipt.fromCbor(List<int> bytes) =>
+      SubmissionReceipt.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class SubmitKeyedTaskRequest {
+  final String submissionKey;
+  final bool guarded;
+  final String queue;
+  final String currentState;
+  final String autoTargetState;
+  final int timeout;
+  final Uint8List payload;
+  final int priority;
+
+  const SubmitKeyedTaskRequest({
+    required this.submissionKey,
+    required this.guarded,
+    required this.queue,
+    required this.currentState,
+    required this.autoTargetState,
+    required this.timeout,
+    required this.payload,
+    required this.priority,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['submission_key'] = submissionKey;
+    map['guarded'] = guarded;
+    map['queue'] = queue;
+    map['current_state'] = currentState;
+    map['auto_target_state'] = autoTargetState;
+    map['timeout'] = timeout;
+    map['payload'] = payload;
+    map['priority'] = priority;
+    return map;
+  }
+
+  factory SubmitKeyedTaskRequest.fromMap(Map<String, Object?> map) {
+    return SubmitKeyedTaskRequest(
+      submissionKey: map['submission_key'] as String,
+      guarded: map['guarded'] as bool,
+      queue: map['queue'] as String,
+      currentState: map['current_state'] as String,
+      autoTargetState: map['auto_target_state'] as String,
+      timeout: map['timeout'] as int,
+      payload: map['payload'] as Uint8List,
+      priority: map['priority'] as int,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! SubmitKeyedTaskRequest) return false;
+    return submissionKey == other.submissionKey &&
+        guarded == other.guarded &&
+        queue == other.queue &&
+        currentState == other.currentState &&
+        autoTargetState == other.autoTargetState &&
+        timeout == other.timeout &&
+        _bytesEqual(payload, other.payload) &&
+        priority == other.priority;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    submissionKey,
+    guarded,
+    queue,
+    currentState,
+    autoTargetState,
+    timeout,
+    Object.hashAll(payload),
+    priority,
+  ]);
+
+  static bool _bytesEqual(Uint8List? a, Uint8List? b) {
+    if (a == null || b == null) return a == b;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['submission_key'] = submissionKey;
+    map['guarded'] = guarded;
+    map['queue'] = queue;
+    map['current_state'] = currentState;
+    map['auto_target_state'] = autoTargetState;
+    map['timeout'] = timeout;
+    map['payload'] = payload;
+    map['priority'] = priority;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory SubmitKeyedTaskRequest.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return SubmitKeyedTaskRequest(
+      submissionKey: map['submission_key'] as String,
+      guarded: map['guarded'] as bool,
+      queue: map['queue'] as String,
+      currentState: map['current_state'] as String,
+      autoTargetState: map['auto_target_state'] as String,
+      timeout: map['timeout'] as int,
+      payload: map['payload'] as Uint8List,
+      priority: map['priority'] as int,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory SubmitKeyedTaskRequest.fromCbor(List<int> bytes) =>
+      SubmitKeyedTaskRequest.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class SubmitKeyedTaskResponse {
+  final SubmissionReceipt receipt;
+  final bool replayed;
+  final GuardedTask? task;
+
+  const SubmitKeyedTaskResponse({
+    required this.receipt,
+    required this.replayed,
+    this.task,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['receipt'] = receipt;
+    map['replayed'] = replayed;
+    if (task != null) map['task'] = task;
+    return map;
+  }
+
+  factory SubmitKeyedTaskResponse.fromMap(Map<String, Object?> map) {
+    return SubmitKeyedTaskResponse(
+      receipt: map['receipt'] as SubmissionReceipt,
+      replayed: map['replayed'] as bool,
+      task: map['task'] as GuardedTask?,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! SubmitKeyedTaskResponse) return false;
+    return receipt == other.receipt &&
+        replayed == other.replayed &&
+        task == other.task;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([receipt, replayed, task]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['receipt'] = receipt.toCborValue();
+    map['replayed'] = replayed;
+    if (task != null) map['task'] = task!.toCborValue();
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory SubmitKeyedTaskResponse.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return SubmitKeyedTaskResponse(
+      receipt: SubmissionReceipt.fromCborValue(map['receipt']),
+      replayed: map['replayed'] as bool,
+      task: map['task'] == null ? null : GuardedTask.fromCborValue(map['task']),
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory SubmitKeyedTaskResponse.fromCbor(List<int> bytes) =>
+      SubmitKeyedTaskResponse.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class LookupSubmissionRequest {
+  final String queue;
+  final String submissionKey;
+
+  const LookupSubmissionRequest({
+    required this.queue,
+    required this.submissionKey,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['queue'] = queue;
+    map['submission_key'] = submissionKey;
+    return map;
+  }
+
+  factory LookupSubmissionRequest.fromMap(Map<String, Object?> map) {
+    return LookupSubmissionRequest(
+      queue: map['queue'] as String,
+      submissionKey: map['submission_key'] as String,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! LookupSubmissionRequest) return false;
+    return queue == other.queue && submissionKey == other.submissionKey;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([queue, submissionKey]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['queue'] = queue;
+    map['submission_key'] = submissionKey;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory LookupSubmissionRequest.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return LookupSubmissionRequest(
+      queue: map['queue'] as String,
+      submissionKey: map['submission_key'] as String,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory LookupSubmissionRequest.fromCbor(List<int> bytes) =>
+      LookupSubmissionRequest.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class LookupSubmissionResponse {
+  final SubmissionReceipt? receipt;
+  final GuardedTask? task;
+
+  const LookupSubmissionResponse({this.receipt, this.task});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    if (receipt != null) map['receipt'] = receipt;
+    if (task != null) map['task'] = task;
+    return map;
+  }
+
+  factory LookupSubmissionResponse.fromMap(Map<String, Object?> map) {
+    return LookupSubmissionResponse(
+      receipt: map['receipt'] as SubmissionReceipt?,
+      task: map['task'] as GuardedTask?,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! LookupSubmissionResponse) return false;
+    return receipt == other.receipt && task == other.task;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([receipt, task]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    if (receipt != null) map['receipt'] = receipt!.toCborValue();
+    if (task != null) map['task'] = task!.toCborValue();
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory LookupSubmissionResponse.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return LookupSubmissionResponse(
+      receipt: map['receipt'] == null
+          ? null
+          : SubmissionReceipt.fromCborValue(map['receipt']),
+      task: map['task'] == null ? null : GuardedTask.fromCborValue(map['task']),
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory LookupSubmissionResponse.fromCbor(List<int> bytes) =>
+      LookupSubmissionResponse.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class ClaimGuardedTaskRequest {
+  final String operationId;
+  final String queue;
+  final String currentState;
+  final int overrideTimeout;
+  final String overrideCurrentState;
+  final String overrideAutoTargetState;
+
+  const ClaimGuardedTaskRequest({
+    required this.operationId,
+    required this.queue,
+    required this.currentState,
+    required this.overrideTimeout,
+    required this.overrideCurrentState,
+    required this.overrideAutoTargetState,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['queue'] = queue;
+    map['current_state'] = currentState;
+    map['override_timeout'] = overrideTimeout;
+    map['override_current_state'] = overrideCurrentState;
+    map['override_auto_target_state'] = overrideAutoTargetState;
+    return map;
+  }
+
+  factory ClaimGuardedTaskRequest.fromMap(Map<String, Object?> map) {
+    return ClaimGuardedTaskRequest(
+      operationId: map['operation_id'] as String,
+      queue: map['queue'] as String,
+      currentState: map['current_state'] as String,
+      overrideTimeout: map['override_timeout'] as int,
+      overrideCurrentState: map['override_current_state'] as String,
+      overrideAutoTargetState: map['override_auto_target_state'] as String,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! ClaimGuardedTaskRequest) return false;
+    return operationId == other.operationId &&
+        queue == other.queue &&
+        currentState == other.currentState &&
+        overrideTimeout == other.overrideTimeout &&
+        overrideCurrentState == other.overrideCurrentState &&
+        overrideAutoTargetState == other.overrideAutoTargetState;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    operationId,
+    queue,
+    currentState,
+    overrideTimeout,
+    overrideCurrentState,
+    overrideAutoTargetState,
+  ]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['queue'] = queue;
+    map['current_state'] = currentState;
+    map['override_timeout'] = overrideTimeout;
+    map['override_current_state'] = overrideCurrentState;
+    map['override_auto_target_state'] = overrideAutoTargetState;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory ClaimGuardedTaskRequest.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return ClaimGuardedTaskRequest(
+      operationId: map['operation_id'] as String,
+      queue: map['queue'] as String,
+      currentState: map['current_state'] as String,
+      overrideTimeout: map['override_timeout'] as int,
+      overrideCurrentState: map['override_current_state'] as String,
+      overrideAutoTargetState: map['override_auto_target_state'] as String,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory ClaimGuardedTaskRequest.fromCbor(List<int> bytes) =>
+      ClaimGuardedTaskRequest.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class GuardedDelivery {
+  final GuardedTask task;
+  final Uint8List payload;
+
+  const GuardedDelivery({required this.task, required this.payload});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['task'] = task;
+    map['payload'] = payload;
+    return map;
+  }
+
+  factory GuardedDelivery.fromMap(Map<String, Object?> map) {
+    return GuardedDelivery(
+      task: map['task'] as GuardedTask,
+      payload: map['payload'] as Uint8List,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! GuardedDelivery) return false;
+    return task == other.task && _bytesEqual(payload, other.payload);
+  }
+
+  @override
+  int get hashCode => Object.hashAll([task, Object.hashAll(payload)]);
+
+  static bool _bytesEqual(Uint8List? a, Uint8List? b) {
+    if (a == null || b == null) return a == b;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['task'] = task.toCborValue();
+    map['payload'] = payload;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory GuardedDelivery.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return GuardedDelivery(
+      task: GuardedTask.fromCborValue(map['task']),
+      payload: map['payload'] as Uint8List,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory GuardedDelivery.fromCbor(List<int> bytes) =>
+      GuardedDelivery.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class ClaimGuardedTaskResponse {
+  final GuardedDelivery? delivery;
+  final bool replayed;
+
+  const ClaimGuardedTaskResponse({this.delivery, required this.replayed});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    if (delivery != null) map['delivery'] = delivery;
+    map['replayed'] = replayed;
+    return map;
+  }
+
+  factory ClaimGuardedTaskResponse.fromMap(Map<String, Object?> map) {
+    return ClaimGuardedTaskResponse(
+      delivery: map['delivery'] as GuardedDelivery?,
+      replayed: map['replayed'] as bool,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! ClaimGuardedTaskResponse) return false;
+    return delivery == other.delivery && replayed == other.replayed;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([delivery, replayed]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    if (delivery != null) map['delivery'] = delivery!.toCborValue();
+    map['replayed'] = replayed;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory ClaimGuardedTaskResponse.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return ClaimGuardedTaskResponse(
+      delivery: map['delivery'] == null
+          ? null
+          : GuardedDelivery.fromCborValue(map['delivery']),
+      replayed: map['replayed'] as bool,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory ClaimGuardedTaskResponse.fromCbor(List<int> bytes) =>
+      ClaimGuardedTaskResponse.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class ClaimGuardedTaskGroupRequest {
+  final String operationId;
+  final List<String> queues;
+  final String currentState;
+  final int overrideTimeout;
+  final String overrideCurrentState;
+  final String overrideAutoTargetState;
+
+  const ClaimGuardedTaskGroupRequest({
+    required this.operationId,
+    required this.queues,
+    required this.currentState,
+    required this.overrideTimeout,
+    required this.overrideCurrentState,
+    required this.overrideAutoTargetState,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['queues'] = queues;
+    map['current_state'] = currentState;
+    map['override_timeout'] = overrideTimeout;
+    map['override_current_state'] = overrideCurrentState;
+    map['override_auto_target_state'] = overrideAutoTargetState;
+    return map;
+  }
+
+  factory ClaimGuardedTaskGroupRequest.fromMap(Map<String, Object?> map) {
+    return ClaimGuardedTaskGroupRequest(
+      operationId: map['operation_id'] as String,
+      queues: map['queues'] as List<String>,
+      currentState: map['current_state'] as String,
+      overrideTimeout: map['override_timeout'] as int,
+      overrideCurrentState: map['override_current_state'] as String,
+      overrideAutoTargetState: map['override_auto_target_state'] as String,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! ClaimGuardedTaskGroupRequest) return false;
+    return operationId == other.operationId &&
+        queues == other.queues &&
+        currentState == other.currentState &&
+        overrideTimeout == other.overrideTimeout &&
+        overrideCurrentState == other.overrideCurrentState &&
+        overrideAutoTargetState == other.overrideAutoTargetState;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    operationId,
+    queues,
+    currentState,
+    overrideTimeout,
+    overrideCurrentState,
+    overrideAutoTargetState,
+  ]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['queues'] = queues;
+    map['current_state'] = currentState;
+    map['override_timeout'] = overrideTimeout;
+    map['override_current_state'] = overrideCurrentState;
+    map['override_auto_target_state'] = overrideAutoTargetState;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory ClaimGuardedTaskGroupRequest.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return ClaimGuardedTaskGroupRequest(
+      operationId: map['operation_id'] as String,
+      queues: (map['queues'] as List)
+          .map((csilE) => csilE as String)
+          .cast<String>()
+          .toList(),
+      currentState: map['current_state'] as String,
+      overrideTimeout: map['override_timeout'] as int,
+      overrideCurrentState: map['override_current_state'] as String,
+      overrideAutoTargetState: map['override_auto_target_state'] as String,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory ClaimGuardedTaskGroupRequest.fromCbor(List<int> bytes) =>
+      ClaimGuardedTaskGroupRequest.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class ClaimGuardedTaskGroupResponse {
+  final GuardedDelivery? delivery;
+  final bool replayed;
+
+  const ClaimGuardedTaskGroupResponse({this.delivery, required this.replayed});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    if (delivery != null) map['delivery'] = delivery;
+    map['replayed'] = replayed;
+    return map;
+  }
+
+  factory ClaimGuardedTaskGroupResponse.fromMap(Map<String, Object?> map) {
+    return ClaimGuardedTaskGroupResponse(
+      delivery: map['delivery'] as GuardedDelivery?,
+      replayed: map['replayed'] as bool,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! ClaimGuardedTaskGroupResponse) return false;
+    return delivery == other.delivery && replayed == other.replayed;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([delivery, replayed]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    if (delivery != null) map['delivery'] = delivery!.toCborValue();
+    map['replayed'] = replayed;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory ClaimGuardedTaskGroupResponse.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return ClaimGuardedTaskGroupResponse(
+      delivery: map['delivery'] == null
+          ? null
+          : GuardedDelivery.fromCborValue(map['delivery']),
+      replayed: map['replayed'] as bool,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory ClaimGuardedTaskGroupResponse.fromCbor(List<int> bytes) =>
+      ClaimGuardedTaskGroupResponse.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class UpdateGuardedTaskRequest {
+  final String operationId;
+  final String uuid;
+  final String queue;
+  final int expectedRevision;
+  final String? expectedState;
+  final String newState;
+  final String autoTargetState;
+  final int timeout;
+  final Uint8List? payload;
+  final int? priority;
+
+  const UpdateGuardedTaskRequest({
+    required this.operationId,
+    required this.uuid,
+    required this.queue,
+    required this.expectedRevision,
+    this.expectedState,
+    required this.newState,
+    required this.autoTargetState,
+    required this.timeout,
+    this.payload,
+    this.priority,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['uuid'] = uuid;
+    map['queue'] = queue;
+    map['expected_revision'] = expectedRevision;
+    if (expectedState != null) map['expected_state'] = expectedState;
+    map['new_state'] = newState;
+    map['auto_target_state'] = autoTargetState;
+    map['timeout'] = timeout;
+    if (payload != null) map['payload'] = payload;
+    if (priority != null) map['priority'] = priority;
+    return map;
+  }
+
+  factory UpdateGuardedTaskRequest.fromMap(Map<String, Object?> map) {
+    return UpdateGuardedTaskRequest(
+      operationId: map['operation_id'] as String,
+      uuid: map['uuid'] as String,
+      queue: map['queue'] as String,
+      expectedRevision: map['expected_revision'] as int,
+      expectedState: map['expected_state'] as String?,
+      newState: map['new_state'] as String,
+      autoTargetState: map['auto_target_state'] as String,
+      timeout: map['timeout'] as int,
+      payload: map['payload'] as Uint8List?,
+      priority: map['priority'] as int?,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! UpdateGuardedTaskRequest) return false;
+    return operationId == other.operationId &&
+        uuid == other.uuid &&
+        queue == other.queue &&
+        expectedRevision == other.expectedRevision &&
+        expectedState == other.expectedState &&
+        newState == other.newState &&
+        autoTargetState == other.autoTargetState &&
+        timeout == other.timeout &&
+        _bytesEqual(payload, other.payload) &&
+        priority == other.priority;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    operationId,
+    uuid,
+    queue,
+    expectedRevision,
+    expectedState,
+    newState,
+    autoTargetState,
+    timeout,
+    payload == null ? null : Object.hashAll(payload!),
+    priority,
+  ]);
+
+  static bool _bytesEqual(Uint8List? a, Uint8List? b) {
+    if (a == null || b == null) return a == b;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['uuid'] = uuid;
+    map['queue'] = queue;
+    map['expected_revision'] = expectedRevision;
+    if (expectedState != null) map['expected_state'] = expectedState!;
+    map['new_state'] = newState;
+    map['auto_target_state'] = autoTargetState;
+    map['timeout'] = timeout;
+    if (payload != null) map['payload'] = payload!;
+    if (priority != null) map['priority'] = priority!;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory UpdateGuardedTaskRequest.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return UpdateGuardedTaskRequest(
+      operationId: map['operation_id'] as String,
+      uuid: map['uuid'] as String,
+      queue: map['queue'] as String,
+      expectedRevision: map['expected_revision'] as int,
+      expectedState: map['expected_state'] == null
+          ? null
+          : map['expected_state'] as String,
+      newState: map['new_state'] as String,
+      autoTargetState: map['auto_target_state'] as String,
+      timeout: map['timeout'] as int,
+      payload: map['payload'] == null ? null : map['payload'] as Uint8List,
+      priority: map['priority'] == null ? null : map['priority'] as int,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory UpdateGuardedTaskRequest.fromCbor(List<int> bytes) =>
+      UpdateGuardedTaskRequest.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class UpdateGuardedTaskResponse {
+  final GuardedTask task;
+  final bool replayed;
+
+  const UpdateGuardedTaskResponse({required this.task, required this.replayed});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['task'] = task;
+    map['replayed'] = replayed;
+    return map;
+  }
+
+  factory UpdateGuardedTaskResponse.fromMap(Map<String, Object?> map) {
+    return UpdateGuardedTaskResponse(
+      task: map['task'] as GuardedTask,
+      replayed: map['replayed'] as bool,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! UpdateGuardedTaskResponse) return false;
+    return task == other.task && replayed == other.replayed;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([task, replayed]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['task'] = task.toCborValue();
+    map['replayed'] = replayed;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory UpdateGuardedTaskResponse.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return UpdateGuardedTaskResponse(
+      task: GuardedTask.fromCborValue(map['task']),
+      replayed: map['replayed'] as bool,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory UpdateGuardedTaskResponse.fromCbor(List<int> bytes) =>
+      UpdateGuardedTaskResponse.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class CompleteGuardedTaskRequest {
+  final String operationId;
+  final String uuid;
+  final String queue;
+  final int expectedRevision;
+  final String? expectedState;
+
+  const CompleteGuardedTaskRequest({
+    required this.operationId,
+    required this.uuid,
+    required this.queue,
+    required this.expectedRevision,
+    this.expectedState,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['uuid'] = uuid;
+    map['queue'] = queue;
+    map['expected_revision'] = expectedRevision;
+    if (expectedState != null) map['expected_state'] = expectedState;
+    return map;
+  }
+
+  factory CompleteGuardedTaskRequest.fromMap(Map<String, Object?> map) {
+    return CompleteGuardedTaskRequest(
+      operationId: map['operation_id'] as String,
+      uuid: map['uuid'] as String,
+      queue: map['queue'] as String,
+      expectedRevision: map['expected_revision'] as int,
+      expectedState: map['expected_state'] as String?,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! CompleteGuardedTaskRequest) return false;
+    return operationId == other.operationId &&
+        uuid == other.uuid &&
+        queue == other.queue &&
+        expectedRevision == other.expectedRevision &&
+        expectedState == other.expectedState;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    operationId,
+    uuid,
+    queue,
+    expectedRevision,
+    expectedState,
+  ]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['uuid'] = uuid;
+    map['queue'] = queue;
+    map['expected_revision'] = expectedRevision;
+    if (expectedState != null) map['expected_state'] = expectedState!;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory CompleteGuardedTaskRequest.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return CompleteGuardedTaskRequest(
+      operationId: map['operation_id'] as String,
+      uuid: map['uuid'] as String,
+      queue: map['queue'] as String,
+      expectedRevision: map['expected_revision'] as int,
+      expectedState: map['expected_state'] == null
+          ? null
+          : map['expected_state'] as String,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory CompleteGuardedTaskRequest.fromCbor(List<int> bytes) =>
+      CompleteGuardedTaskRequest.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class CompleteGuardedTaskResponse {
+  final GuardedTask task;
+  final bool replayed;
+
+  const CompleteGuardedTaskResponse({
+    required this.task,
+    required this.replayed,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['task'] = task;
+    map['replayed'] = replayed;
+    return map;
+  }
+
+  factory CompleteGuardedTaskResponse.fromMap(Map<String, Object?> map) {
+    return CompleteGuardedTaskResponse(
+      task: map['task'] as GuardedTask,
+      replayed: map['replayed'] as bool,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! CompleteGuardedTaskResponse) return false;
+    return task == other.task && replayed == other.replayed;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([task, replayed]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['task'] = task.toCborValue();
+    map['replayed'] = replayed;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory CompleteGuardedTaskResponse.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return CompleteGuardedTaskResponse(
+      task: GuardedTask.fromCborValue(map['task']),
+      replayed: map['replayed'] as bool,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory CompleteGuardedTaskResponse.fromCbor(List<int> bytes) =>
+      CompleteGuardedTaskResponse.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class CancelGuardedTaskRequest {
+  final String operationId;
+  final String uuid;
+  final String queue;
+  final int expectedRevision;
+  final String? expectedState;
+
+  const CancelGuardedTaskRequest({
+    required this.operationId,
+    required this.uuid,
+    required this.queue,
+    required this.expectedRevision,
+    this.expectedState,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['uuid'] = uuid;
+    map['queue'] = queue;
+    map['expected_revision'] = expectedRevision;
+    if (expectedState != null) map['expected_state'] = expectedState;
+    return map;
+  }
+
+  factory CancelGuardedTaskRequest.fromMap(Map<String, Object?> map) {
+    return CancelGuardedTaskRequest(
+      operationId: map['operation_id'] as String,
+      uuid: map['uuid'] as String,
+      queue: map['queue'] as String,
+      expectedRevision: map['expected_revision'] as int,
+      expectedState: map['expected_state'] as String?,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! CancelGuardedTaskRequest) return false;
+    return operationId == other.operationId &&
+        uuid == other.uuid &&
+        queue == other.queue &&
+        expectedRevision == other.expectedRevision &&
+        expectedState == other.expectedState;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    operationId,
+    uuid,
+    queue,
+    expectedRevision,
+    expectedState,
+  ]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['uuid'] = uuid;
+    map['queue'] = queue;
+    map['expected_revision'] = expectedRevision;
+    if (expectedState != null) map['expected_state'] = expectedState!;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory CancelGuardedTaskRequest.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return CancelGuardedTaskRequest(
+      operationId: map['operation_id'] as String,
+      uuid: map['uuid'] as String,
+      queue: map['queue'] as String,
+      expectedRevision: map['expected_revision'] as int,
+      expectedState: map['expected_state'] == null
+          ? null
+          : map['expected_state'] as String,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory CancelGuardedTaskRequest.fromCbor(List<int> bytes) =>
+      CancelGuardedTaskRequest.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class CancelGuardedTaskResponse {
+  final GuardedTask task;
+  final bool replayed;
+
+  const CancelGuardedTaskResponse({required this.task, required this.replayed});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['task'] = task;
+    map['replayed'] = replayed;
+    return map;
+  }
+
+  factory CancelGuardedTaskResponse.fromMap(Map<String, Object?> map) {
+    return CancelGuardedTaskResponse(
+      task: map['task'] as GuardedTask,
+      replayed: map['replayed'] as bool,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! CancelGuardedTaskResponse) return false;
+    return task == other.task && replayed == other.replayed;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([task, replayed]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['task'] = task.toCborValue();
+    map['replayed'] = replayed;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory CancelGuardedTaskResponse.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return CancelGuardedTaskResponse(
+      task: GuardedTask.fromCborValue(map['task']),
+      replayed: map['replayed'] as bool,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory CancelGuardedTaskResponse.fromCbor(List<int> bytes) =>
+      CancelGuardedTaskResponse.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class GetGuardedTaskRequest {
+  final String uuid;
+  final String queue;
+
+  const GetGuardedTaskRequest({required this.uuid, required this.queue});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['uuid'] = uuid;
+    map['queue'] = queue;
+    return map;
+  }
+
+  factory GetGuardedTaskRequest.fromMap(Map<String, Object?> map) {
+    return GetGuardedTaskRequest(
+      uuid: map['uuid'] as String,
+      queue: map['queue'] as String,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! GetGuardedTaskRequest) return false;
+    return uuid == other.uuid && queue == other.queue;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([uuid, queue]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['uuid'] = uuid;
+    map['queue'] = queue;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory GetGuardedTaskRequest.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return GetGuardedTaskRequest(
+      uuid: map['uuid'] as String,
+      queue: map['queue'] as String,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory GetGuardedTaskRequest.fromCbor(List<int> bytes) =>
+      GetGuardedTaskRequest.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class GetGuardedTaskResponse {
+  final GuardedTask? task;
+
+  const GetGuardedTaskResponse({this.task});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    if (task != null) map['task'] = task;
+    return map;
+  }
+
+  factory GetGuardedTaskResponse.fromMap(Map<String, Object?> map) {
+    return GetGuardedTaskResponse(task: map['task'] as GuardedTask?);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! GetGuardedTaskResponse) return false;
+    return task == other.task;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([task]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    if (task != null) map['task'] = task!.toCborValue();
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory GetGuardedTaskResponse.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return GetGuardedTaskResponse(
+      task: map['task'] == null ? null : GuardedTask.fromCborValue(map['task']),
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory GetGuardedTaskResponse.fromCbor(List<int> bytes) =>
+      GetGuardedTaskResponse.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class OperationReceipt {
+  final String operationId;
+  final String op;
+  final String taskUuid;
+  final String queue;
+  final int resultRevision;
+  final String resultState;
+  final int at;
+  final int expiresAt;
+
+  const OperationReceipt({
+    required this.operationId,
+    required this.op,
+    required this.taskUuid,
+    required this.queue,
+    required this.resultRevision,
+    required this.resultState,
+    required this.at,
+    required this.expiresAt,
+  });
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['op'] = op;
+    map['task_uuid'] = taskUuid;
+    map['queue'] = queue;
+    map['result_revision'] = resultRevision;
+    map['result_state'] = resultState;
+    map['at'] = at;
+    map['expires_at'] = expiresAt;
+    return map;
+  }
+
+  factory OperationReceipt.fromMap(Map<String, Object?> map) {
+    return OperationReceipt(
+      operationId: map['operation_id'] as String,
+      op: map['op'] as String,
+      taskUuid: map['task_uuid'] as String,
+      queue: map['queue'] as String,
+      resultRevision: map['result_revision'] as int,
+      resultState: map['result_state'] as String,
+      at: map['at'] as int,
+      expiresAt: map['expires_at'] as int,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! OperationReceipt) return false;
+    return operationId == other.operationId &&
+        op == other.op &&
+        taskUuid == other.taskUuid &&
+        queue == other.queue &&
+        resultRevision == other.resultRevision &&
+        resultState == other.resultState &&
+        at == other.at &&
+        expiresAt == other.expiresAt;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    operationId,
+    op,
+    taskUuid,
+    queue,
+    resultRevision,
+    resultState,
+    at,
+    expiresAt,
+  ]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    map['op'] = op;
+    map['task_uuid'] = taskUuid;
+    map['queue'] = queue;
+    map['result_revision'] = resultRevision;
+    map['result_state'] = resultState;
+    map['at'] = at;
+    map['expires_at'] = expiresAt;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory OperationReceipt.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return OperationReceipt(
+      operationId: map['operation_id'] as String,
+      op: map['op'] as String,
+      taskUuid: map['task_uuid'] as String,
+      queue: map['queue'] as String,
+      resultRevision: map['result_revision'] as int,
+      resultState: map['result_state'] as String,
+      at: map['at'] as int,
+      expiresAt: map['expires_at'] as int,
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory OperationReceipt.fromCbor(List<int> bytes) =>
+      OperationReceipt.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class LookupOperationRequest {
+  final String operationId;
+
+  const LookupOperationRequest({required this.operationId});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    return map;
+  }
+
+  factory LookupOperationRequest.fromMap(Map<String, Object?> map) {
+    return LookupOperationRequest(operationId: map['operation_id'] as String);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! LookupOperationRequest) return false;
+    return operationId == other.operationId;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([operationId]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    map['operation_id'] = operationId;
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory LookupOperationRequest.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return LookupOperationRequest(operationId: map['operation_id'] as String);
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory LookupOperationRequest.fromCbor(List<int> bytes) =>
+      LookupOperationRequest.fromCborValue(CsilCbor.decode(bytes));
+}
+
+final class LookupOperationResponse {
+  final OperationReceipt? receipt;
+
+  const LookupOperationResponse({this.receipt});
+
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{};
+    if (receipt != null) map['receipt'] = receipt;
+    return map;
+  }
+
+  factory LookupOperationResponse.fromMap(Map<String, Object?> map) {
+    return LookupOperationResponse(
+      receipt: map['receipt'] as OperationReceipt?,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! LookupOperationResponse) return false;
+    return receipt == other.receipt;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([receipt]);
+
+  /// The CBOR-encodable dynamic tree for this record (deep).
+  Map<String, Object?> toCborValue() {
+    final map = <String, Object?>{};
+    if (receipt != null) map['receipt'] = receipt!.toCborValue();
+    return map;
+  }
+
+  /// Reconstruct this record from a decoded CBOR dynamic tree.
+  factory LookupOperationResponse.fromCborValue(Object? cbor) {
+    final map = cbor as Map;
+    return LookupOperationResponse(
+      receipt: map['receipt'] == null
+          ? null
+          : OperationReceipt.fromCborValue(map['receipt']),
+    );
+  }
+
+  /// Encode this record to canonical CSIL CBOR bytes.
+  Uint8List toCbor() => CsilCbor.encodeValue(toCborValue());
+
+  /// Decode a CSIL CBOR byte payload into this record.
+  factory LookupOperationResponse.fromCbor(List<int> bytes) =>
+      LookupOperationResponse.fromCborValue(CsilCbor.decode(bytes));
+}
+
 final class ServiceError {
   final int code;
   final String message;

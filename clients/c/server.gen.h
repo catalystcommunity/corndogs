@@ -31,6 +31,16 @@ typedef struct CorndogsHandlers {
     int (*get_queue_task_counts)(void *ctx, const GetQueueTaskCountsRequest *req, GetQueueTaskCountsResponse *resp);
     int (*get_task_state_counts)(void *ctx, const GetTaskStateCountsRequest *req, GetTaskStateCountsResponse *resp);
     int (*get_queue_and_state_counts)(void *ctx, const GetQueueAndStateCountsRequest *req, GetQueueAndStateCountsResponse *resp);
+    int (*get_server_info)(void *ctx, const GetServerInfoRequest *req, GetServerInfoResponse *resp);
+    int (*submit_keyed_task)(void *ctx, const SubmitKeyedTaskRequest *req, SubmitKeyedTaskResponse *resp);
+    int (*lookup_submission)(void *ctx, const LookupSubmissionRequest *req, LookupSubmissionResponse *resp);
+    int (*claim_guarded_task)(void *ctx, const ClaimGuardedTaskRequest *req, ClaimGuardedTaskResponse *resp);
+    int (*claim_guarded_task_group)(void *ctx, const ClaimGuardedTaskGroupRequest *req, ClaimGuardedTaskGroupResponse *resp);
+    int (*update_guarded_task)(void *ctx, const UpdateGuardedTaskRequest *req, UpdateGuardedTaskResponse *resp);
+    int (*complete_guarded_task)(void *ctx, const CompleteGuardedTaskRequest *req, CompleteGuardedTaskResponse *resp);
+    int (*cancel_guarded_task)(void *ctx, const CancelGuardedTaskRequest *req, CancelGuardedTaskResponse *resp);
+    int (*get_guarded_task)(void *ctx, const GetGuardedTaskRequest *req, GetGuardedTaskResponse *resp);
+    int (*lookup_operation)(void *ctx, const LookupOperationRequest *req, LookupOperationResponse *resp);
 } CorndogsHandlers;
 
 #endif /* CSILGEN_SERVER_GEN_H */

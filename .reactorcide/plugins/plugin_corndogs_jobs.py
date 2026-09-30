@@ -416,7 +416,16 @@ def _test_server(root: Path) -> None:
         "CORNDOGS_HTTP_LISTEN": "127.0.0.1:8080",
     }
     server: Optional[subprocess.Popen[str]] = None
+    strict: Optional[subprocess.Popen[str]] = None
     log_path = Path("/tmp/corndogs-server.log")
+    strict_log = Path("/tmp/corndogs-server-required.log")
+    # A second server on the same database runs in required mode, so the
+    # resilience tests also check the rejection rules.
+    strict_env = {**env,
+                  "CORNDOGS_LISTEN": "127.0.0.1:5081",
+                  "CORNDOGS_HTTP_LISTEN": "127.0.0.1:8081",
+                  "CORNDOGS_SUBMISSION_KEY_POLICY": "required",
+                  "CORNDOGS_TASK_GUARD_POLICY": "required"}
     try:
         _section("Build the server")
         _run(["go", "build", "-o", "/tmp/corndogs", "."], cwd=server_dir)
@@ -432,16 +441,31 @@ def _test_server(root: Path) -> None:
 
         _section("Run the Go tests")
         _run(["go", "test", "-count=1", "./..."], cwd=server_dir, env=env)
+
+        _section("Run the resilience tests against a server in required mode")
+        with strict_log.open("w") as log_file:
+            strict = subprocess.Popen(
+                ["/tmp/corndogs", "run"], cwd=server_dir, env={**os.environ, **strict_env},
+                stdout=log_file, stderr=subprocess.STDOUT, text=True,
+            )
+        if not _wait_for_port("127.0.0.1", 5081, 60):
+            raise RuntimeError("the required-mode server did not listen on 127.0.0.1:5081 in 60 seconds")
+        _run(["go", "test", "-count=1", "-run", "Resilience", "./test/"], cwd=server_dir,
+             env={**env, "CORNDOGS_TEST_ADDR": "127.0.0.1:5081"})
     finally:
-        if server is not None:
-            server.terminate()
+        for proc in (server, strict):
+            if proc is None:
+                continue
+            proc.terminate()
             try:
-                server.wait(timeout=10)
+                proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                server.kill()
-            log_stdout("Server log (last 40 lines):")
-            for line in log_path.read_text(errors="replace").splitlines()[-40:]:
-                log_stdout(f"  {line}")
+                proc.kill()
+        for path in (log_path, strict_log):
+            if path.exists():
+                log_stdout(f"{path} (last 40 lines):")
+                for line in path.read_text(errors="replace").splitlines()[-40:]:
+                    log_stdout(f"  {line}")
         stop_postgres()
 
 
@@ -875,7 +899,8 @@ def _release_server(root: Path) -> None:
     _section(f"Build and push {image}:{version}")
     # The build context is the repository root, because the server module
     # replaces the Go client module in ../clients/corndogs.
-    _run(["docker", "build", "-f", "corndogs/Dockerfile", "-t", f"{image}:{version}", "."],
+    _run(["docker", "build", "-f", "corndogs/Dockerfile", "--build-arg", f"VERSION={version}",
+          "-t", f"{image}:{version}", "."],
          cwd=root)
     image_tar = Path("/tmp/corndogs-image.tar")
     _run(["docker", "save", f"{image}:{version}", "-o", image_tar], cwd=root)

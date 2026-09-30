@@ -2,8 +2,8 @@
 // Source: <csil spec>
 // Target: typescript-client
 
-import type { CancelTaskRequest, CancelTaskResponse, CleanUpTimedOutRequest, CleanUpTimedOutResponse, CompleteTaskRequest, CompleteTaskResponse, GetNextTaskGroupRequest, GetNextTaskGroupResponse, GetNextTaskRequest, GetNextTaskResponse, GetQueueAndStateCountsRequest, GetQueueAndStateCountsResponse, GetQueueTaskCountsRequest, GetQueueTaskCountsResponse, GetQueuesRequest, GetQueuesResponse, GetTaskStateByIDRequest, GetTaskStateByIDResponse, GetTaskStateCountsRequest, GetTaskStateCountsResponse, SubmitTaskRequest, SubmitTaskResponse, UpdateTaskRequest, UpdateTaskResponse } from "./types.gen.ts";
-import { fromCancelTaskResponseCbor, fromCleanUpTimedOutResponseCbor, fromCompleteTaskResponseCbor, fromGetNextTaskGroupResponseCbor, fromGetNextTaskResponseCbor, fromGetQueueAndStateCountsResponseCbor, fromGetQueueTaskCountsResponseCbor, fromGetQueuesResponseCbor, fromGetTaskStateByIDResponseCbor, fromGetTaskStateCountsResponseCbor, fromSubmitTaskResponseCbor, fromUpdateTaskResponseCbor, toCancelTaskRequestCbor, toCleanUpTimedOutRequestCbor, toCompleteTaskRequestCbor, toGetNextTaskGroupRequestCbor, toGetNextTaskRequestCbor, toGetQueueAndStateCountsRequestCbor, toGetQueueTaskCountsRequestCbor, toGetQueuesRequestCbor, toGetTaskStateByIDRequestCbor, toGetTaskStateCountsRequestCbor, toSubmitTaskRequestCbor, toUpdateTaskRequestCbor } from "./codec.gen.ts";
+import type { CancelGuardedTaskRequest, CancelGuardedTaskResponse, CancelTaskRequest, CancelTaskResponse, ClaimGuardedTaskGroupRequest, ClaimGuardedTaskGroupResponse, ClaimGuardedTaskRequest, ClaimGuardedTaskResponse, CleanUpTimedOutRequest, CleanUpTimedOutResponse, CompleteGuardedTaskRequest, CompleteGuardedTaskResponse, CompleteTaskRequest, CompleteTaskResponse, GetGuardedTaskRequest, GetGuardedTaskResponse, GetNextTaskGroupRequest, GetNextTaskGroupResponse, GetNextTaskRequest, GetNextTaskResponse, GetQueueAndStateCountsRequest, GetQueueAndStateCountsResponse, GetQueueTaskCountsRequest, GetQueueTaskCountsResponse, GetQueuesRequest, GetQueuesResponse, GetServerInfoRequest, GetServerInfoResponse, GetTaskStateByIDRequest, GetTaskStateByIDResponse, GetTaskStateCountsRequest, GetTaskStateCountsResponse, LookupOperationRequest, LookupOperationResponse, LookupSubmissionRequest, LookupSubmissionResponse, SubmitKeyedTaskRequest, SubmitKeyedTaskResponse, SubmitTaskRequest, SubmitTaskResponse, UpdateGuardedTaskRequest, UpdateGuardedTaskResponse, UpdateTaskRequest, UpdateTaskResponse } from "./types.gen.ts";
+import { fromCancelGuardedTaskResponseCbor, fromCancelTaskResponseCbor, fromClaimGuardedTaskGroupResponseCbor, fromClaimGuardedTaskResponseCbor, fromCleanUpTimedOutResponseCbor, fromCompleteGuardedTaskResponseCbor, fromCompleteTaskResponseCbor, fromGetGuardedTaskResponseCbor, fromGetNextTaskGroupResponseCbor, fromGetNextTaskResponseCbor, fromGetQueueAndStateCountsResponseCbor, fromGetQueueTaskCountsResponseCbor, fromGetQueuesResponseCbor, fromGetServerInfoResponseCbor, fromGetTaskStateByIDResponseCbor, fromGetTaskStateCountsResponseCbor, fromLookupOperationResponseCbor, fromLookupSubmissionResponseCbor, fromSubmitKeyedTaskResponseCbor, fromSubmitTaskResponseCbor, fromUpdateGuardedTaskResponseCbor, fromUpdateTaskResponseCbor, toCancelGuardedTaskRequestCbor, toCancelTaskRequestCbor, toClaimGuardedTaskGroupRequestCbor, toClaimGuardedTaskRequestCbor, toCleanUpTimedOutRequestCbor, toCompleteGuardedTaskRequestCbor, toCompleteTaskRequestCbor, toGetGuardedTaskRequestCbor, toGetNextTaskGroupRequestCbor, toGetNextTaskRequestCbor, toGetQueueAndStateCountsRequestCbor, toGetQueueTaskCountsRequestCbor, toGetQueuesRequestCbor, toGetServerInfoRequestCbor, toGetTaskStateByIDRequestCbor, toGetTaskStateCountsRequestCbor, toLookupOperationRequestCbor, toLookupSubmissionRequestCbor, toSubmitKeyedTaskRequestCbor, toSubmitTaskRequestCbor, toUpdateGuardedTaskRequestCbor, toUpdateTaskRequestCbor } from "./codec.gen.ts";
 
 export interface ServiceTransport {
   call(service: string, op: string, req: Uint8Array): Uint8Array;
@@ -118,6 +118,96 @@ export class CorndogsClient {
   getQueueAndStateCounts(req: GetQueueAndStateCountsRequest): GetQueueAndStateCountsResponse {
     const csilResp = this.t.call("CorndogsService", "GetQueueAndStateCounts", toGetQueueAndStateCountsRequestCbor(req));
     return fromGetQueueAndStateCountsResponseCbor(csilResp);
+  }
+
+  /**
+   * @throws {ServiceError} when the API returns an error response
+   * @throws transport errors (network, timeout) raised by the transport
+   */
+  getServerInfo(req: GetServerInfoRequest): GetServerInfoResponse {
+    const csilResp = this.t.call("CorndogsService", "GetServerInfo", toGetServerInfoRequestCbor(req));
+    return fromGetServerInfoResponseCbor(csilResp);
+  }
+
+  /**
+   * @throws {ServiceError} when the API returns an error response
+   * @throws transport errors (network, timeout) raised by the transport
+   */
+  submitKeyedTask(req: SubmitKeyedTaskRequest): SubmitKeyedTaskResponse {
+    const csilResp = this.t.call("CorndogsService", "SubmitKeyedTask", toSubmitKeyedTaskRequestCbor(req));
+    return fromSubmitKeyedTaskResponseCbor(csilResp);
+  }
+
+  /**
+   * @throws {ServiceError} when the API returns an error response
+   * @throws transport errors (network, timeout) raised by the transport
+   */
+  lookupSubmission(req: LookupSubmissionRequest): LookupSubmissionResponse {
+    const csilResp = this.t.call("CorndogsService", "LookupSubmission", toLookupSubmissionRequestCbor(req));
+    return fromLookupSubmissionResponseCbor(csilResp);
+  }
+
+  /**
+   * @throws {ServiceError} when the API returns an error response
+   * @throws transport errors (network, timeout) raised by the transport
+   */
+  claimGuardedTask(req: ClaimGuardedTaskRequest): ClaimGuardedTaskResponse {
+    const csilResp = this.t.call("CorndogsService", "ClaimGuardedTask", toClaimGuardedTaskRequestCbor(req));
+    return fromClaimGuardedTaskResponseCbor(csilResp);
+  }
+
+  /**
+   * @throws {ServiceError} when the API returns an error response
+   * @throws transport errors (network, timeout) raised by the transport
+   */
+  claimGuardedTaskGroup(req: ClaimGuardedTaskGroupRequest): ClaimGuardedTaskGroupResponse {
+    const csilResp = this.t.call("CorndogsService", "ClaimGuardedTaskGroup", toClaimGuardedTaskGroupRequestCbor(req));
+    return fromClaimGuardedTaskGroupResponseCbor(csilResp);
+  }
+
+  /**
+   * @throws {ServiceError} when the API returns an error response
+   * @throws transport errors (network, timeout) raised by the transport
+   */
+  updateGuardedTask(req: UpdateGuardedTaskRequest): UpdateGuardedTaskResponse {
+    const csilResp = this.t.call("CorndogsService", "UpdateGuardedTask", toUpdateGuardedTaskRequestCbor(req));
+    return fromUpdateGuardedTaskResponseCbor(csilResp);
+  }
+
+  /**
+   * @throws {ServiceError} when the API returns an error response
+   * @throws transport errors (network, timeout) raised by the transport
+   */
+  completeGuardedTask(req: CompleteGuardedTaskRequest): CompleteGuardedTaskResponse {
+    const csilResp = this.t.call("CorndogsService", "CompleteGuardedTask", toCompleteGuardedTaskRequestCbor(req));
+    return fromCompleteGuardedTaskResponseCbor(csilResp);
+  }
+
+  /**
+   * @throws {ServiceError} when the API returns an error response
+   * @throws transport errors (network, timeout) raised by the transport
+   */
+  cancelGuardedTask(req: CancelGuardedTaskRequest): CancelGuardedTaskResponse {
+    const csilResp = this.t.call("CorndogsService", "CancelGuardedTask", toCancelGuardedTaskRequestCbor(req));
+    return fromCancelGuardedTaskResponseCbor(csilResp);
+  }
+
+  /**
+   * @throws {ServiceError} when the API returns an error response
+   * @throws transport errors (network, timeout) raised by the transport
+   */
+  getGuardedTask(req: GetGuardedTaskRequest): GetGuardedTaskResponse {
+    const csilResp = this.t.call("CorndogsService", "GetGuardedTask", toGetGuardedTaskRequestCbor(req));
+    return fromGetGuardedTaskResponseCbor(csilResp);
+  }
+
+  /**
+   * @throws {ServiceError} when the API returns an error response
+   * @throws transport errors (network, timeout) raised by the transport
+   */
+  lookupOperation(req: LookupOperationRequest): LookupOperationResponse {
+    const csilResp = this.t.call("CorndogsService", "LookupOperation", toLookupOperationRequestCbor(req));
+    return fromLookupOperationResponseCbor(csilResp);
   }
 }
 

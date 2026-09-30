@@ -54,6 +54,7 @@ func InitializeMetrics() {
 		Name:      "tasks_in_queue",
 		Help:      "The total tasks that are currently in the queue",
 	}, []string{"queue", "current_state"})
+	initResilienceMetrics()
 }
 
 // StartQueueSizeMetric starts a goroutine that will periodically query the

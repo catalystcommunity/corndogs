@@ -86,6 +86,55 @@ Two members carry extra context, since a plain Zig `error` can't hold a payload:
   `tr.last_service_error` (valid until the transport's next call — read it
   immediately after the failing call returns).
 
+## Resilience operations
+
+Use these operations when a retry must not create a second task or apply a
+stale change. They need a Corndogs 0.8.0 or later server. An older server
+returns transport status 2 (unknown operation). After that error, do not send
+the legacy operation instead.
+
+- Make one `submission_key` for each logical submission. Send the same key on each retry.
+- Make one `operation_id` for each claim, update, completion, or cancellation. Send the same id on each retry.
+- Send the `revision` from the claim or from the last result as `expected_revision`.
+- `error.OutcomeUncertain` means that the request possibly ran. Retry a resilience operation with the same request. Do not retry a legacy mutation automatically.
+
+```zig
+var sub: types.SubmitKeyedTaskResponse = undefined;
+try svc.submit_keyed_task(a, &types.SubmitKeyedTaskRequest{
+    .submission_key = "order-1234", .guarded = true, .queue = "orders", .current_state = "submitted",
+    .auto_target_state = "submitted-working", .timeout = 60, .payload = bytes, .priority = 0,
+}, &sub);
+// sub.replayed is true when the server already accepted this key.
+
+var claimed: types.ClaimGuardedTaskResponse = undefined;
+try svc.claim_guarded_task(a, &types.ClaimGuardedTaskRequest{
+    .operation_id = "claim-7f3a", .queue = "orders", .current_state = "submitted",
+    .override_timeout = 0, .override_current_state = "", .override_auto_target_state = "",
+}, &claimed);
+if (claimed.delivery) |d| {
+    var done: types.CompleteGuardedTaskResponse = undefined;
+    try svc.complete_guarded_task(a, &types.CompleteGuardedTaskRequest{
+        .operation_id = "done-7f3a", .uuid = d.task.task.uuid, .queue = "orders",
+        .expected_revision = d.task.revision,
+    }, &done);
+}
+```
+
+The server returns a `ServiceError` with one of these codes:
+
+| Code | Meaning |
+| --- | --- |
+| 1 | Invalid argument |
+| 2 | Submission key required |
+| 3 | Task guard required |
+| 4 | Submission key conflict |
+| 5 | Revision conflict |
+| 6 | Operation conflict |
+| 7 | Task not found |
+| 8 | Claim superseded |
+
+Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md).
+
 ## Notes
 
 - **Transport:** CSIL-RPC over TCP (4-byte big-endian length-prefix framing). HTTP

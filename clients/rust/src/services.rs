@@ -77,4 +77,64 @@ pub trait CorndogsService {
         ctx: &Self::Context,
         input: GetQueueAndStateCountsRequest,
     ) -> Result<GetQueueAndStateCountsResponse, ServiceError>;
+    /// GetServerInfo (request/response).
+    fn get_server_info(
+        &self,
+        ctx: &Self::Context,
+        input: GetServerInfoRequest,
+    ) -> Result<GetServerInfoResponse, ServiceError>;
+    /// SubmitKeyedTask (request/response).
+    fn submit_keyed_task(
+        &self,
+        ctx: &Self::Context,
+        input: SubmitKeyedTaskRequest,
+    ) -> Result<SubmitKeyedTaskResponse, ServiceError>;
+    /// LookupSubmission (request/response).
+    fn lookup_submission(
+        &self,
+        ctx: &Self::Context,
+        input: LookupSubmissionRequest,
+    ) -> Result<LookupSubmissionResponse, ServiceError>;
+    /// ClaimGuardedTask (request/response).
+    fn claim_guarded_task(
+        &self,
+        ctx: &Self::Context,
+        input: ClaimGuardedTaskRequest,
+    ) -> Result<ClaimGuardedTaskResponse, ServiceError>;
+    /// ClaimGuardedTaskGroup (request/response).
+    fn claim_guarded_task_group(
+        &self,
+        ctx: &Self::Context,
+        input: ClaimGuardedTaskGroupRequest,
+    ) -> Result<ClaimGuardedTaskGroupResponse, ServiceError>;
+    /// UpdateGuardedTask (request/response).
+    fn update_guarded_task(
+        &self,
+        ctx: &Self::Context,
+        input: UpdateGuardedTaskRequest,
+    ) -> Result<UpdateGuardedTaskResponse, ServiceError>;
+    /// CompleteGuardedTask (request/response).
+    fn complete_guarded_task(
+        &self,
+        ctx: &Self::Context,
+        input: CompleteGuardedTaskRequest,
+    ) -> Result<CompleteGuardedTaskResponse, ServiceError>;
+    /// CancelGuardedTask (request/response).
+    fn cancel_guarded_task(
+        &self,
+        ctx: &Self::Context,
+        input: CancelGuardedTaskRequest,
+    ) -> Result<CancelGuardedTaskResponse, ServiceError>;
+    /// GetGuardedTask (request/response).
+    fn get_guarded_task(
+        &self,
+        ctx: &Self::Context,
+        input: GetGuardedTaskRequest,
+    ) -> Result<GetGuardedTaskResponse, ServiceError>;
+    /// LookupOperation (request/response).
+    fn lookup_operation(
+        &self,
+        ctx: &Self::Context,
+        input: LookupOperationRequest,
+    ) -> Result<LookupOperationResponse, ServiceError>;
 }

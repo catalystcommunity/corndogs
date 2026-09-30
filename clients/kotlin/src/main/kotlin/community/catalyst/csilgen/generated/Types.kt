@@ -267,6 +267,297 @@ data class GetQueueAndStateCountsResponse(
     val queueAndStateCounts: QueueAndStateCountsMap
 )
 
+/** GetServerInfoRequest record. */
+class GetServerInfoRequest
+
+/** GetServerInfoResponse record. */
+data class GetServerInfoResponse(
+    // wire key: server_version
+    val serverVersion: String,
+    val features: List<String>,
+    // wire key: submission_key_policy
+    val submissionKeyPolicy: String,
+    // wire key: task_guard_policy
+    val taskGuardPolicy: String,
+    // wire key: receipt_retention_seconds
+    val receiptRetentionSeconds: Long
+)
+
+/** GuardedTask record. */
+data class GuardedTask(
+    val task: Task,
+    val guarded: Boolean,
+    val revision: Long,
+    val terminal: Boolean
+)
+
+/** SubmissionReceipt record. */
+data class SubmissionReceipt(
+    val queue: String,
+    // wire key: submission_key
+    val submissionKey: String,
+    // wire key: task_uuid
+    val taskUuid: String,
+    // wire key: accepted_at
+    val acceptedAt: Long,
+    // wire key: expires_at
+    val expiresAt: Long,
+    val guarded: Boolean
+)
+
+/** SubmitKeyedTaskRequest record. */
+data class SubmitKeyedTaskRequest(
+    // wire key: submission_key
+    val submissionKey: String,
+    val guarded: Boolean,
+    val queue: String,
+    // wire key: current_state
+    val currentState: String,
+    // wire key: auto_target_state
+    val autoTargetState: String,
+    val timeout: Long,
+    val payload: ByteArray,
+    val priority: Long
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is SubmitKeyedTaskRequest) return false
+        if (submissionKey != other.submissionKey) return false
+        if (guarded != other.guarded) return false
+        if (queue != other.queue) return false
+        if (currentState != other.currentState) return false
+        if (autoTargetState != other.autoTargetState) return false
+        if (timeout != other.timeout) return false
+        if (!payload.contentEquals(other.payload)) return false
+        if (priority != other.priority) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = submissionKey.hashCode()
+        result = 31 * result + guarded.hashCode()
+        result = 31 * result + queue.hashCode()
+        result = 31 * result + currentState.hashCode()
+        result = 31 * result + autoTargetState.hashCode()
+        result = 31 * result + timeout.hashCode()
+        result = 31 * result + payload.contentHashCode()
+        result = 31 * result + priority.hashCode()
+        return result
+    }
+}
+
+/** SubmitKeyedTaskResponse record. */
+data class SubmitKeyedTaskResponse(
+    val receipt: SubmissionReceipt,
+    val replayed: Boolean,
+    val task: GuardedTask? = null
+)
+
+/** LookupSubmissionRequest record. */
+data class LookupSubmissionRequest(
+    val queue: String,
+    // wire key: submission_key
+    val submissionKey: String
+)
+
+/** LookupSubmissionResponse record. */
+data class LookupSubmissionResponse(
+    val receipt: SubmissionReceipt? = null,
+    val task: GuardedTask? = null
+)
+
+/** ClaimGuardedTaskRequest record. */
+data class ClaimGuardedTaskRequest(
+    // wire key: operation_id
+    val operationId: String,
+    val queue: String,
+    // wire key: current_state
+    val currentState: String,
+    // wire key: override_timeout
+    val overrideTimeout: Long,
+    // wire key: override_current_state
+    val overrideCurrentState: String,
+    // wire key: override_auto_target_state
+    val overrideAutoTargetState: String
+)
+
+/** GuardedDelivery record. */
+data class GuardedDelivery(
+    val task: GuardedTask,
+    val payload: ByteArray
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is GuardedDelivery) return false
+        if (task != other.task) return false
+        if (!payload.contentEquals(other.payload)) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = task.hashCode()
+        result = 31 * result + payload.contentHashCode()
+        return result
+    }
+}
+
+/** ClaimGuardedTaskResponse record. */
+data class ClaimGuardedTaskResponse(
+    val delivery: GuardedDelivery? = null,
+    val replayed: Boolean
+)
+
+/** ClaimGuardedTaskGroupRequest record. */
+data class ClaimGuardedTaskGroupRequest(
+    // wire key: operation_id
+    val operationId: String,
+    val queues: List<String>,
+    // wire key: current_state
+    val currentState: String,
+    // wire key: override_timeout
+    val overrideTimeout: Long,
+    // wire key: override_current_state
+    val overrideCurrentState: String,
+    // wire key: override_auto_target_state
+    val overrideAutoTargetState: String
+)
+
+/** ClaimGuardedTaskGroupResponse record. */
+data class ClaimGuardedTaskGroupResponse(
+    val delivery: GuardedDelivery? = null,
+    val replayed: Boolean
+)
+
+/** UpdateGuardedTaskRequest record. */
+data class UpdateGuardedTaskRequest(
+    // wire key: operation_id
+    val operationId: String,
+    val uuid: String,
+    val queue: String,
+    // wire key: expected_revision
+    val expectedRevision: Long,
+    // wire key: expected_state
+    val expectedState: String? = null,
+    // wire key: new_state
+    val newState: String,
+    // wire key: auto_target_state
+    val autoTargetState: String,
+    val timeout: Long,
+    val payload: ByteArray? = null,
+    val priority: Long? = null
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is UpdateGuardedTaskRequest) return false
+        if (operationId != other.operationId) return false
+        if (uuid != other.uuid) return false
+        if (queue != other.queue) return false
+        if (expectedRevision != other.expectedRevision) return false
+        if (expectedState != other.expectedState) return false
+        if (newState != other.newState) return false
+        if (autoTargetState != other.autoTargetState) return false
+        if (timeout != other.timeout) return false
+        if (!(payload?.contentEquals(other.payload) ?: (other.payload == null))) return false
+        if (priority != other.priority) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = operationId.hashCode()
+        result = 31 * result + uuid.hashCode()
+        result = 31 * result + queue.hashCode()
+        result = 31 * result + expectedRevision.hashCode()
+        result = 31 * result + expectedState.hashCode()
+        result = 31 * result + newState.hashCode()
+        result = 31 * result + autoTargetState.hashCode()
+        result = 31 * result + timeout.hashCode()
+        result = 31 * result + (payload?.contentHashCode() ?: 0)
+        result = 31 * result + priority.hashCode()
+        return result
+    }
+}
+
+/** UpdateGuardedTaskResponse record. */
+data class UpdateGuardedTaskResponse(
+    val task: GuardedTask,
+    val replayed: Boolean
+)
+
+/** CompleteGuardedTaskRequest record. */
+data class CompleteGuardedTaskRequest(
+    // wire key: operation_id
+    val operationId: String,
+    val uuid: String,
+    val queue: String,
+    // wire key: expected_revision
+    val expectedRevision: Long,
+    // wire key: expected_state
+    val expectedState: String? = null
+)
+
+/** CompleteGuardedTaskResponse record. */
+data class CompleteGuardedTaskResponse(
+    val task: GuardedTask,
+    val replayed: Boolean
+)
+
+/** CancelGuardedTaskRequest record. */
+data class CancelGuardedTaskRequest(
+    // wire key: operation_id
+    val operationId: String,
+    val uuid: String,
+    val queue: String,
+    // wire key: expected_revision
+    val expectedRevision: Long,
+    // wire key: expected_state
+    val expectedState: String? = null
+)
+
+/** CancelGuardedTaskResponse record. */
+data class CancelGuardedTaskResponse(
+    val task: GuardedTask,
+    val replayed: Boolean
+)
+
+/** GetGuardedTaskRequest record. */
+data class GetGuardedTaskRequest(
+    val uuid: String,
+    val queue: String
+)
+
+/** GetGuardedTaskResponse record. */
+data class GetGuardedTaskResponse(
+    val task: GuardedTask? = null
+)
+
+/** OperationReceipt record. */
+data class OperationReceipt(
+    // wire key: operation_id
+    val operationId: String,
+    val op: String,
+    // wire key: task_uuid
+    val taskUuid: String,
+    val queue: String,
+    // wire key: result_revision
+    val resultRevision: Long,
+    // wire key: result_state
+    val resultState: String,
+    val at: Long,
+    // wire key: expires_at
+    val expiresAt: Long
+)
+
+/** LookupOperationRequest record. */
+data class LookupOperationRequest(
+    // wire key: operation_id
+    val operationId: String
+)
+
+/** LookupOperationResponse record. */
+data class LookupOperationResponse(
+    val receipt: OperationReceipt? = null
+)
+
 /** ServiceError record. */
 data class ServiceError(
     val code: ULong,

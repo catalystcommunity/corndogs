@@ -17,8 +17,13 @@ import (
 //
 //	kind(u8) len(from) from len(to) to <kind-specific payload>
 //
-// Payloads: Msg = type,epoch,lsn,ackLSN,bid ; Batch = EncodeBatch ;
-// CatchupReq/SnapshotReq = afterLSN ; Snapshot = lsn,len,bytes. All big-endian.
+// Payloads: Msg = type,epoch,lsn,ackLSN,bid,lastEpoch ; Batch = EncodeBatch,epoch ;
+// CatchupReq/SnapshotReq = afterLSN,afterEpoch ; Snapshot = lsn,len,bytes,epoch.
+// All big-endian.
+//
+// Each frame travels in its own StreamCarrier frame, so a decoder knows where it
+// ends. The trailing epoch fields were added after the first release: an older
+// decoder ignores them, and this decoder reads a missing one as 0.
 
 // maxDecodeLen caps a single length-prefixed field read from the wire before its
 // bytes are allocated, so a corrupt or hostile header can't drive an oversized
@@ -70,6 +75,20 @@ func readU64(r io.Reader) (uint64, error) {
 	return binary.BigEndian.Uint64(b[:]), nil
 }
 
+// readOptionalU64 reads a trailing field that an older peer does not send. A clean
+// end of input yields 0.
+func readOptionalU64(r io.Reader) (uint64, error) {
+	var b [8]byte
+	n, err := io.ReadFull(r, b[:])
+	if n == 0 && err == io.EOF {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, unexpectedEOF(err)
+	}
+	return binary.BigEndian.Uint64(b[:]), nil
+}
+
 // EncodeFrame writes one self-framed frame to w.
 func EncodeFrame(w io.Writer, f Frame) error {
 	bw := bufio.NewWriter(w)
@@ -87,7 +106,7 @@ func EncodeFrame(w io.Writer, f Frame) error {
 		if err := bw.WriteByte(byte(f.Msg.Type)); err != nil {
 			return err
 		}
-		for _, v := range []uint64{f.Msg.Epoch, f.Msg.LSN, f.Msg.AckLSN, math.Float64bits(f.Msg.Bid)} {
+		for _, v := range []uint64{f.Msg.Epoch, f.Msg.LSN, f.Msg.AckLSN, math.Float64bits(f.Msg.Bid), f.Msg.LastEpoch} {
 			if err := putU64(bw, v); err != nil {
 				return err
 			}
@@ -96,9 +115,17 @@ func EncodeFrame(w io.Writer, f Frame) error {
 		if err := bw.Flush(); err != nil {
 			return err
 		}
-		return EncodeBatchFrame(w, f.Batch)
+		if err := EncodeBatchFrame(w, f.Batch); err != nil {
+			return err
+		}
+		if err := putU64(bw, f.Batch.Epoch); err != nil {
+			return err
+		}
 	case FrameCatchupReq, FrameSnapshotReq:
 		if err := putU64(bw, f.AfterLSN); err != nil {
+			return err
+		}
+		if err := putU64(bw, f.AfterEpoch); err != nil {
 			return err
 		}
 	case FrameSnapshot:
@@ -109,6 +136,9 @@ func EncodeFrame(w io.Writer, f Frame) error {
 			return err
 		}
 		if _, err := bw.Write(f.Snapshot); err != nil {
+			return err
+		}
+		if err := putU64(bw, f.SnapshotEpoch); err != nil {
 			return err
 		}
 	case FrameHello:
@@ -167,13 +197,22 @@ func DecodeFrame(r io.Reader) (Frame, error) {
 		}
 		f.Msg.Epoch, f.Msg.LSN, f.Msg.AckLSN = fields[0], fields[1], fields[2]
 		f.Msg.Bid = math.Float64frombits(fields[3])
+		if f.Msg.LastEpoch, err = readOptionalU64(r); err != nil {
+			return Frame{}, err
+		}
 	case FrameBatch:
 		if f.Batch, err = filestore.DecodeBatch(r); err != nil {
 			return Frame{}, unexpectedEOF(err)
 		}
+		if f.Batch.Epoch, err = readOptionalU64(r); err != nil {
+			return Frame{}, err
+		}
 	case FrameCatchupReq, FrameSnapshotReq:
 		if f.AfterLSN, err = readU64(r); err != nil {
 			return Frame{}, unexpectedEOF(err)
+		}
+		if f.AfterEpoch, err = readOptionalU64(r); err != nil {
+			return Frame{}, err
 		}
 	case FrameSnapshot:
 		if f.SnapshotLSN, err = readU64(r); err != nil {
@@ -189,6 +228,9 @@ func DecodeFrame(r io.Reader) (Frame, error) {
 		f.Snapshot = make([]byte, n)
 		if _, err := io.ReadFull(r, f.Snapshot); err != nil {
 			return Frame{}, unexpectedEOF(err)
+		}
+		if f.SnapshotEpoch, err = readOptionalU64(r); err != nil {
+			return Frame{}, err
 		}
 	case FrameHello:
 		if f.Addr, err = readStr(r); err != nil {

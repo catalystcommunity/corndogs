@@ -79,3 +79,43 @@ class CorndogsClient:
         """GetQueueAndStateCounts"""
         return GetQueueAndStateCountsResponse.from_cbor(self._transport.call("CorndogsService", "GetQueueAndStateCounts", req.to_cbor()))
 
+    def get_server_info(self, req: GetServerInfoRequest) -> GetServerInfoResponse:
+        """GetServerInfo"""
+        return GetServerInfoResponse.from_cbor(self._transport.call("CorndogsService", "GetServerInfo", req.to_cbor()))
+
+    def submit_keyed_task(self, req: SubmitKeyedTaskRequest) -> SubmitKeyedTaskResponse:
+        """SubmitKeyedTask"""
+        return SubmitKeyedTaskResponse.from_cbor(self._transport.call("CorndogsService", "SubmitKeyedTask", req.to_cbor()))
+
+    def lookup_submission(self, req: LookupSubmissionRequest) -> LookupSubmissionResponse:
+        """LookupSubmission"""
+        return LookupSubmissionResponse.from_cbor(self._transport.call("CorndogsService", "LookupSubmission", req.to_cbor()))
+
+    def claim_guarded_task(self, req: ClaimGuardedTaskRequest) -> ClaimGuardedTaskResponse:
+        """ClaimGuardedTask"""
+        return ClaimGuardedTaskResponse.from_cbor(self._transport.call("CorndogsService", "ClaimGuardedTask", req.to_cbor()))
+
+    def claim_guarded_task_group(self, req: ClaimGuardedTaskGroupRequest) -> ClaimGuardedTaskGroupResponse:
+        """ClaimGuardedTaskGroup"""
+        return ClaimGuardedTaskGroupResponse.from_cbor(self._transport.call("CorndogsService", "ClaimGuardedTaskGroup", req.to_cbor()))
+
+    def update_guarded_task(self, req: UpdateGuardedTaskRequest) -> UpdateGuardedTaskResponse:
+        """UpdateGuardedTask"""
+        return UpdateGuardedTaskResponse.from_cbor(self._transport.call("CorndogsService", "UpdateGuardedTask", req.to_cbor()))
+
+    def complete_guarded_task(self, req: CompleteGuardedTaskRequest) -> CompleteGuardedTaskResponse:
+        """CompleteGuardedTask"""
+        return CompleteGuardedTaskResponse.from_cbor(self._transport.call("CorndogsService", "CompleteGuardedTask", req.to_cbor()))
+
+    def cancel_guarded_task(self, req: CancelGuardedTaskRequest) -> CancelGuardedTaskResponse:
+        """CancelGuardedTask"""
+        return CancelGuardedTaskResponse.from_cbor(self._transport.call("CorndogsService", "CancelGuardedTask", req.to_cbor()))
+
+    def get_guarded_task(self, req: GetGuardedTaskRequest) -> GetGuardedTaskResponse:
+        """GetGuardedTask"""
+        return GetGuardedTaskResponse.from_cbor(self._transport.call("CorndogsService", "GetGuardedTask", req.to_cbor()))
+
+    def lookup_operation(self, req: LookupOperationRequest) -> LookupOperationResponse:
+        """LookupOperation"""
+        return LookupOperationResponse.from_cbor(self._transport.call("CorndogsService", "LookupOperation", req.to_cbor()))
+

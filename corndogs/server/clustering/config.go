@@ -110,6 +110,10 @@ func (s Settings) Validate() error {
 	if s.NodeID == "" {
 		return fmt.Errorf("cluster: CORNDOGS_CLUSTER_NODE_ID is required when clustering is enabled")
 	}
+	if len(s.Peers) > 255 {
+		// Batch history tags hold the leader's member index in 8 bits.
+		return fmt.Errorf("cluster: at most 255 peers are supported, got %d", len(s.Peers))
+	}
 	if len(s.Peers) < 1 {
 		return fmt.Errorf("cluster: CORNDOGS_CLUSTER_PEERS must list the membership")
 	}

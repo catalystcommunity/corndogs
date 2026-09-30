@@ -38,6 +38,15 @@ trade-offs.
 Set `tls.enabled=true` and `tls.secretName` to serve the RPC port with TLS.
 See [Deploying with Helm](../docs/deployment.md#tls).
 
+## Resilience policy
+
+`resilience.submissionKeyPolicy` and `resilience.taskGuardPolicy` are
+`compatibility` (the default) or `required`. Compatibility accepts released
+clients. Required rejects legacy requests before they change data.
+`resilience.receiptRetention` sets how long retries are deduplicated (default
+`1h`). The chart always sets these values, so an upgrade keeps your policy.
+See [Resilience contract](../docs/resilience.md) for the upgrade steps.
+
 ## PostgreSQL options
 
 ### Bitnami chart

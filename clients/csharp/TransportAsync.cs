@@ -133,7 +133,7 @@ public sealed class AsyncTcpTransport : ICsilAsyncTransport, IAsyncDisposable
         foreach (var id in _pending.Keys)
         {
             if (_pending.TryRemove(id, out var tcs))
-                tcs.TrySetException(new CorndogsTransportException($"corndogs: connection lost: {cause.Message}", cause));
+                tcs.TrySetException(new CorndogsTransportException($"corndogs: outcome uncertain: connection lost: {cause.Message}", cause));
         }
     }
 
@@ -158,7 +158,7 @@ public sealed class AsyncTcpTransport : ICsilAsyncTransport, IAsyncDisposable
         {
             _pending.TryRemove(id, out _);
             Teardown(stream, ex);
-            throw new CorndogsTransportException($"corndogs: {ex.Message}", ex);
+            throw new CorndogsTransportException($"corndogs: outcome uncertain: {ex.Message}", ex);
         }
         finally
         {

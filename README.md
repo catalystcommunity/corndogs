@@ -90,6 +90,15 @@ go run . timeout
 go run . timeout --queue myqueue
 ```
 
+## Safe retries and stale workers
+
+Corndogs 0.8.0 adds optional submission keys and task guards. A keyed
+submission creates one task, even when the caller retries it. A guarded task
+rejects an update or completion from a stale worker. The server can require
+both features for every request, but the default accepts released clients.
+See [Resilience contract](./docs/resilience.md) for the operations, the
+policies, and the upgrade steps.
+
 ## Storage
 
 Corndogs supports these storage modes:
@@ -105,6 +114,7 @@ See [Storage backends](./docs/storage-backends.md) and [Tier-1 clustering](./doc
 ## Deploy and operate
 
 - [Deployment with Helm](./docs/deployment.md)
+- [Resilience contract and upgrade](./docs/resilience.md)
 - [API reference](./corndogs/APIDOCS.md)
 - [Client packages](./clients/README.md)
 

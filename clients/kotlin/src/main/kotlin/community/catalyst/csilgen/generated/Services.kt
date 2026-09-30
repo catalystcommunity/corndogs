@@ -17,5 +17,15 @@ interface CorndogsService {
     fun getQueueTaskCounts(request: GetQueueTaskCountsRequest): GetQueueTaskCountsResponse
     fun getTaskStateCounts(request: GetTaskStateCountsRequest): GetTaskStateCountsResponse
     fun getQueueAndStateCounts(request: GetQueueAndStateCountsRequest): GetQueueAndStateCountsResponse
+    fun getServerInfo(request: GetServerInfoRequest): GetServerInfoResponse
+    fun submitKeyedTask(request: SubmitKeyedTaskRequest): SubmitKeyedTaskResponse
+    fun lookupSubmission(request: LookupSubmissionRequest): LookupSubmissionResponse
+    fun claimGuardedTask(request: ClaimGuardedTaskRequest): ClaimGuardedTaskResponse
+    fun claimGuardedTaskGroup(request: ClaimGuardedTaskGroupRequest): ClaimGuardedTaskGroupResponse
+    fun updateGuardedTask(request: UpdateGuardedTaskRequest): UpdateGuardedTaskResponse
+    fun completeGuardedTask(request: CompleteGuardedTaskRequest): CompleteGuardedTaskResponse
+    fun cancelGuardedTask(request: CancelGuardedTaskRequest): CancelGuardedTaskResponse
+    fun getGuardedTask(request: GetGuardedTaskRequest): GetGuardedTaskResponse
+    fun lookupOperation(request: LookupOperationRequest): LookupOperationResponse
 }
 

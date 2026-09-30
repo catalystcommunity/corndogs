@@ -112,6 +112,7 @@ public final class TcpTransport implements Transport, AutoCloseable {
             if (closed) {
                 throw new ClientException("corndogs: transport closed");
             }
+            boolean sent = false;
             try {
                 ensureConnected();
                 long id = ++nextId;
@@ -123,16 +124,20 @@ public final class TcpTransport implements Transport, AutoCloseable {
                     new CborEntry(new CborText("id"), new CborUint(id)),
                     new CborEntry(new CborText("payload"), new CborTag(TAG_ENCODED_CBOR, new CborBytes(payload)))
                 ));
+                sent = true;
                 writeFrame(CsilCbor.encode(envelope));
                 byte[] frame = readFrame();
                 if (frame == null) {
                     reset();
-                    throw new ClientException("corndogs: connection closed");
+                    throw new ClientException("corndogs: outcome uncertain: connection closed");
                 }
                 return parseResponse(frame);
             } catch (IOException e) {
+                // After the write started, the request may have reached the
+                // server. It is not sent again: a legacy mutation could run twice.
                 reset();
-                throw new ClientException("corndogs: " + service + "/" + op + ": " + e.getMessage(), e);
+                String kind = sent ? "outcome uncertain: " : "not sent: ";
+                throw new ClientException("corndogs: " + kind + service + "/" + op + ": " + e.getMessage(), e);
             }
         }
     }

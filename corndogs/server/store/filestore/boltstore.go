@@ -19,6 +19,7 @@ import (
 // Bucket names for the bbolt backend.
 var (
 	bucketTasks     = []byte("tasks")     // ordered key -> json(Task metadata)
+	bucketGuarded   = []byte("gtasks")    // ordered key -> json(Task metadata) of guarded tasks
 	bucketByUUID    = []byte("uuid")      // uuid -> ordered key
 	bucketPayloads  = []byte("payloads")  // uuid -> opaque payload bytes
 	bucketDeadlines = []byte("deadlines") // deadline+uuid -> ordered task key
@@ -52,6 +53,7 @@ type BoltStore struct {
 	writeMu  sync.Mutex
 	cap      *captureBuf
 	replSink func(MutationBatch)
+	replTag  func() uint64 // history tag of new batches; nil means 0
 	replLSN  uint64
 }
 
@@ -73,6 +75,16 @@ func (s *BoltStore) EnableReplication(startLSN uint64, sink func(MutationBatch))
 	s.cap = &captureBuf{}
 	s.replLSN = startLSN
 	s.replSink = sink
+}
+
+// SetReplicationTag sets the function that gives the history tag (epoch and
+// leader) of each new batch. writeCapturing stores the batch position with that
+// tag in the same transaction as the write, so a crash between the commit and the
+// log append cannot lose the position of committed data.
+func (s *BoltStore) SetReplicationTag(tag func() uint64) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	s.replTag = tag
 }
 
 // SnapshotTo writes a consistent bbolt snapshot of the whole store to w and
@@ -222,13 +234,27 @@ func (s *BoltStore) writeCapturing(fn func(tx *bolt.Tx) error) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	s.cap.reset()
-	if err := s.db.Update(fn); err != nil {
+	lsn := s.replLSN + 1
+	var tag uint64
+	if s.replTag != nil {
+		tag = s.replTag()
+	}
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		if err := fn(tx); err != nil {
+			return err
+		}
+		if len(s.cap.muts) == 0 {
+			return nil
+		}
+		return putReplPosition(tx.Bucket(bucketMeta), lsn, tag)
+	})
+	if err != nil {
 		s.cap.reset()
 		return err
 	}
 	if len(s.cap.muts) > 0 {
-		s.replLSN++
-		batch := MutationBatch{LSN: s.replLSN, Mutations: append([]Mutation(nil), s.cap.muts...)}
+		s.replLSN = lsn
+		batch := MutationBatch{LSN: lsn, Epoch: tag, Mutations: append([]Mutation(nil), s.cap.muts...)}
 		s.replSink(batch)
 	}
 	s.cap.reset()
@@ -262,6 +288,10 @@ func (s *BoltStore) Initialize() (func(), error) {
 			bucketArchived,
 			bucketMeta,
 			bucketCounts,
+			bucketGuarded,
+			bucketSubmissions,
+			bucketOperations,
+			bucketReceiptExpiry,
 		} {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
 				return err
@@ -331,8 +361,9 @@ func (s *BoltStore) putTask(tx *bolt.Tx, t *Task) error {
 		return err
 	}
 	key := encodeTaskKey(t)
-	isNew := tx.Bucket(bucketTasks).Get(key) == nil
-	if err := tx.Bucket(bucketTasks).Put(key, val); err != nil {
+	bucket := taskBucket(t)
+	isNew := tx.Bucket(bucket).Get(key) == nil
+	if err := tx.Bucket(bucket).Put(key, val); err != nil {
 		return err
 	}
 	if isNew {
@@ -349,7 +380,7 @@ func (s *BoltStore) putTask(tx *bolt.Tx, t *Task) error {
 		}
 	}
 	if s.cap != nil {
-		s.cap.put(bucketTasks, key, val)
+		s.cap.put(bucket, key, val)
 		s.cap.put(bucketByUUID, []byte(t.UUID), key)
 		if t.Timeout > 0 {
 			s.cap.put(bucketDeadlines, encodeDeadlineKey(t), key)
@@ -362,8 +393,9 @@ func (s *BoltStore) putTask(tx *bolt.Tx, t *Task) error {
 // records the two deletes for replication when capture is enabled.
 func (s *BoltStore) deleteTask(tx *bolt.Tx, t *Task) error {
 	key := encodeTaskKey(t)
-	existed := tx.Bucket(bucketTasks).Get(key) != nil
-	if err := tx.Bucket(bucketTasks).Delete(key); err != nil {
+	bucket := taskBucket(t)
+	existed := tx.Bucket(bucket).Get(key) != nil
+	if err := tx.Bucket(bucket).Delete(key); err != nil {
 		return err
 	}
 	if existed {
@@ -380,7 +412,7 @@ func (s *BoltStore) deleteTask(tx *bolt.Tx, t *Task) error {
 		}
 	}
 	if s.cap != nil {
-		s.cap.del(bucketTasks, key)
+		s.cap.del(bucket, key)
 		s.cap.del(bucketByUUID, []byte(t.UUID))
 		if t.Timeout > 0 {
 			s.cap.del(bucketDeadlines, encodeDeadlineKey(t))
@@ -421,13 +453,22 @@ func loadPayload(tx *bolt.Tx, id string) ([]byte, error) {
 	return bytes.Clone(payload), nil
 }
 
+// liveTaskValue returns the metadata stored under a task key in either live
+// bucket, or nil.
+func liveTaskValue(tx *bolt.Tx, key []byte) []byte {
+	if v := tx.Bucket(bucketTasks).Get(key); v != nil {
+		return v
+	}
+	return tx.Bucket(bucketGuarded).Get(key)
+}
+
 // loadByUUID fetches live task metadata by uuid, or nil if absent.
 func loadByUUID(tx *bolt.Tx, id string) (*Task, error) {
 	key := tx.Bucket(bucketByUUID).Get([]byte(id))
 	if key == nil {
 		return nil, nil
 	}
-	val := tx.Bucket(bucketTasks).Get(key)
+	val := liveTaskValue(tx, key)
 	if val == nil {
 		return nil, nil
 	}
@@ -450,6 +491,7 @@ func (s *BoltStore) SubmitTask(ctx context.Context, req *api.SubmitTaskRequest) 
 		UpdateTime:      now,
 		Timeout:         req.Timeout,
 		Priority:        req.Priority,
+		Revision:        1,
 	}
 	err := s.write(func(tx *bolt.Tx) error {
 		if err := s.putPayload(tx, t.UUID, req.Payload); err != nil {
@@ -511,6 +553,7 @@ func (s *BoltStore) GetNextTask(ctx context.Context, req *api.GetNextTaskRequest
 			return err
 		}
 		applyGetNext(&t, req, nowNano())
+		t.Revision++
 		if err := s.putTask(tx, &t); err != nil {
 			return err
 		}
@@ -570,6 +613,7 @@ func (s *BoltStore) GetNextTaskGroup(ctx context.Context, req *api.GetNextTaskGr
 			return err
 		}
 		applyGetNext(best, claim, nowNano())
+		best.Revision++
 		if err := s.putTask(tx, best); err != nil {
 			return err
 		}
@@ -604,6 +648,9 @@ func (s *BoltStore) UpdateTask(ctx context.Context, req *api.UpdateTaskRequest) 
 		if err != nil || t == nil {
 			return err
 		}
+		if t.Guarded {
+			return errLegacyOnGuarded("UpdateTask", t.UUID)
+		}
 		if err := s.deleteTask(tx, t); err != nil {
 			return err
 		}
@@ -622,6 +669,7 @@ func (s *BoltStore) UpdateTask(ctx context.Context, req *api.UpdateTaskRequest) 
 			}
 		}
 		t.UpdateTime = nowNano()
+		t.Revision++
 		if err := s.putTask(tx, t); err != nil {
 			return err
 		}
@@ -644,32 +692,45 @@ func (s *BoltStore) archiveAndDelete(id, terminalState, op string) (*api.Task, e
 		if err != nil || t == nil {
 			return err
 		}
-		from := t.CurrentState
-		a := t.toArchived()
-		a.CurrentState = terminalState
-		a.AutoTargetState = terminalState
-		a.UpdateTime = nowNano()
-		val, err := json.Marshal(&a)
+		if t.Guarded {
+			return errLegacyOnGuarded(legacyOpName(op), t.UUID)
+		}
+		a, err := s.archiveTask(tx, t, terminalState, op)
 		if err != nil {
 			return err
 		}
-		if err := tx.Bucket(bucketArchived).Put([]byte(a.UUID), val); err != nil {
-			return err
-		}
-		if s.cap != nil {
-			s.cap.put(bucketArchived, []byte(a.UUID), val)
-		}
-		if err := s.deleteTask(tx, t); err != nil {
-			return err
-		}
-		if err := s.deletePayload(tx, t.UUID); err != nil {
-			return err
-		}
-		out = archivedToAPITask(&a)
-		s.audit.Record(AuditEvent{Op: op, UUID: a.UUID, Queue: a.Queue, FromState: from, ToState: terminalState})
+		out = archivedToAPITask(a)
 		return nil
 	})
 	return out, err
+}
+
+// archiveTask moves the live task t to the archive with terminalState. The
+// caller has done every check, so this function only mutates.
+func (s *BoltStore) archiveTask(tx *bolt.Tx, t *Task, terminalState, op string) (*ArchivedTask, error) {
+	from := t.CurrentState
+	a := t.toArchived()
+	a.CurrentState = terminalState
+	a.AutoTargetState = terminalState
+	a.UpdateTime = nowNano()
+	val, err := json.Marshal(&a)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Bucket(bucketArchived).Put([]byte(a.UUID), val); err != nil {
+		return nil, err
+	}
+	if s.cap != nil {
+		s.cap.put(bucketArchived, []byte(a.UUID), val)
+	}
+	if err := s.deleteTask(tx, t); err != nil {
+		return nil, err
+	}
+	if err := s.deletePayload(tx, t.UUID); err != nil {
+		return nil, err
+	}
+	s.audit.Record(AuditEvent{Op: op, UUID: a.UUID, Queue: a.Queue, FromState: from, ToState: terminalState})
+	return &a, nil
 }
 
 func (s *BoltStore) CompleteTask(ctx context.Context, req *api.CompleteTaskRequest) (*api.CompleteTaskResponse, error) {
@@ -698,7 +759,7 @@ func (s *BoltStore) CleanUpTimedOut(ctx context.Context, req *api.CleanUpTimedOu
 			if len(deadlineKey) < 8 || decodeTimeAsc(deadlineKey[:8]) >= req.AtTime {
 				break
 			}
-			v := tx.Bucket(bucketTasks).Get(taskKey)
+			v := liveTaskValue(tx, taskKey)
 			if v == nil {
 				continue
 			}
@@ -724,6 +785,8 @@ func (s *BoltStore) CleanUpTimedOut(ctx context.Context, req *api.CleanUpTimedOu
 			t.CurrentState, t.AutoTargetState = t.AutoTargetState, t.CurrentState
 			t.Timeout = 0
 			t.UpdateTime = nowNano()
+			// The new revision invalidates the released claim.
+			t.Revision++
 			if err := s.putTask(tx, &t); err != nil {
 				return err
 			}

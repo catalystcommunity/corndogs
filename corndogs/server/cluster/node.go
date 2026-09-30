@@ -64,7 +64,9 @@ type Node struct {
 	// Replication position. AppliedLSN is how far this node has applied the
 	// mutation stream; leaderHeadLSN is the latest leader head we heard.
 	appliedLSN    uint64
+	lastEpoch     uint64 // epoch of the batch at appliedLSN
 	leaderHeadLSN uint64
+	holdJoining   bool // stay RoleJoining until MarkCaughtUp (position unknown)
 
 	// Timers, in Config's tick units.
 	now         int64
@@ -76,6 +78,7 @@ type Node struct {
 	// Election round state (RoleCandidate).
 	myBid    float64
 	bids     map[string]float64
+	bidPos   map[string]Position
 	decideAt int64 // when the bid-collection window closes
 
 	// Leader bookkeeping: follower liveness + replication position, learned from
@@ -86,6 +89,43 @@ type Node struct {
 
 	rnd    *rand.Rand
 	outbox []Message
+}
+
+// HistoryTag identifies the leader term that wrote a batch: the epoch in the high
+// bits and the leader's member index (1..255) in the low 8 bits. The election can
+// briefly produce two leaders in one epoch; the member index keeps their batches
+// distinguishable, so a follower of one is never mistaken for a follower of the
+// other. Tags order by epoch first.
+func HistoryTag(epoch uint64, memberIndex int) uint64 {
+	return epoch<<8 | uint64(memberIndex&0xff)
+}
+
+// TagEpoch returns the epoch part of a history tag.
+func TagEpoch(tag uint64) uint64 { return tag >> 8 }
+
+// MemberIndex returns this node's 1-based index in the sorted member list.
+func (n *Node) MemberIndex() int {
+	for i, p := range n.peers {
+		if p == n.id {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// Position is a replication position: the history tag (see HistoryTag) of the
+// last applied batch and its LSN. Positions order by LastEpoch, then LSN.
+type Position struct {
+	LastEpoch uint64
+	LSN       uint64
+}
+
+// Less reports whether p is older history than q.
+func (p Position) Less(q Position) bool {
+	if p.LastEpoch != q.LastEpoch {
+		return p.LastEpoch < q.LastEpoch
+	}
+	return p.LSN < q.LSN
 }
 
 // NewNode constructs a member. peers must include this node's own id. The node
@@ -112,6 +152,9 @@ func (n *Node) ID() string         { return n.id }
 func (n *Node) Role() Role         { return n.role }
 func (n *Node) Epoch() uint64      { return n.epoch }
 func (n *Node) AppliedLSN() uint64 { return n.appliedLSN }
+
+// Position returns this node's replication position.
+func (n *Node) Position() Position { return Position{LastEpoch: n.lastEpoch, LSN: n.appliedLSN} }
 func (n *Node) LeaderID() string   { return n.leaderID }
 
 // Leader reports the currently known leader id and epoch ("" if none known).
@@ -149,7 +192,7 @@ func (n *Node) SetAppliedLSN(lsn uint64) {
 	if lsn > n.appliedLSN {
 		n.appliedLSN = lsn
 	}
-	if n.role == RoleJoining && n.caughtUp() {
+	if n.role == RoleJoining && !n.holdJoining && n.caughtUp() {
 		n.role = RoleFollower
 		n.armStandTimer()
 	}
@@ -159,10 +202,52 @@ func (n *Node) SetAppliedLSN(lsn uint64) {
 // elections. Called when snapshot+stream catch-up completes, or at startup for a
 // fresh cluster.
 func (n *Node) MarkCaughtUp() {
+	n.holdJoining = false
 	if n.role == RoleJoining {
 		n.role = RoleFollower
 		n.armStandTimer()
 	}
+}
+
+// SetPosition sets the replication position exactly, including a move backward
+// after a rollback. The epoch never goes below the position's epoch, so a new
+// election always has an epoch above every batch this node holds.
+func (n *Node) SetPosition(p Position) {
+	n.appliedLSN = p.LSN
+	n.lastEpoch = p.LastEpoch
+	if e := TagEpoch(p.LastEpoch); n.epoch < e {
+		n.epoch = e
+	}
+	if n.role == RoleJoining && !n.holdJoining && n.caughtUp() {
+		n.role = RoleFollower
+		n.armStandTimer()
+	}
+}
+
+// HoldJoining keeps the node in RoleJoining, not eligible for election, until
+// MarkCaughtUp. Use it when the local data has no known replication position and
+// must be replaced from a leader snapshot.
+func (n *Node) HoldJoining() {
+	n.holdJoining = true
+	if n.role != RoleJoining {
+		n.role = RoleJoining
+		n.leaderID = ""
+	}
+}
+
+// StepDown makes a leader give up leadership, for example when a follower holds
+// newer history. The node becomes a follower of no leader and waits a full
+// failure timeout before it stands again, so a node with newer history can win.
+func (n *Node) StepDown() {
+	if n.role != RoleLeader {
+		return
+	}
+	n.role = RoleFollower
+	n.leaderID = ""
+	n.bids = nil
+	n.lastHeard = n.now
+	n.heardLeader = true
+	n.armStandTimer()
 }
 
 // TakeOutbox returns and clears pending outbound messages.
@@ -248,9 +333,14 @@ func (n *Node) startElection() {
 	n.leaderID = ""
 	n.myBid = n.rnd.Float64() * n.cfg.BidMax
 	n.bids = map[string]float64{n.id: n.myBid}
+	n.bidPos = map[string]Position{n.id: n.Position()}
 	n.decideAt = n.now + n.cfg.ElectionWindow
-	n.broadcast(Message{Type: MsgBid, Epoch: n.epoch, Bid: n.myBid})
+	n.broadcast(n.bidMessage())
 	// Single-node cluster: nobody to hear from, decide immediately at the window.
+}
+
+func (n *Node) bidMessage() Message {
+	return Message{Type: MsgBid, Epoch: n.epoch, Bid: n.myBid, LSN: n.appliedLSN, LastEpoch: n.lastEpoch}
 }
 
 // decideElection closes the collection window and applies the highest-bid rule.
@@ -274,10 +364,13 @@ func (n *Node) decideElection() {
 	n.standAt = n.now + n.cfg.FailureTimeout + jitter
 }
 
-// highestBidder returns the id and bid of the winner among collected bids, ties
-// broken by larger node id so every node computes the same winner.
+// highestBidder returns the id and bid of the winner among collected bids. The
+// most recent replication position wins, so a restarted cluster elects a node
+// that holds all history that the bidders hold. The highest bid breaks a tie,
+// then the larger node id, so every node computes the same winner.
 func (n *Node) highestBidder() (string, float64) {
 	bestID, bestBid := "", -1.0
+	var bestPos Position
 	// Iterate deterministically.
 	ids := make([]string, 0, len(n.bids))
 	for id := range n.bids {
@@ -286,8 +379,11 @@ func (n *Node) highestBidder() (string, float64) {
 	sort.Strings(ids)
 	for _, id := range ids {
 		b := n.bids[id]
-		if b > bestBid || (b == bestBid && id > bestID) {
-			bestID, bestBid = id, b
+		p := n.bidPos[id]
+		better := bestID == "" || bestPos.Less(p) ||
+			(p == bestPos && (b > bestBid || (b == bestBid && id > bestID)))
+		if better {
+			bestID, bestBid, bestPos = id, b, p
 		}
 	}
 	return bestID, bestBid
@@ -299,6 +395,7 @@ func (n *Node) becomeLeader() {
 	n.winBid = n.myBid
 	n.heardLeader = true
 	n.bids = nil
+	n.bidPos = nil
 	n.ackedAt = map[string]int64{}
 	n.ackedLSN = map[string]uint64{}
 	n.nextHBAt = n.now + n.cfg.HeartbeatInterval
@@ -345,8 +442,9 @@ func (n *Node) handleBid(m Message) {
 			n.role = RoleCandidate
 			n.myBid = n.rnd.Float64() * n.cfg.BidMax
 			n.bids = map[string]float64{n.id: n.myBid, m.From: m.Bid}
+			n.bidPos = map[string]Position{n.id: n.Position(), m.From: {LastEpoch: m.LastEpoch, LSN: m.LSN}}
 			n.decideAt = n.now + n.cfg.ElectionWindow
-			n.broadcast(Message{Type: MsgBid, Epoch: n.epoch, Bid: n.myBid})
+			n.broadcast(n.bidMessage())
 		} else {
 			// Not eligible to win (still joining/behind): track the round and follow
 			// whoever emerges. A joining node stays joining.
@@ -360,6 +458,7 @@ func (n *Node) handleBid(m Message) {
 	default: // same epoch
 		if n.role == RoleCandidate {
 			n.bids[m.From] = m.Bid
+			n.bidPos[m.From] = Position{LastEpoch: m.LastEpoch, LSN: m.LSN}
 		}
 	}
 }
@@ -377,7 +476,7 @@ func (n *Node) handleHeartbeat(m Message) {
 			n.stepToFollower(m.Epoch, m.From)
 			n.leaderHeadLSN = m.LSN
 			n.lastHeard = n.now
-			n.send(Message{Type: MsgHeartbeatAck, To: m.From, Epoch: n.epoch, AckLSN: n.appliedLSN})
+			n.send(n.ackMessage(m.From))
 		}
 		// else: we keep leading; the other side will step down when it hears us.
 		return
@@ -391,7 +490,7 @@ func (n *Node) handleHeartbeat(m Message) {
 	n.lastHeard = n.now
 	n.heardLeader = true
 	if n.role == RoleJoining {
-		if n.caughtUp() {
+		if !n.holdJoining && n.caughtUp() {
 			n.role = RoleFollower
 		}
 	} else {
@@ -399,7 +498,11 @@ func (n *Node) handleHeartbeat(m Message) {
 	}
 	n.bids = nil
 	n.armStandTimer()
-	n.send(Message{Type: MsgHeartbeatAck, To: m.From, Epoch: n.epoch, AckLSN: n.appliedLSN})
+	n.send(n.ackMessage(m.From))
+}
+
+func (n *Node) ackMessage(to string) Message {
+	return Message{Type: MsgHeartbeatAck, To: to, Epoch: n.epoch, AckLSN: n.appliedLSN, LastEpoch: n.lastEpoch}
 }
 
 func (n *Node) handleHeartbeatAck(m Message) {

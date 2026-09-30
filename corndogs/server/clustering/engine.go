@@ -9,8 +9,16 @@ import (
 // ErrNotLeader lets the RPC layer return a leader redirect.
 var ErrNotLeader = errors.New("clustering: not the leader")
 
-// ErrCommitTimeout means that the write did not reach the required followers.
-var ErrCommitTimeout = errors.New("clustering: write not committed to quorum in time")
+// ErrCommitTimeout means that the write was applied on the leader but did not
+// reach the required followers in time. Its outcome is uncertain: the write can
+// still become durable if a follower later receives it, or be discarded by a
+// rollback. A caller must not treat it as proof that nothing changed.
+var ErrCommitTimeout = errors.New("clustering: write not committed to quorum in time; outcome uncertain")
+
+// ErrNoQuorum means that the leader rejected the write before it applied it,
+// because too few followers are live to commit it. Nothing changed, so the
+// caller can retry the same request.
+var ErrNoQuorum = errors.New("clustering: no write quorum; write not applied")
 
 // Engine serializes protocol state on one goroutine because Node and Replicator
 // are not safe for concurrent use.
@@ -131,7 +139,7 @@ func (e *Engine) handleProposal(p proposal) {
 	}
 	if e.quorumUnreachable() {
 		// Reject before the local write so that the client can safely retry it.
-		p.done <- ErrCommitTimeout
+		p.done <- ErrNoQuorum
 		return
 	}
 	before := e.rep.LastLSN()
@@ -140,11 +148,14 @@ func (e *Engine) handleProposal(p proposal) {
 		return
 	}
 	lsn := e.rep.LastLSN()
-	if lsn == before {
-		// An empty claim has no write to replicate.
+	if lsn == before && e.rep.Committed(lsn) {
+		// An empty claim or a leader read has no write to replicate.
 		p.done <- nil
 		return
 	}
+	// A proposal without its own write (a replayed receipt or a leader read)
+	// can report data that an earlier write applied but has not committed yet.
+	// It waits for that write, so the caller never sees an uncommitted result.
 	e.waiters = append(e.waiters, commitWaiter{
 		lsn:      lsn,
 		deadline: e.now + e.commitTimeoutTicks(),
@@ -221,7 +232,7 @@ func (e *Engine) Propose(fn func() error) error {
 	select {
 	case e.proposals <- proposal{fn: fn, done: done}:
 	case <-e.stop:
-		return ErrCommitTimeout
+		return ErrNoQuorum // the engine stopped before it received the write
 	}
 	return <-done
 }

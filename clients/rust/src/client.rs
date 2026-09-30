@@ -191,4 +191,144 @@ impl<T: Transport> CorndogsClient<T> {
         decode_get_queue_and_state_counts_response(&csil_resp)
             .map_err(|e| ClientError::Transport(e.to_string()))
     }
+
+    /// GetServerInfo (request/response).
+    pub fn get_server_info(
+        &self,
+        req: GetServerInfoRequest,
+    ) -> Result<GetServerInfoResponse, ClientError> {
+        let csil_resp = self.transport.call(
+            "CorndogsService",
+            "GetServerInfo",
+            &encode_get_server_info_request(&req),
+        )?;
+        decode_get_server_info_response(&csil_resp)
+            .map_err(|e| ClientError::Transport(e.to_string()))
+    }
+
+    /// SubmitKeyedTask (request/response).
+    pub fn submit_keyed_task(
+        &self,
+        req: SubmitKeyedTaskRequest,
+    ) -> Result<SubmitKeyedTaskResponse, ClientError> {
+        let csil_resp = self.transport.call(
+            "CorndogsService",
+            "SubmitKeyedTask",
+            &encode_submit_keyed_task_request(&req),
+        )?;
+        decode_submit_keyed_task_response(&csil_resp)
+            .map_err(|e| ClientError::Transport(e.to_string()))
+    }
+
+    /// LookupSubmission (request/response).
+    pub fn lookup_submission(
+        &self,
+        req: LookupSubmissionRequest,
+    ) -> Result<LookupSubmissionResponse, ClientError> {
+        let csil_resp = self.transport.call(
+            "CorndogsService",
+            "LookupSubmission",
+            &encode_lookup_submission_request(&req),
+        )?;
+        decode_lookup_submission_response(&csil_resp)
+            .map_err(|e| ClientError::Transport(e.to_string()))
+    }
+
+    /// ClaimGuardedTask (request/response).
+    pub fn claim_guarded_task(
+        &self,
+        req: ClaimGuardedTaskRequest,
+    ) -> Result<ClaimGuardedTaskResponse, ClientError> {
+        let csil_resp = self.transport.call(
+            "CorndogsService",
+            "ClaimGuardedTask",
+            &encode_claim_guarded_task_request(&req),
+        )?;
+        decode_claim_guarded_task_response(&csil_resp)
+            .map_err(|e| ClientError::Transport(e.to_string()))
+    }
+
+    /// ClaimGuardedTaskGroup (request/response).
+    pub fn claim_guarded_task_group(
+        &self,
+        req: ClaimGuardedTaskGroupRequest,
+    ) -> Result<ClaimGuardedTaskGroupResponse, ClientError> {
+        let csil_resp = self.transport.call(
+            "CorndogsService",
+            "ClaimGuardedTaskGroup",
+            &encode_claim_guarded_task_group_request(&req),
+        )?;
+        decode_claim_guarded_task_group_response(&csil_resp)
+            .map_err(|e| ClientError::Transport(e.to_string()))
+    }
+
+    /// UpdateGuardedTask (request/response).
+    pub fn update_guarded_task(
+        &self,
+        req: UpdateGuardedTaskRequest,
+    ) -> Result<UpdateGuardedTaskResponse, ClientError> {
+        let csil_resp = self.transport.call(
+            "CorndogsService",
+            "UpdateGuardedTask",
+            &encode_update_guarded_task_request(&req),
+        )?;
+        decode_update_guarded_task_response(&csil_resp)
+            .map_err(|e| ClientError::Transport(e.to_string()))
+    }
+
+    /// CompleteGuardedTask (request/response).
+    pub fn complete_guarded_task(
+        &self,
+        req: CompleteGuardedTaskRequest,
+    ) -> Result<CompleteGuardedTaskResponse, ClientError> {
+        let csil_resp = self.transport.call(
+            "CorndogsService",
+            "CompleteGuardedTask",
+            &encode_complete_guarded_task_request(&req),
+        )?;
+        decode_complete_guarded_task_response(&csil_resp)
+            .map_err(|e| ClientError::Transport(e.to_string()))
+    }
+
+    /// CancelGuardedTask (request/response).
+    pub fn cancel_guarded_task(
+        &self,
+        req: CancelGuardedTaskRequest,
+    ) -> Result<CancelGuardedTaskResponse, ClientError> {
+        let csil_resp = self.transport.call(
+            "CorndogsService",
+            "CancelGuardedTask",
+            &encode_cancel_guarded_task_request(&req),
+        )?;
+        decode_cancel_guarded_task_response(&csil_resp)
+            .map_err(|e| ClientError::Transport(e.to_string()))
+    }
+
+    /// GetGuardedTask (request/response).
+    pub fn get_guarded_task(
+        &self,
+        req: GetGuardedTaskRequest,
+    ) -> Result<GetGuardedTaskResponse, ClientError> {
+        let csil_resp = self.transport.call(
+            "CorndogsService",
+            "GetGuardedTask",
+            &encode_get_guarded_task_request(&req),
+        )?;
+        decode_get_guarded_task_response(&csil_resp)
+            .map_err(|e| ClientError::Transport(e.to_string()))
+    }
+
+    /// LookupOperation (request/response).
+    pub fn lookup_operation(
+        &self,
+        req: LookupOperationRequest,
+    ) -> Result<LookupOperationResponse, ClientError> {
+        let csil_resp = self.transport.call(
+            "CorndogsService",
+            "LookupOperation",
+            &encode_lookup_operation_request(&req),
+        )?;
+        decode_lookup_operation_response(&csil_resp)
+            .map_err(|e| ClientError::Transport(e.to_string()))
+    }
 }

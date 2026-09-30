@@ -110,6 +110,63 @@ If a node rejoins with stale or divergent data, it catches up from the
 replication log or restores a leader snapshot. This operation does not require
 operator action.
 
+## Restart and recovery
+
+Each node records a replication position with its data. A position is a batch
+LSN and a history tag. The tag identifies the epoch and the leader that wrote
+the batch.
+
+- A follower writes its position in the same database transaction as each
+  replicated batch.
+- A leader writes each batch to its replication log before it sends the batch
+  to followers. Each append reaches the operating system before the write
+  continues. A killed process does not lose an appended batch.
+- At start, a node uses the newer of the two positions. If the log does not end
+  at that position, the node restarts its log there.
+- At start, the node cuts off a partial final frame in the log. New appends
+  never follow unreadable bytes.
+
+The election prefers the node with the newest position. The random bid only
+breaks a tie. Thus, after a restart of all nodes, a node with all retained
+history becomes the leader.
+
+The leader compares the position of each follower with its own history before
+it counts an acknowledgement or sends log batches:
+
+- If the follower holds a prefix of the leader history, the follower catches up
+  from the log.
+- If the follower history differs, or the log no longer holds the batches that
+  the follower needs, the leader sends a snapshot. The follower replaces its
+  data with the snapshot.
+- If the follower holds newer history, the leader steps down. The next election
+  selects the node with the newer history.
+
+A node with task data but no recorded position cannot trust LSN 0. This occurs
+on a follower from a release before this recovery change. The node does not
+stand for election. It waits for a leader snapshot.
+
+Write errors:
+
+| Error | Meaning |
+| --- | --- |
+| `clustering: no write quorum; write not applied` | The leader rejected the write before it changed data. Retry the same request. |
+| `clustering: write not committed to quorum in time; outcome uncertain` | The leader applied the write, but too few followers acknowledged it in time. The write can still become durable. Do not treat this error as proof that nothing changed. |
+
+The regression test `TestFullClusterRestartRecovers` in
+`corndogs/server/clustering/restart_test.go` covers these steps: stop all nodes
+without a graceful shutdown, restart them on their existing storage, claim
+retained tasks, fail over, rejoin a node, and lose and restore the write
+majority.
+
+## Upgrade
+
+Stop all nodes of a cluster, upgrade them, then start them. Mixed releases in
+one cluster are not supported. On the first start after an upgrade from a
+release before this recovery change, followers receive a snapshot from the
+leader. The earlier release buffered its replication log and did not write it
+at shutdown. Thus, the leader can start with a log position that is older than
+its data.
+
 ## Limitations
 
 - The cluster has one writer and does not scale write throughput.
@@ -117,3 +174,10 @@ operator action.
 - Asynchronous replication can cause divergent data during a network partition.
 - The Helm chart supports only the single-replica file backend and does not
   create a Tier-1 cluster.
+- The replication log is not fsynced on each append. A host power loss can
+  make the leader log older than its data. Process kills are covered.
+- A leader writes a batch to its database before it writes the batch to its
+  log. If the process stops between these two writes, the unacknowledged write
+  stays in the leader data without a log entry.
+- These tests do not establish arbitrary network-partition or power-loss
+  guarantees.

@@ -136,11 +136,13 @@ class TcpTransport:
                 _write_frame(sock, env)
                 resp = _read_frame(sock)
             except OSError as exc:
+                # The request may have reached the server. Never send it again
+                # here: a legacy mutation could run twice.
                 self._reset()
-                raise TransportError(str(exc)) from None
+                raise TransportError(f"outcome uncertain: {exc}") from None
             if resp is None:
                 self._reset()
-                raise TransportError("connection closed")
+                raise TransportError("outcome uncertain: connection closed")
             return _parse_response(resp)
 
     # --- heartbeat: sync and async (background thread) start functions ---

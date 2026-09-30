@@ -18,4 +18,14 @@ public interface CorndogsService {
     GetQueueTaskCountsResponse getQueueTaskCounts(GetQueueTaskCountsRequest req);
     GetTaskStateCountsResponse getTaskStateCounts(GetTaskStateCountsRequest req);
     GetQueueAndStateCountsResponse getQueueAndStateCounts(GetQueueAndStateCountsRequest req);
+    GetServerInfoResponse getServerInfo(GetServerInfoRequest req);
+    SubmitKeyedTaskResponse submitKeyedTask(SubmitKeyedTaskRequest req);
+    LookupSubmissionResponse lookupSubmission(LookupSubmissionRequest req);
+    ClaimGuardedTaskResponse claimGuardedTask(ClaimGuardedTaskRequest req);
+    ClaimGuardedTaskGroupResponse claimGuardedTaskGroup(ClaimGuardedTaskGroupRequest req);
+    UpdateGuardedTaskResponse updateGuardedTask(UpdateGuardedTaskRequest req);
+    CompleteGuardedTaskResponse completeGuardedTask(CompleteGuardedTaskRequest req);
+    CancelGuardedTaskResponse cancelGuardedTask(CancelGuardedTaskRequest req);
+    GetGuardedTaskResponse getGuardedTask(GetGuardedTaskRequest req);
+    LookupOperationResponse lookupOperation(LookupOperationRequest req);
 }

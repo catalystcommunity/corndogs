@@ -153,4 +153,114 @@ pub const CorndogsClient = struct {
         defer alloc.free(csil_respb);
         try codec.decode_GetQueueAndStateCountsResponse(alloc, csil_respb, out);
     }
+
+    /// Invoke CorndogsService/GetServerInfo with a typed request, returning the decoded
+    /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
+    /// and free it once when done.
+    pub fn get_server_info(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetServerInfoRequest, out: *types.GetServerInfoResponse) anyerror!void {
+        const csil_reqb = try codec.encode_GetServerInfoRequest(alloc, req);
+        defer alloc.free(csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetServerInfo", csil_reqb);
+        defer alloc.free(csil_respb);
+        try codec.decode_GetServerInfoResponse(alloc, csil_respb, out);
+    }
+
+    /// Invoke CorndogsService/SubmitKeyedTask with a typed request, returning the decoded
+    /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
+    /// and free it once when done.
+    pub fn submit_keyed_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.SubmitKeyedTaskRequest, out: *types.SubmitKeyedTaskResponse) anyerror!void {
+        const csil_reqb = try codec.encode_SubmitKeyedTaskRequest(alloc, req);
+        defer alloc.free(csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "SubmitKeyedTask", csil_reqb);
+        defer alloc.free(csil_respb);
+        try codec.decode_SubmitKeyedTaskResponse(alloc, csil_respb, out);
+    }
+
+    /// Invoke CorndogsService/LookupSubmission with a typed request, returning the decoded
+    /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
+    /// and free it once when done.
+    pub fn lookup_submission(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.LookupSubmissionRequest, out: *types.LookupSubmissionResponse) anyerror!void {
+        const csil_reqb = try codec.encode_LookupSubmissionRequest(alloc, req);
+        defer alloc.free(csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "LookupSubmission", csil_reqb);
+        defer alloc.free(csil_respb);
+        try codec.decode_LookupSubmissionResponse(alloc, csil_respb, out);
+    }
+
+    /// Invoke CorndogsService/ClaimGuardedTask with a typed request, returning the decoded
+    /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
+    /// and free it once when done.
+    pub fn claim_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.ClaimGuardedTaskRequest, out: *types.ClaimGuardedTaskResponse) anyerror!void {
+        const csil_reqb = try codec.encode_ClaimGuardedTaskRequest(alloc, req);
+        defer alloc.free(csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "ClaimGuardedTask", csil_reqb);
+        defer alloc.free(csil_respb);
+        try codec.decode_ClaimGuardedTaskResponse(alloc, csil_respb, out);
+    }
+
+    /// Invoke CorndogsService/ClaimGuardedTaskGroup with a typed request, returning the decoded
+    /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
+    /// and free it once when done.
+    pub fn claim_guarded_task_group(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.ClaimGuardedTaskGroupRequest, out: *types.ClaimGuardedTaskGroupResponse) anyerror!void {
+        const csil_reqb = try codec.encode_ClaimGuardedTaskGroupRequest(alloc, req);
+        defer alloc.free(csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "ClaimGuardedTaskGroup", csil_reqb);
+        defer alloc.free(csil_respb);
+        try codec.decode_ClaimGuardedTaskGroupResponse(alloc, csil_respb, out);
+    }
+
+    /// Invoke CorndogsService/UpdateGuardedTask with a typed request, returning the decoded
+    /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
+    /// and free it once when done.
+    pub fn update_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.UpdateGuardedTaskRequest, out: *types.UpdateGuardedTaskResponse) anyerror!void {
+        const csil_reqb = try codec.encode_UpdateGuardedTaskRequest(alloc, req);
+        defer alloc.free(csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "UpdateGuardedTask", csil_reqb);
+        defer alloc.free(csil_respb);
+        try codec.decode_UpdateGuardedTaskResponse(alloc, csil_respb, out);
+    }
+
+    /// Invoke CorndogsService/CompleteGuardedTask with a typed request, returning the decoded
+    /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
+    /// and free it once when done.
+    pub fn complete_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CompleteGuardedTaskRequest, out: *types.CompleteGuardedTaskResponse) anyerror!void {
+        const csil_reqb = try codec.encode_CompleteGuardedTaskRequest(alloc, req);
+        defer alloc.free(csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "CompleteGuardedTask", csil_reqb);
+        defer alloc.free(csil_respb);
+        try codec.decode_CompleteGuardedTaskResponse(alloc, csil_respb, out);
+    }
+
+    /// Invoke CorndogsService/CancelGuardedTask with a typed request, returning the decoded
+    /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
+    /// and free it once when done.
+    pub fn cancel_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CancelGuardedTaskRequest, out: *types.CancelGuardedTaskResponse) anyerror!void {
+        const csil_reqb = try codec.encode_CancelGuardedTaskRequest(alloc, req);
+        defer alloc.free(csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "CancelGuardedTask", csil_reqb);
+        defer alloc.free(csil_respb);
+        try codec.decode_CancelGuardedTaskResponse(alloc, csil_respb, out);
+    }
+
+    /// Invoke CorndogsService/GetGuardedTask with a typed request, returning the decoded
+    /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
+    /// and free it once when done.
+    pub fn get_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetGuardedTaskRequest, out: *types.GetGuardedTaskResponse) anyerror!void {
+        const csil_reqb = try codec.encode_GetGuardedTaskRequest(alloc, req);
+        defer alloc.free(csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetGuardedTask", csil_reqb);
+        defer alloc.free(csil_respb);
+        try codec.decode_GetGuardedTaskResponse(alloc, csil_respb, out);
+    }
+
+    /// Invoke CorndogsService/LookupOperation with a typed request, returning the decoded
+    /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
+    /// and free it once when done.
+    pub fn lookup_operation(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.LookupOperationRequest, out: *types.LookupOperationResponse) anyerror!void {
+        const csil_reqb = try codec.encode_LookupOperationRequest(alloc, req);
+        defer alloc.free(csil_reqb);
+        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "LookupOperation", csil_reqb);
+        defer alloc.free(csil_respb);
+        try codec.decode_LookupOperationResponse(alloc, csil_respb, out);
+    }
 };

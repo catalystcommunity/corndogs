@@ -10,6 +10,9 @@ import (
 )
 
 func (s *V1Alpha1Server) UpdateTask(ctx context.Context, req api.UpdateTaskRequest) (api.UpdateTaskResponse, error) {
+	if err := admitLegacy("UpdateTask", false); err != nil {
+		return api.UpdateTaskResponse{}, err
+	}
 	if req.Payload != nil {
 		if err := validatePayload(*req.Payload); err != nil {
 			return api.UpdateTaskResponse{}, err
@@ -18,12 +21,7 @@ func (s *V1Alpha1Server) UpdateTask(ctx context.Context, req api.UpdateTaskReque
 	if req.CurrentState == "" {
 		req.CurrentState = config.DefaultStartingState
 	}
-	if req.NewState == "" {
-		req.NewState = "updated"
-	}
-	if req.AutoTargetState == "" {
-		req.AutoTargetState = req.NewState + config.DefaultWorkingSuffix
-	}
+	applyUpdateDefaults(&req.NewState, &req.AutoTargetState)
 	resp, err := store.AppStore.UpdateTask(ctx, &req)
 	if resp == nil {
 		return api.UpdateTaskResponse{}, err
@@ -32,6 +30,9 @@ func (s *V1Alpha1Server) UpdateTask(ctx context.Context, req api.UpdateTaskReque
 }
 
 func (s *V1Alpha1Server) CompleteTask(ctx context.Context, req api.CompleteTaskRequest) (api.CompleteTaskResponse, error) {
+	if err := admitLegacy("CompleteTask", false); err != nil {
+		return api.CompleteTaskResponse{}, err
+	}
 	resp, err := store.AppStore.CompleteTask(ctx, &req)
 	if config.PrometheusEnabled && err == nil {
 		metrics.CompletedTasksTotal.Inc()
@@ -43,6 +44,9 @@ func (s *V1Alpha1Server) CompleteTask(ctx context.Context, req api.CompleteTaskR
 }
 
 func (s *V1Alpha1Server) CancelTask(ctx context.Context, req api.CancelTaskRequest) (api.CancelTaskResponse, error) {
+	if err := admitLegacy("CancelTask", false); err != nil {
+		return api.CancelTaskResponse{}, err
+	}
 	resp, err := store.AppStore.CancelTask(ctx, &req)
 	if config.PrometheusEnabled && err == nil {
 		metrics.CanceledTasksTotal.Inc()
@@ -62,4 +66,15 @@ func (s *V1Alpha1Server) CleanUpTimedOut(ctx context.Context, req api.CleanUpTim
 		return api.CleanUpTimedOutResponse{}, err
 	}
 	return *resp, err
+}
+
+// applyUpdateDefaults fills empty update fields. Legacy and guarded updates
+// share it.
+func applyUpdateDefaults(newState, autoTargetState *string) {
+	if *newState == "" {
+		*newState = "updated"
+	}
+	if *autoTargetState == "" {
+		*autoTargetState = *newState + config.DefaultWorkingSuffix
+	}
 }

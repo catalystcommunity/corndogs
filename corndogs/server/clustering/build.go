@@ -9,8 +9,9 @@ import (
 	"github.com/CatalystCommunity/corndogs/corndogs/server/store/filestore"
 )
 
-// Build marks the local node as caught up. Replication catch-up or rollback
-// corrects its state after it connects to the leader.
+// Build marks the local node as caught up when its data has a known replication
+// position (see New). Replication catch-up or rollback corrects its state after
+// it connects to the leader.
 func Build(s Settings, store *filestore.BoltStore, dataDir string, tr Transport, seed int64) (*Replicator, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
@@ -43,7 +44,12 @@ func Setup(s Settings, fsCfg filestore.Config) (*ClusteredStore, error) {
 	}
 	engine := NewEngine(rep, s, 100*time.Millisecond)
 	tr.Bind(engine)
-	return NewClusteredStore(local, engine, tr, localCleanup), nil
+	// The engine and transport stop before this runs, so no append can follow.
+	cleanup := func() {
+		_ = rep.log.Close()
+		localCleanup()
+	}
+	return NewClusteredStore(local, engine, tr, cleanup), nil
 }
 
 func seedFromID(id string) int64 {

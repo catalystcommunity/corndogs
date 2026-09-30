@@ -48,6 +48,9 @@ pub const TransportError = error{
     InvalidAddress,
     Closed,
     ConnectionClosed,
+    /// The request may have reached the server, but no reply arrived. The
+    /// transport does not send it again: a legacy mutation could run twice.
+    OutcomeUncertain,
     FrameTooLarge,
     MalformedEnvelope,
     TransportStatus,
@@ -148,18 +151,20 @@ pub const Transport = struct {
 
         writeFrame(stream, env) catch |err| {
             self.teardown(stream);
-            return err;
+            if (err == TransportError.FrameTooLarge) return err;
+            return TransportError.OutcomeUncertain;
         };
         const frame = readFrame(alloc, stream) catch |err| {
             self.teardown(stream);
-            return err;
+            if (err == TransportError.OutOfMemory or err == TransportError.FrameTooLarge) return err;
+            return TransportError.OutcomeUncertain;
         };
         defer alloc.free(frame);
         if (frame.len == 0) {
             // A zero-length read here can only mean a clean EOF (readFrame never
             // returns an empty *frame* for a real reply); the peer closed on us.
             self.teardown(stream);
-            return TransportError.ConnectionClosed;
+            return TransportError.OutcomeUncertain;
         }
 
         return self.parseResponse(alloc, frame);

@@ -135,4 +135,104 @@ final class CorndogsClient {
       CsilCbor.decode(csilResp),
     );
   }
+
+  GetServerInfoResponse getServerInfo(GetServerInfoRequest request) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'GetServerInfo',
+      request.toCbor(),
+    );
+    return GetServerInfoResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  SubmitKeyedTaskResponse submitKeyedTask(SubmitKeyedTaskRequest request) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'SubmitKeyedTask',
+      request.toCbor(),
+    );
+    return SubmitKeyedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  LookupSubmissionResponse lookupSubmission(LookupSubmissionRequest request) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'LookupSubmission',
+      request.toCbor(),
+    );
+    return LookupSubmissionResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  ClaimGuardedTaskResponse claimGuardedTask(ClaimGuardedTaskRequest request) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'ClaimGuardedTask',
+      request.toCbor(),
+    );
+    return ClaimGuardedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  ClaimGuardedTaskGroupResponse claimGuardedTaskGroup(
+    ClaimGuardedTaskGroupRequest request,
+  ) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'ClaimGuardedTaskGroup',
+      request.toCbor(),
+    );
+    return ClaimGuardedTaskGroupResponse.fromCborValue(
+      CsilCbor.decode(csilResp),
+    );
+  }
+
+  UpdateGuardedTaskResponse updateGuardedTask(
+    UpdateGuardedTaskRequest request,
+  ) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'UpdateGuardedTask',
+      request.toCbor(),
+    );
+    return UpdateGuardedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  CompleteGuardedTaskResponse completeGuardedTask(
+    CompleteGuardedTaskRequest request,
+  ) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'CompleteGuardedTask',
+      request.toCbor(),
+    );
+    return CompleteGuardedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  CancelGuardedTaskResponse cancelGuardedTask(
+    CancelGuardedTaskRequest request,
+  ) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'CancelGuardedTask',
+      request.toCbor(),
+    );
+    return CancelGuardedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  GetGuardedTaskResponse getGuardedTask(GetGuardedTaskRequest request) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'GetGuardedTask',
+      request.toCbor(),
+    );
+    return GetGuardedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  LookupOperationResponse lookupOperation(LookupOperationRequest request) {
+    final csilResp = transport.call(
+      'CorndogsService',
+      'LookupOperation',
+      request.toCbor(),
+    );
+    return LookupOperationResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
 }

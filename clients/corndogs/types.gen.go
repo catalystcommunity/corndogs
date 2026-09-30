@@ -181,6 +181,189 @@ type GetQueueAndStateCountsResponse struct {
 	QueueAndStateCounts QueueAndStateCountsMap `json:"queue_and_state_counts" yaml:"queue_and_state_counts"`
 }
 
+// GetServerInfoRequest represents a structured data type
+type GetServerInfoRequest struct {
+}
+
+// GetServerInfoResponse represents a structured data type
+type GetServerInfoResponse struct {
+	ServerVersion           string   `json:"server_version" yaml:"server_version"`
+	Features                []string `json:"features" yaml:"features"`
+	SubmissionKeyPolicy     string   `json:"submission_key_policy" yaml:"submission_key_policy"`
+	TaskGuardPolicy         string   `json:"task_guard_policy" yaml:"task_guard_policy"`
+	ReceiptRetentionSeconds int64    `json:"receipt_retention_seconds" yaml:"receipt_retention_seconds"`
+}
+
+// GuardedTask represents a structured data type
+type GuardedTask struct {
+	Task     Task  `json:"task" yaml:"task"`
+	Guarded  bool  `json:"guarded" yaml:"guarded"`
+	Revision int64 `json:"revision" yaml:"revision"`
+	Terminal bool  `json:"terminal" yaml:"terminal"`
+}
+
+// SubmissionReceipt represents a structured data type
+type SubmissionReceipt struct {
+	Queue         string `json:"queue" yaml:"queue"`
+	SubmissionKey string `json:"submission_key" yaml:"submission_key"`
+	TaskUuid      string `json:"task_uuid" yaml:"task_uuid"`
+	AcceptedAt    int64  `json:"accepted_at" yaml:"accepted_at"`
+	ExpiresAt     int64  `json:"expires_at" yaml:"expires_at"`
+	Guarded       bool   `json:"guarded" yaml:"guarded"`
+}
+
+// SubmitKeyedTaskRequest represents a structured data type
+type SubmitKeyedTaskRequest struct {
+	SubmissionKey   string `json:"submission_key" yaml:"submission_key"`
+	Guarded         bool   `json:"guarded" yaml:"guarded"`
+	Queue           string `json:"queue" yaml:"queue"`
+	CurrentState    string `json:"current_state" yaml:"current_state"`
+	AutoTargetState string `json:"auto_target_state" yaml:"auto_target_state"`
+	Timeout         int64  `json:"timeout" yaml:"timeout"`
+	Payload         []byte `json:"payload" yaml:"payload"`
+	Priority        int64  `json:"priority" yaml:"priority"`
+}
+
+// SubmitKeyedTaskResponse represents a structured data type
+type SubmitKeyedTaskResponse struct {
+	Receipt  SubmissionReceipt `json:"receipt" yaml:"receipt"`
+	Replayed bool              `json:"replayed" yaml:"replayed"`
+	Task     *GuardedTask      `json:"task,omitempty" yaml:"task,omitempty"`
+}
+
+// LookupSubmissionRequest represents a structured data type
+type LookupSubmissionRequest struct {
+	Queue         string `json:"queue" yaml:"queue"`
+	SubmissionKey string `json:"submission_key" yaml:"submission_key"`
+}
+
+// LookupSubmissionResponse represents a structured data type
+type LookupSubmissionResponse struct {
+	Receipt *SubmissionReceipt `json:"receipt,omitempty" yaml:"receipt,omitempty"`
+	Task    *GuardedTask       `json:"task,omitempty" yaml:"task,omitempty"`
+}
+
+// ClaimGuardedTaskRequest represents a structured data type
+type ClaimGuardedTaskRequest struct {
+	OperationId             string `json:"operation_id" yaml:"operation_id"`
+	Queue                   string `json:"queue" yaml:"queue"`
+	CurrentState            string `json:"current_state" yaml:"current_state"`
+	OverrideTimeout         int64  `json:"override_timeout" yaml:"override_timeout"`
+	OverrideCurrentState    string `json:"override_current_state" yaml:"override_current_state"`
+	OverrideAutoTargetState string `json:"override_auto_target_state" yaml:"override_auto_target_state"`
+}
+
+// GuardedDelivery represents a structured data type
+type GuardedDelivery struct {
+	Task    GuardedTask `json:"task" yaml:"task"`
+	Payload []byte      `json:"payload" yaml:"payload"`
+}
+
+// ClaimGuardedTaskResponse represents a structured data type
+type ClaimGuardedTaskResponse struct {
+	Delivery *GuardedDelivery `json:"delivery,omitempty" yaml:"delivery,omitempty"`
+	Replayed bool             `json:"replayed" yaml:"replayed"`
+}
+
+// ClaimGuardedTaskGroupRequest represents a structured data type
+type ClaimGuardedTaskGroupRequest struct {
+	OperationId             string   `json:"operation_id" yaml:"operation_id"`
+	Queues                  []string `json:"queues" yaml:"queues"`
+	CurrentState            string   `json:"current_state" yaml:"current_state"`
+	OverrideTimeout         int64    `json:"override_timeout" yaml:"override_timeout"`
+	OverrideCurrentState    string   `json:"override_current_state" yaml:"override_current_state"`
+	OverrideAutoTargetState string   `json:"override_auto_target_state" yaml:"override_auto_target_state"`
+}
+
+// ClaimGuardedTaskGroupResponse represents a structured data type
+type ClaimGuardedTaskGroupResponse struct {
+	Delivery *GuardedDelivery `json:"delivery,omitempty" yaml:"delivery,omitempty"`
+	Replayed bool             `json:"replayed" yaml:"replayed"`
+}
+
+// UpdateGuardedTaskRequest represents a structured data type
+type UpdateGuardedTaskRequest struct {
+	OperationId      string  `json:"operation_id" yaml:"operation_id"`
+	Uuid             string  `json:"uuid" yaml:"uuid"`
+	Queue            string  `json:"queue" yaml:"queue"`
+	ExpectedRevision int64   `json:"expected_revision" yaml:"expected_revision"`
+	ExpectedState    *string `json:"expected_state,omitempty" yaml:"expected_state,omitempty"`
+	NewState         string  `json:"new_state" yaml:"new_state"`
+	AutoTargetState  string  `json:"auto_target_state" yaml:"auto_target_state"`
+	Timeout          int64   `json:"timeout" yaml:"timeout"`
+	Payload          *[]byte `json:"payload,omitempty" yaml:"payload,omitempty"`
+	Priority         *int64  `json:"priority,omitempty" yaml:"priority,omitempty"`
+}
+
+// UpdateGuardedTaskResponse represents a structured data type
+type UpdateGuardedTaskResponse struct {
+	Task     GuardedTask `json:"task" yaml:"task"`
+	Replayed bool        `json:"replayed" yaml:"replayed"`
+}
+
+// CompleteGuardedTaskRequest represents a structured data type
+type CompleteGuardedTaskRequest struct {
+	OperationId      string  `json:"operation_id" yaml:"operation_id"`
+	Uuid             string  `json:"uuid" yaml:"uuid"`
+	Queue            string  `json:"queue" yaml:"queue"`
+	ExpectedRevision int64   `json:"expected_revision" yaml:"expected_revision"`
+	ExpectedState    *string `json:"expected_state,omitempty" yaml:"expected_state,omitempty"`
+}
+
+// CompleteGuardedTaskResponse represents a structured data type
+type CompleteGuardedTaskResponse struct {
+	Task     GuardedTask `json:"task" yaml:"task"`
+	Replayed bool        `json:"replayed" yaml:"replayed"`
+}
+
+// CancelGuardedTaskRequest represents a structured data type
+type CancelGuardedTaskRequest struct {
+	OperationId      string  `json:"operation_id" yaml:"operation_id"`
+	Uuid             string  `json:"uuid" yaml:"uuid"`
+	Queue            string  `json:"queue" yaml:"queue"`
+	ExpectedRevision int64   `json:"expected_revision" yaml:"expected_revision"`
+	ExpectedState    *string `json:"expected_state,omitempty" yaml:"expected_state,omitempty"`
+}
+
+// CancelGuardedTaskResponse represents a structured data type
+type CancelGuardedTaskResponse struct {
+	Task     GuardedTask `json:"task" yaml:"task"`
+	Replayed bool        `json:"replayed" yaml:"replayed"`
+}
+
+// GetGuardedTaskRequest represents a structured data type
+type GetGuardedTaskRequest struct {
+	Uuid  string `json:"uuid" yaml:"uuid"`
+	Queue string `json:"queue" yaml:"queue"`
+}
+
+// GetGuardedTaskResponse represents a structured data type
+type GetGuardedTaskResponse struct {
+	Task *GuardedTask `json:"task,omitempty" yaml:"task,omitempty"`
+}
+
+// OperationReceipt represents a structured data type
+type OperationReceipt struct {
+	OperationId    string `json:"operation_id" yaml:"operation_id"`
+	Op             string `json:"op" yaml:"op"`
+	TaskUuid       string `json:"task_uuid" yaml:"task_uuid"`
+	Queue          string `json:"queue" yaml:"queue"`
+	ResultRevision int64  `json:"result_revision" yaml:"result_revision"`
+	ResultState    string `json:"result_state" yaml:"result_state"`
+	At             int64  `json:"at" yaml:"at"`
+	ExpiresAt      int64  `json:"expires_at" yaml:"expires_at"`
+}
+
+// LookupOperationRequest represents a structured data type
+type LookupOperationRequest struct {
+	OperationId string `json:"operation_id" yaml:"operation_id"`
+}
+
+// LookupOperationResponse represents a structured data type
+type LookupOperationResponse struct {
+	Receipt *OperationReceipt `json:"receipt,omitempty" yaml:"receipt,omitempty"`
+}
+
 // ServiceError represents a structured data type
 type ServiceError struct {
 	Code    uint64 `json:"code" yaml:"code"`

@@ -257,7 +257,9 @@ static int corndogs_transport_call(void *self, const char *service, const char *
 
     if (write_frame(t->fd, env.data, env.len)) {
         csilc_buf_dispose(&env);
-        corndogs_set_error(t, "corndogs: write failed: %s", strerror(errno));
+        /* The request may have reached the server. It is not sent again:
+         * a legacy mutation could run twice. */
+        corndogs_set_error(t, "corndogs: outcome uncertain: write failed: %s", strerror(errno));
         teardown_locked(t);
         pthread_mutex_unlock(&t->mu);
         return -1;
@@ -267,7 +269,7 @@ static int corndogs_transport_call(void *self, const char *service, const char *
     uint8_t *frame = NULL;
     size_t frame_len = 0;
     if (read_frame(t->fd, &frame, &frame_len)) {
-        corndogs_set_error(t, "corndogs: connection closed");
+        corndogs_set_error(t, "corndogs: outcome uncertain: connection closed");
         teardown_locked(t);
         pthread_mutex_unlock(&t->mu);
         return -1;

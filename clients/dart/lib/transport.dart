@@ -183,8 +183,11 @@ class TcpTransport implements AsyncCsilTransport {
     socket.destroy();
     final pending = Map<int, Completer<Object?>>.from(_pending);
     _pending.clear();
+    // A pending request may have reached the server. It is not sent again:
+    // a legacy mutation could run twice.
+    final uncertain = CorndogsTransportException('outcome uncertain: ${cause.message}');
     for (final c in pending.values) {
-      if (!c.isCompleted) c.completeError(cause);
+      if (!c.isCompleted) c.completeError(uncertain);
     }
   }
 
@@ -205,7 +208,7 @@ class TcpTransport implements AsyncCsilTransport {
       await _writeFrame(socket, _withLengthPrefix(envelope));
     } catch (e) {
       _pending.remove(id);
-      final err = CorndogsTransportException('write failed: $e');
+      final err = CorndogsTransportException('outcome uncertain: write failed: $e');
       _teardown(err);
       throw err;
     }

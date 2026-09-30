@@ -142,4 +142,116 @@ final class CorndogsAsyncClient {
       CsilCbor.decode(csilResp),
     );
   }
+
+  Future<GetServerInfoResponse> getServerInfo(
+    GetServerInfoRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'GetServerInfo',
+      request.toCbor(),
+    );
+    return GetServerInfoResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  Future<SubmitKeyedTaskResponse> submitKeyedTask(
+    SubmitKeyedTaskRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'SubmitKeyedTask',
+      request.toCbor(),
+    );
+    return SubmitKeyedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  Future<LookupSubmissionResponse> lookupSubmission(
+    LookupSubmissionRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'LookupSubmission',
+      request.toCbor(),
+    );
+    return LookupSubmissionResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  Future<ClaimGuardedTaskResponse> claimGuardedTask(
+    ClaimGuardedTaskRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'ClaimGuardedTask',
+      request.toCbor(),
+    );
+    return ClaimGuardedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  Future<ClaimGuardedTaskGroupResponse> claimGuardedTaskGroup(
+    ClaimGuardedTaskGroupRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'ClaimGuardedTaskGroup',
+      request.toCbor(),
+    );
+    return ClaimGuardedTaskGroupResponse.fromCborValue(
+      CsilCbor.decode(csilResp),
+    );
+  }
+
+  Future<UpdateGuardedTaskResponse> updateGuardedTask(
+    UpdateGuardedTaskRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'UpdateGuardedTask',
+      request.toCbor(),
+    );
+    return UpdateGuardedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  Future<CompleteGuardedTaskResponse> completeGuardedTask(
+    CompleteGuardedTaskRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'CompleteGuardedTask',
+      request.toCbor(),
+    );
+    return CompleteGuardedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  Future<CancelGuardedTaskResponse> cancelGuardedTask(
+    CancelGuardedTaskRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'CancelGuardedTask',
+      request.toCbor(),
+    );
+    return CancelGuardedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  Future<GetGuardedTaskResponse> getGuardedTask(
+    GetGuardedTaskRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'GetGuardedTask',
+      request.toCbor(),
+    );
+    return GetGuardedTaskResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
+
+  Future<LookupOperationResponse> lookupOperation(
+    LookupOperationRequest request,
+  ) async {
+    final csilResp = await transport.call(
+      'CorndogsService',
+      'LookupOperation',
+      request.toCbor(),
+    );
+    return LookupOperationResponse.fromCborValue(CsilCbor.decode(csilResp));
+  }
 }

@@ -29,6 +29,9 @@ ADDR="${CORNDOGS_E2E:-127.0.0.1:5080}"
 ADDR="${ADDR#*://}"; ADDR="${ADDR%%/*}"
 HOST="${ADDR%%:*}"; PORT="${ADDR##*:}"
 export CORNDOGS_ADDR="${ADDR}"
+# Each run uses new resilience queues, so the fixed submission key of a driver
+# creates a new task once per run and replays after that.
+export CORNDOGS_RUN="${CORNDOGS_RUN:-$(date +%s)-$$}"
 # Liveness is a raw TCP connect to the RPC port (no HTTP on :5080 anymore).
 server_up() { (exec 3<>"/dev/tcp/${HOST}/${PORT}") 2>/dev/null; }
 if ! server_up; then
@@ -81,6 +84,32 @@ func main() {
 		fmt.Println("claim:", err)
 		os.Exit(1)
 	}
+
+	// Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+	q := "e2e-res-go-" + os.Getenv("CORNDOGS_RUN")
+	sub := corndogs.SubmitKeyedTaskRequest{SubmissionKey: "e2e-key", Guarded: true, Queue: q,
+		CurrentState: "s", AutoTargetState: "w", Timeout: -1, Payload: []byte("res")}
+	first, err := c.SubmitKeyedTask(ctx, sub)
+	if err != nil {
+		fmt.Println("keyed submit:", err)
+		os.Exit(1)
+	}
+	again, err := c.SubmitKeyedTask(ctx, sub)
+	if err != nil || !again.Replayed || again.Receipt.TaskUuid != first.Receipt.TaskUuid {
+		fmt.Println("keyed replay:", err, again.Replayed)
+		os.Exit(1)
+	}
+	cl, err := c.ClaimGuardedTask(ctx, corndogs.ClaimGuardedTaskRequest{OperationId: corndogs.NewOperationID(), Queue: q, CurrentState: "s"})
+	if err != nil || cl.Delivery == nil || string(cl.Delivery.Payload) != "res" {
+		fmt.Println("guarded claim:", err)
+		os.Exit(1)
+	}
+	done, err := c.CompleteGuardedTask(ctx, corndogs.CompleteGuardedTaskRequest{OperationId: corndogs.NewOperationID(),
+		Uuid: cl.Delivery.Task.Task.Uuid, Queue: q, ExpectedRevision: cl.Delivery.Task.Revision})
+	if err != nil || !done.Task.Terminal {
+		fmt.Println("guarded complete:", err)
+		os.Exit(1)
+	}
 	fmt.Println("ok", r.Delivery.Task.Uuid)
 }
 GOEOF
@@ -107,6 +136,22 @@ delivery = client.get_next_task(GetNextTaskRequest(
     queue="e2e-py", current_state="s",
     override_timeout=0, override_current_state="", override_auto_target_state="")).delivery
 assert delivery is not None, "no task claimed"
+
+# Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+from corndogs import SubmitKeyedTaskRequest, ClaimGuardedTaskRequest, CompleteGuardedTaskRequest
+q = "e2e-res-py-" + os.environ["CORNDOGS_RUN"]
+sub = SubmitKeyedTaskRequest(submission_key="e2e-key", guarded=True, queue=q, current_state="s",
+                             auto_target_state="w", timeout=-1, payload=b"res", priority=0)
+first = client.submit_keyed_task(sub)
+again = client.submit_keyed_task(sub)
+assert again.replayed and again.receipt.task_uuid == first.receipt.task_uuid, "no replay"
+cl = client.claim_guarded_task(ClaimGuardedTaskRequest(
+    operation_id="e2e-claim-" + q, queue=q, current_state="s",
+    override_timeout=0, override_current_state="", override_auto_target_state="")).delivery
+assert cl is not None and cl.payload == b"res", "guarded claim failed"
+done = client.complete_guarded_task(CompleteGuardedTaskRequest(
+    operation_id="e2e-done-" + q, uuid=cl.task.task.uuid, queue=q, expected_revision=cl.task.revision))
+assert done.task.terminal, "not terminal"
 print("ok")
 PYEOF
   PYTHONPATH="${CLIENTS}/python" python3 "$w/main.py" >"$w/out.log" 2>&1 && pass python || { fail python; sed 's/^/    /' "$w/out.log" | tail -8; }
@@ -131,6 +176,25 @@ delivery = client.get_next_task(GetNextTaskRequest.new(
   override_timeout: 0, override_current_state: "", override_auto_target_state: ""
 )).delivery
 raise "no task claimed" if delivery.nil?
+
+# Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+q = "e2e-res-ruby-#{ENV.fetch("CORNDOGS_RUN")}"
+sub = SubmitKeyedTaskRequest.new(
+  submission_key: "e2e-key", guarded: true, queue: q, current_state: "s",
+  auto_target_state: "w", timeout: -1, payload: "res".b, priority: 0
+)
+first = client.submit_keyed_task(sub)
+again = client.submit_keyed_task(sub)
+raise "no replay" unless again.replayed && again.receipt.task_uuid == first.receipt.task_uuid
+cl = client.claim_guarded_task(ClaimGuardedTaskRequest.new(
+  operation_id: "e2e-claim-#{q}", queue: q, current_state: "s",
+  override_timeout: 0, override_current_state: "", override_auto_target_state: ""
+)).delivery
+raise "guarded claim failed" if cl.nil? || cl.payload != "res".b
+done = client.complete_guarded_task(CompleteGuardedTaskRequest.new(
+  operation_id: "e2e-done-#{q}", uuid: cl.task.task.uuid, queue: q, expected_revision: cl.task.revision
+))
+raise "not terminal" unless done.task.terminal
 
 puts "ok"
 RBEOF
@@ -164,6 +228,26 @@ fn main() {
         std::process::exit(1);
     }
 
+    // Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+    let q = format!("e2e-res-rust-{}", std::env::var("CORNDOGS_RUN").expect("CORNDOGS_RUN"));
+    let sub = corndogs::SubmitKeyedTaskRequest {
+        submission_key: "e2e-key".into(), guarded: true, queue: q.clone(), current_state: "s".into(),
+        auto_target_state: "w".into(), timeout: -1, payload: b"res".to_vec(), priority: 0,
+    };
+    let first = client.submit_keyed_task(sub.clone()).expect("submit_keyed_task");
+    let again = client.submit_keyed_task(sub).expect("submit_keyed_task replay");
+    assert!(again.replayed && again.receipt.task_uuid == first.receipt.task_uuid, "no replay");
+    let cl = client.claim_guarded_task(corndogs::ClaimGuardedTaskRequest {
+        operation_id: format!("e2e-claim-{q}"), queue: q.clone(), current_state: "s".into(),
+        override_timeout: 0, override_current_state: String::new(), override_auto_target_state: String::new(),
+    }).expect("claim_guarded_task").delivery.expect("no guarded delivery");
+    assert_eq!(cl.payload, b"res".to_vec());
+    let done = client.complete_guarded_task(corndogs::CompleteGuardedTaskRequest {
+        operation_id: format!("e2e-done-{q}"), uuid: cl.task.task.uuid.clone(), queue: q,
+        expected_revision: cl.task.revision, expected_state: None,
+    }).expect("complete_guarded_task");
+    assert!(done.task.terminal, "not terminal");
+
     println!("ok");
 }
 RUSTEOF
@@ -186,6 +270,7 @@ run_c() {
 #include "transport.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int main(void) {
     const char *addr = getenv("CORNDOGS_ADDR");
@@ -227,6 +312,51 @@ int main(void) {
     }
     csil_codec_arena_free(owner);
 
+    /* Resilience round trip: keyed submit twice, guarded claim, guarded complete. */
+    const char *run = getenv("CORNDOGS_RUN");
+    char q[128], claim_op[160], done_op[160];
+    snprintf(q, sizeof q, "e2e-res-c-%s", run ? run : "x");
+    snprintf(claim_op, sizeof claim_op, "e2e-claim-%s", q);
+    snprintf(done_op, sizeof done_op, "e2e-done-%s", q);
+    SubmitKeyedTaskRequest ks = {
+        .submission_key = "e2e-key", .guarded = true, .queue = q, .current_state = "s",
+        .auto_target_state = "w", .timeout = -1, .payload = {(uint8_t *)"res", 3}, .priority = 0,
+    };
+    SubmitKeyedTaskResponse first, again;
+    CsilCodecArena *o1 = NULL, *o2 = NULL, *o3 = NULL, *o4 = NULL;
+    if (csil_corndogs_submit_keyed_task(&client, &ks, &first, &o1) != 0 ||
+        csil_corndogs_submit_keyed_task(&client, &ks, &again, &o2) != 0) {
+        fprintf(stderr, "submit_keyed_task failed: %s\n", corndogs_transport_last_error(tr));
+        return 1;
+    }
+    if (!again.replayed || strcmp(again.receipt.task_uuid, first.receipt.task_uuid) != 0) {
+        fprintf(stderr, "submit_keyed_task: no replay\n");
+        return 1;
+    }
+    ClaimGuardedTaskRequest cr = {
+        .operation_id = claim_op, .queue = q, .current_state = "s",
+        .override_timeout = 0, .override_current_state = "", .override_auto_target_state = "",
+    };
+    ClaimGuardedTaskResponse cl;
+    if (csil_corndogs_claim_guarded_task(&client, &cr, &cl, &o3) != 0 || !cl.delivery ||
+        cl.delivery->payload.len != 3 || memcmp(cl.delivery->payload.data, "res", 3) != 0) {
+        fprintf(stderr, "claim_guarded_task failed: %s\n", corndogs_transport_last_error(tr));
+        return 1;
+    }
+    CompleteGuardedTaskRequest fr = {
+        .operation_id = done_op, .uuid = cl.delivery->task.task.uuid, .queue = q,
+        .expected_revision = cl.delivery->task.revision, .expected_state = NULL,
+    };
+    CompleteGuardedTaskResponse done;
+    if (csil_corndogs_complete_guarded_task(&client, &fr, &done, &o4) != 0 || !done.task.terminal) {
+        fprintf(stderr, "complete_guarded_task failed: %s\n", corndogs_transport_last_error(tr));
+        return 1;
+    }
+    csil_codec_arena_free(o1);
+    csil_codec_arena_free(o2);
+    csil_codec_arena_free(o3);
+    csil_codec_arena_free(o4);
+
     printf("ok\n");
     corndogs_transport_close(tr);
     return 0;
@@ -265,6 +395,28 @@ Future<void> main() async {
       await tr.close();
       exit(1);
     }
+    // Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+    final q = 'e2e-res-dart-${Platform.environment['CORNDOGS_RUN']}';
+    final sub = SubmitKeyedTaskRequest(
+      submissionKey: 'e2e-key', guarded: true, queue: q, currentState: 's',
+      autoTargetState: 'w', timeout: -1, payload: Uint8List.fromList('res'.codeUnits), priority: 0,
+    );
+    final first = await client.submitKeyedTask(sub);
+    final again = await client.submitKeyedTask(sub);
+    if (!again.replayed || again.receipt.taskUuid != first.receipt.taskUuid) {
+      throw StateError('no replay');
+    }
+    final cl = (await client.claimGuardedTask(ClaimGuardedTaskRequest(
+      operationId: 'e2e-claim-$q', queue: q, currentState: 's',
+      overrideTimeout: 0, overrideCurrentState: '', overrideAutoTargetState: '',
+    ))).delivery;
+    if (cl == null || String.fromCharCodes(cl.payload) != 'res') {
+      throw StateError('guarded claim failed');
+    }
+    final done = await client.completeGuardedTask(CompleteGuardedTaskRequest(
+      operationId: 'e2e-done-$q', uuid: cl.task.task.uuid, queue: q, expectedRevision: cl.task.revision,
+    ));
+    if (!done.task.terminal) throw StateError('not terminal');
     print('ok');
   } catch (e) {
     stderr.writeln('error: $e');
@@ -312,6 +464,28 @@ if (delivery is null)
     Console.WriteLine("claim: no task returned");
     Environment.Exit(1);
 }
+
+// Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+var q = "e2e-res-csharp-" + Environment.GetEnvironmentVariable("CORNDOGS_RUN");
+var sub = new SubmitKeyedTaskRequest
+{
+    SubmissionKey = "e2e-key", Guarded = true, Queue = q, CurrentState = "s", AutoTargetState = "w",
+    Timeout = -1, Payload = Encoding.UTF8.GetBytes("res"), Priority = 0,
+};
+var first = client.SubmitKeyedTask(sub);
+var again = client.SubmitKeyedTask(sub);
+if (!again.Replayed || again.Receipt.TaskUuid != first.Receipt.TaskUuid) throw new Exception("no replay");
+var cl = client.ClaimGuardedTask(new ClaimGuardedTaskRequest
+{
+    OperationId = "e2e-claim-" + q, Queue = q, CurrentState = "s",
+    OverrideTimeout = 0, OverrideCurrentState = "", OverrideAutoTargetState = "",
+}).Delivery ?? throw new Exception("no guarded delivery");
+if (Encoding.UTF8.GetString(cl.Payload) != "res") throw new Exception("wrong payload");
+var done = client.CompleteGuardedTask(new CompleteGuardedTaskRequest
+{
+    OperationId = "e2e-done-" + q, Uuid = cl.Task.Task.Uuid, Queue = q, ExpectedRevision = cl.Task.Revision,
+});
+if (!done.Task.Terminal) throw new Exception("not terminal");
 Console.WriteLine("ok");
 CSEOF
   cat >"$w/test.csproj" <<EOF
@@ -372,6 +546,47 @@ if is_nil(resp.delivery) do
   System.halt(1)
 end
 
+# Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+alias Csilgen.Generated.CorndogsClient, as: C
+q = "e2e-res-elixir-" <> System.get_env("CORNDOGS_RUN")
+
+sub = %Csilgen.Generated.SubmitKeyedTaskRequest{
+  submission_key: "e2e-key",
+  guarded: true,
+  queue: q,
+  current_state: "s",
+  auto_target_state: "w",
+  timeout: -1,
+  payload: "res",
+  priority: 0
+}
+
+first = C.submit_keyed_task(client, sub)
+again = C.submit_keyed_task(client, sub)
+true = again.replayed and again.receipt.task_uuid == first.receipt.task_uuid
+
+cl =
+  C.claim_guarded_task(client, %Csilgen.Generated.ClaimGuardedTaskRequest{
+    operation_id: "e2e-claim-" <> q,
+    queue: q,
+    current_state: "s",
+    override_timeout: 0,
+    override_current_state: "",
+    override_auto_target_state: ""
+  }).delivery
+
+"res" = cl.payload
+
+done =
+  C.complete_guarded_task(client, %Csilgen.Generated.CompleteGuardedTaskRequest{
+    operation_id: "e2e-done-" <> q,
+    uuid: cl.task.task.uuid,
+    queue: q,
+    expected_revision: cl.task.revision
+  })
+
+true = done.task.terminal
+
 IO.puts("ok")
 EXEOF
   ( cd "$w" && mix deps.get >/dev/null 2>&1 && mix run run.exs ) >"$w/out.log" 2>&1 && pass elixir || { fail elixir; sed 's/^/    /' "$w/out.log" | tail -12; }
@@ -428,6 +643,56 @@ pub fn main() !void {
         std.process.exit(1);
     }
 
+    // Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+    const run = try std.process.getEnvVarOwned(a, "CORNDOGS_RUN");
+    const q = try std.fmt.allocPrint(a, "e2e-res-zig-{s}", .{run});
+    const sub = types.SubmitKeyedTaskRequest{
+        .submission_key = "e2e-key", .guarded = true, .queue = q, .current_state = "s",
+        .auto_target_state = "w", .timeout = -1, .payload = "res", .priority = 0,
+    };
+    var first: types.SubmitKeyedTaskResponse = undefined;
+    var again: types.SubmitKeyedTaskResponse = undefined;
+    svc.submit_keyed_task(a, &sub, &first) catch |err| {
+        std.debug.print("submit_keyed_task: {}\n", .{err});
+        std.process.exit(1);
+    };
+    svc.submit_keyed_task(a, &sub, &again) catch |err| {
+        std.debug.print("submit_keyed_task replay: {}\n", .{err});
+        std.process.exit(1);
+    };
+    if (!again.replayed or !std.mem.eql(u8, again.receipt.task_uuid, first.receipt.task_uuid)) {
+        std.debug.print("keyed submit: no replay\n", .{});
+        std.process.exit(1);
+    }
+    var claimed: types.ClaimGuardedTaskResponse = undefined;
+    svc.claim_guarded_task(a, &types.ClaimGuardedTaskRequest{
+        .operation_id = try std.fmt.allocPrint(a, "e2e-claim-{s}", .{q}), .queue = q, .current_state = "s",
+        .override_timeout = 0, .override_current_state = "", .override_auto_target_state = "",
+    }, &claimed) catch |err| {
+        std.debug.print("claim_guarded_task: {}\n", .{err});
+        std.process.exit(1);
+    };
+    const cl = claimed.delivery orelse {
+        std.debug.print("claim_guarded_task: no task\n", .{});
+        std.process.exit(1);
+    };
+    if (!std.mem.eql(u8, cl.payload, "res")) {
+        std.debug.print("claim_guarded_task: wrong payload\n", .{});
+        std.process.exit(1);
+    }
+    var done: types.CompleteGuardedTaskResponse = undefined;
+    svc.complete_guarded_task(a, &types.CompleteGuardedTaskRequest{
+        .operation_id = try std.fmt.allocPrint(a, "e2e-done-{s}", .{q}), .uuid = cl.task.task.uuid,
+        .queue = q, .expected_revision = cl.task.revision,
+    }, &done) catch |err| {
+        std.debug.print("complete_guarded_task: {}\n", .{err});
+        std.process.exit(1);
+    };
+    if (!done.task.terminal) {
+        std.debug.print("complete_guarded_task: not terminal\n", .{});
+        std.process.exit(1);
+    }
+
     std.debug.print("ok\n", .{});
 }
 ZIGEOF
@@ -462,6 +727,39 @@ let () =
      | Error e -> Printf.eprintf "claim: %s\n" e; exit 1
      | Ok { delivery = None } -> Printf.eprintf "claim: no task\n"; exit 1
      | Ok { delivery = Some _ } ->
+       (* Resilience round trip: keyed submit twice, guarded claim, guarded complete. *)
+       let q = "e2e-res-ocaml-" ^ Sys.getenv "CORNDOGS_RUN" in
+       let fail what e = Printf.eprintf "%s: %s\n" what e; exit 1 in
+       let sub : Types.submit_keyed_task_request =
+         { submission_key = "e2e-key"; guarded = true; queue = q; current_state = "s";
+           auto_target_state = "w"; timeout = -1L; payload = Bytes.of_string "res"; priority = 0L }
+       in
+       let submit () : Types.submit_keyed_task_response =
+         match Client.Corndogs_service.submit_keyed_task client sub with
+         | Ok r -> r | Error e -> fail "submit_keyed_task" e
+       in
+       let first = submit () in
+       let again = submit () in
+       if not (again.replayed && again.receipt.task_uuid = first.receipt.task_uuid) then fail "replay" "no replay";
+       let claim_req : Types.claim_guarded_task_request =
+         { operation_id = "e2e-claim-" ^ q; queue = q; current_state = "s";
+           override_timeout = 0L; override_current_state = ""; override_auto_target_state = "" }
+       in
+       let (cl : Types.guarded_delivery) =
+         match Client.Corndogs_service.claim_guarded_task client claim_req with
+         | Ok { delivery = Some d; _ } -> d
+         | Ok _ -> fail "claim_guarded_task" "no task"
+         | Error e -> fail "claim_guarded_task" e
+       in
+       if Bytes.to_string cl.payload <> "res" then fail "claim_guarded_task" "payload";
+       let done_req : Types.complete_guarded_task_request =
+         { operation_id = "e2e-done-" ^ q; uuid = cl.task.task.uuid; queue = q;
+           expected_revision = cl.task.revision; expected_state = None }
+       in
+       (match Client.Corndogs_service.complete_guarded_task client done_req with
+        | Ok { task = { terminal = true; _ }; _ } -> ()
+        | Ok _ -> fail "complete_guarded_task" "not terminal"
+        | Error e -> fail "complete_guarded_task" e);
        Transport.close tr;
        print_endline "ok")
 OCAMLEOF
@@ -494,6 +792,24 @@ async function main() {
       console.error("claim: no task returned");
       process.exit(1);
     }
+    // Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+    const q = "e2e-res-ts-" + process.env.CORNDOGS_RUN;
+    const sub = {
+      submissionKey: "e2e-key", guarded: true, queue: q, currentState: "s", autoTargetState: "w",
+      timeout: -1, payload: new TextEncoder().encode("res"), priority: 0,
+    };
+    const first = await client.corndogs.submitKeyedTask(sub);
+    const again = await client.corndogs.submitKeyedTask(sub);
+    if (!again.replayed || again.receipt.taskUuid !== first.receipt.taskUuid) throw new Error("no replay");
+    const cl = (await client.corndogs.claimGuardedTask({
+      operationId: "e2e-claim-" + q, queue: q, currentState: "s",
+      overrideTimeout: 0, overrideCurrentState: "", overrideAutoTargetState: "",
+    })).delivery;
+    if (!cl || new TextDecoder().decode(cl.payload) !== "res") throw new Error("guarded claim failed");
+    const done = await client.corndogs.completeGuardedTask({
+      operationId: "e2e-done-" + q, uuid: cl.task.task.uuid, queue: q, expectedRevision: cl.task.revision,
+    });
+    if (!done.task.terminal) throw new Error("not terminal");
     console.log("ok");
   } finally {
     await tr.close(); // let node exit
@@ -530,6 +846,23 @@ public class RpcExample {
                 System.out.println("claim: no task");
                 System.exit(1);
             }
+            // Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+            String q = "e2e-res-java-" + System.getenv("CORNDOGS_RUN");
+            SubmitKeyedTaskRequest sub = new SubmitKeyedTaskRequest(
+                "e2e-key", true, q, "s", "w", -1L, "res".getBytes(), 0L);
+            SubmitKeyedTaskResponse first = client.submitKeyedTask(sub);
+            SubmitKeyedTaskResponse again = client.submitKeyedTask(sub);
+            if (!again.replayed() || !again.receipt().taskUuid().equals(first.receipt().taskUuid())) {
+                throw new IllegalStateException("no replay");
+            }
+            GuardedDelivery cl = client.claimGuardedTask(new ClaimGuardedTaskRequest(
+                "e2e-claim-" + q, q, "s", 0L, "", "")).delivery();
+            if (cl == null || !new String(cl.payload()).equals("res")) {
+                throw new IllegalStateException("guarded claim failed");
+            }
+            CompleteGuardedTaskResponse done = client.completeGuardedTask(new CompleteGuardedTaskRequest(
+                "e2e-done-" + q, cl.task().task().uuid(), q, cl.task().revision(), null));
+            if (!done.task().terminal()) throw new IllegalStateException("not terminal");
             System.out.println("ok");
         } catch (Exception e) {
             e.printStackTrace();
@@ -567,6 +900,25 @@ fun main() {
         System.err.println("claim: no task returned")
         kotlin.system.exitProcess(1)
     }
+
+    // Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+    val q = "e2e-res-kotlin-" + System.getenv("CORNDOGS_RUN")
+    val sub = SubmitKeyedTaskRequest(
+        submissionKey = "e2e-key", guarded = true, queue = q, currentState = "s",
+        autoTargetState = "w", timeout = -1, payload = "res".toByteArray(), priority = 0,
+    )
+    val first = client.submitKeyedTask(sub)
+    val again = client.submitKeyedTask(sub)
+    check(again.replayed && again.receipt.taskUuid == first.receipt.taskUuid) { "no replay" }
+    val cl = client.claimGuardedTask(ClaimGuardedTaskRequest(
+        operationId = "e2e-claim-$q", queue = q, currentState = "s",
+        overrideTimeout = 0, overrideCurrentState = "", overrideAutoTargetState = "",
+    )).delivery ?: error("no guarded delivery")
+    check(String(cl.payload) == "res") { "wrong payload" }
+    val done = client.completeGuardedTask(CompleteGuardedTaskRequest(
+        operationId = "e2e-done-$q", uuid = cl.task.task.uuid, queue = q, expectedRevision = cl.task.revision,
+    ))
+    check(done.task.terminal) { "not terminal" }
     println("ok")
 }
 KTEOF
@@ -626,6 +978,26 @@ do {
     guard next.delivery != nil else {
         print("claim: no task returned"); exit(1)
     }
+
+    // Resilience round trip: keyed submit twice, guarded claim, guarded complete.
+    let q = "e2e-res-swift-" + (ProcessInfo.processInfo.environment["CORNDOGS_RUN"] ?? "x")
+    let sub = SubmitKeyedTaskRequest(
+        submissionKey: "e2e-key", guarded: true, queue: q, currentState: "s",
+        autoTargetState: "w", timeout: -1, payload: Array("res".utf8), priority: 0)
+    let first = try client.submitKeyedTask(sub)
+    let again = try client.submitKeyedTask(sub)
+    guard again.replayed, again.receipt.taskUuid == first.receipt.taskUuid else {
+        print("keyed submit: no replay"); exit(1)
+    }
+    guard let cl = try client.claimGuardedTask(ClaimGuardedTaskRequest(
+        operationId: "e2e-claim-" + q, queue: q, currentState: "s",
+        overrideTimeout: 0, overrideCurrentState: "", overrideAutoTargetState: "")).delivery,
+        cl.payload == Array("res".utf8) else {
+        print("guarded claim failed"); exit(1)
+    }
+    let done = try client.completeGuardedTask(CompleteGuardedTaskRequest(
+        operationId: "e2e-done-" + q, uuid: cl.task.task.uuid, queue: q, expectedRevision: cl.task.revision))
+    guard done.task.terminal else { print("not terminal"); exit(1) }
     print("ok")
 } catch {
     print("error: \(error)"); exit(1)
