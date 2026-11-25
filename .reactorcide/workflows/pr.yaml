@@ -10,6 +10,8 @@
 # workflow id: the coordinator CI policy names it.
 id: corndogs-pr
 name: Corndogs PR
+status:
+  context: Corndogs PR
 description: "Check commits, the server, the clients, the generated code, and the chart."
 
 on:
