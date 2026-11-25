@@ -33,10 +33,17 @@ int main(void) {
         .queue = "emails", .current_state = "submitted", .auto_target_state = "sending",
         .timeout = -1, .payload = {0}, .priority = 0,
     };
-    SubmitTaskResponse sub_resp;
+    CorndogsServiceSubmitTaskReply sub_resp;
     CsilCodecArena *owner = NULL;
     if (csil_corndogs_submit_task(&client, &sub, &sub_resp, &owner) != 0) {
-        fprintf(stderr, "submit_task failed: %s\n", corndogs_transport_last_error(tr));
+        fprintf(stderr, "%s\n", corndogs_transport_last_error(tr));
+        corndogs_transport_close(tr);
+        return 1;
+    }
+    if (sub_resp.kind == CorndogsServiceSubmitTaskReply_as_service_error) {
+        fprintf(stderr, "%s\n", sub_resp.value.as_service_error.message);
+        csil_codec_arena_free(owner);
+        corndogs_transport_close(tr);
         return 1;
     }
     csil_codec_arena_free(owner); // frees everything sub_resp borrows
@@ -46,13 +53,21 @@ int main(void) {
         .queue = "emails", .current_state = "submitted",
         .override_timeout = 0, .override_current_state = "", .override_auto_target_state = "",
     };
-    GetNextTaskResponse next_resp;
+    CorndogsServiceGetNextTaskReply next_resp;
     owner = NULL;
     if (csil_corndogs_get_next_task(&client, &next, &next_resp, &owner) != 0) {
-        fprintf(stderr, "get_next_task failed: %s\n", corndogs_transport_last_error(tr));
+        fprintf(stderr, "%s\n", corndogs_transport_last_error(tr));
+        corndogs_transport_close(tr);
         return 1;
     }
-    printf("claimed task %s\n", next_resp.delivery->task.uuid);
+    if (next_resp.kind == CorndogsServiceGetNextTaskReply_as_service_error) {
+        fprintf(stderr, "%s\n", next_resp.value.as_service_error.message);
+        csil_codec_arena_free(owner);
+        corndogs_transport_close(tr);
+        return 1;
+    }
+    TaskDelivery *delivery = next_resp.value.as_get_next_task_response.delivery;
+    if (delivery) printf("claimed task %s\n", delivery->task.uuid);
     csil_codec_arena_free(owner);
 
     corndogs_transport_close(tr); // stops the heartbeat and closes the connection
@@ -104,22 +119,30 @@ SubmitKeyedTaskRequest ks = {
     .current_state = "submitted", .auto_target_state = "submitted-working",
     .timeout = 60, .payload = {data, len}, .priority = 0,
 };
-SubmitKeyedTaskResponse sub;
+CorndogsServiceSubmitKeyedTaskReply sub;
 CsilCodecArena *a1 = NULL, *a2 = NULL, *a3 = NULL;
-if (csil_corndogs_submit_keyed_task(&client, &ks, &sub, &a1) != 0) { /* see corndogs_transport_last_error */ }
-/* sub.replayed is true when the server already accepted this key. */
+if (csil_corndogs_submit_keyed_task(&client, &ks, &sub, &a1) != 0) return 1;
+if (sub.kind == CorndogsServiceSubmitKeyedTaskReply_as_service_error) {
+    fprintf(stderr, "%s\n", sub.value.as_service_error.message);
+    csil_codec_arena_free(a1);
+    return 1;
+}
+/* sub.value.as_submit_keyed_task_response.replayed is true when the server already accepted this key. */
 
 ClaimGuardedTaskRequest cr = {
     .operation_id = "claim-7f3a", .queue = "orders", .current_state = "submitted",
     .override_timeout = 0, .override_current_state = "", .override_auto_target_state = "",
 };
-ClaimGuardedTaskResponse cl;
-if (csil_corndogs_claim_guarded_task(&client, &cr, &cl, &a2) == 0 && cl.delivery) {
+CorndogsServiceClaimGuardedTaskReply cl;
+if (csil_corndogs_claim_guarded_task(&client, &cr, &cl, &a2) == 0 &&
+    cl.kind == CorndogsServiceClaimGuardedTaskReply_as_claim_guarded_task_response &&
+    cl.value.as_claim_guarded_task_response.delivery) {
+    GuardedDelivery *delivery = cl.value.as_claim_guarded_task_response.delivery;
     CompleteGuardedTaskRequest fr = {
-        .operation_id = "done-7f3a", .uuid = cl.delivery->task.task.uuid, .queue = "orders",
-        .expected_revision = cl.delivery->task.revision, .expected_state = NULL,
+        .operation_id = "done-7f3a", .uuid = delivery->task.task.uuid, .queue = "orders",
+        .expected_revision = delivery->task.revision, .expected_state = NULL,
     };
-    CompleteGuardedTaskResponse done;
+    CorndogsServiceCompleteGuardedTaskReply done;
     csil_corndogs_complete_guarded_task(&client, &fr, &done, &a3);
 }
 csil_codec_arena_free(a1); csil_codec_arena_free(a2); csil_codec_arena_free(a3);
@@ -154,6 +177,6 @@ Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md
 - **Memory:** every `csil_corndogs_*` call fills in a `CsilCodecArena **owner`;
   free it with `csil_codec_arena_free` once you're done reading the response —
   that single call frees every string/bytes/array the response borrows.
-- Errors: a service error and a transport failure both surface as a non-zero
-  return from the `csil_corndogs_*` call — read the message with
-  `corndogs_transport_last_error(tr)`.
+- Check the return code first. A nonzero value indicates a transport or codec
+  failure. A zero value means that the client decoded the reply. Check
+  `reply.kind` before you read the success field or `reply.value.as_service_error`.

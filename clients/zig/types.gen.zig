@@ -365,3 +365,92 @@ pub const QueueAndStateCounts = struct {
 pub const GetQueueAndStateCountsResponse = struct {
     queue_and_state_counts: QueueAndStateCountsMap,
 };
+
+pub const CorndogsServiceSubmitTaskReply = union(enum) {
+    submit_task_response: SubmitTaskResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceGetTaskStateByIDReply = union(enum) {
+    get_task_state_by_id_response: GetTaskStateByIDResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceGetNextTaskReply = union(enum) {
+    get_next_task_response: GetNextTaskResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceGetNextTaskGroupReply = union(enum) {
+    get_next_task_group_response: GetNextTaskGroupResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceUpdateTaskReply = union(enum) {
+    update_task_response: UpdateTaskResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceCompleteTaskReply = union(enum) {
+    complete_task_response: CompleteTaskResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceCancelTaskReply = union(enum) {
+    cancel_task_response: CancelTaskResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceCleanUpTimedOutReply = union(enum) {
+    clean_up_timed_out_response: CleanUpTimedOutResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceGetQueuesReply = union(enum) {
+    get_queues_response: GetQueuesResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceGetQueueTaskCountsReply = union(enum) {
+    get_queue_task_counts_response: GetQueueTaskCountsResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceGetTaskStateCountsReply = union(enum) {
+    get_task_state_counts_response: GetTaskStateCountsResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceGetQueueAndStateCountsReply = union(enum) {
+    get_queue_and_state_counts_response: GetQueueAndStateCountsResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceGetServerInfoReply = union(enum) {
+    get_server_info_response: GetServerInfoResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceSubmitKeyedTaskReply = union(enum) {
+    submit_keyed_task_response: SubmitKeyedTaskResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceLookupSubmissionReply = union(enum) {
+    lookup_submission_response: LookupSubmissionResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceClaimGuardedTaskReply = union(enum) {
+    claim_guarded_task_response: ClaimGuardedTaskResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceClaimGuardedTaskGroupReply = union(enum) {
+    claim_guarded_task_group_response: ClaimGuardedTaskGroupResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceUpdateGuardedTaskReply = union(enum) {
+    update_guarded_task_response: UpdateGuardedTaskResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceCompleteGuardedTaskReply = union(enum) {
+    complete_guarded_task_response: CompleteGuardedTaskResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceCancelGuardedTaskReply = union(enum) {
+    cancel_guarded_task_response: CancelGuardedTaskResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceGetGuardedTaskReply = union(enum) {
+    get_guarded_task_response: GetGuardedTaskResponse,
+    service_error: ServiceError,
+};
+pub const CorndogsServiceLookupOperationReply = union(enum) {
+    lookup_operation_response: LookupOperationResponse,
+    service_error: ServiceError,
+};

@@ -73,9 +73,13 @@ function encInto(v: CborValue, out: number[]): void {
     head(4, v.length, out);
     for (const x of v) encInto(x, out);
   } else if (v instanceof Map) {
-    head(5, v.size, out);
-    for (const [k, val] of v) {
-      encInto(k, out);
+    // RFC 8949 section 4.2.1: entries go in bytewise order of the encoded keys, so
+    // every peer emits the same bytes and a decoder can check the order in one pass.
+    const entries = Array.from(v, ([k, val]): [Uint8Array, CborValue] => [encodeValue(k), val]);
+    entries.sort(([a], [b]) => csilCompareBytes(a, b));
+    head(5, entries.length, out);
+    for (const [k, val] of entries) {
+      for (const b of k) out.push(b);
       encInto(val, out);
     }
   } else {
@@ -89,6 +93,34 @@ export function encodeValue(value: CborValue): Uint8Array {
   const out: number[] = [];
   encInto(value, out);
   return Uint8Array.from(out);
+}
+
+function csilCompareBytes(a: Uint8Array, b: Uint8Array): number {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    if (a[i] !== b[i]) return a[i] - b[i];
+  }
+  return a.length - b.length;
+}
+
+// A record accepts its fields in any order, so the decoder only marks a map whose
+// keys are out of canonical order; a dynamic-map reader refuses a marked map.
+const csilUnorderedMaps = new WeakSet<Map<CborValue, CborValue>>();
+
+// A key with a longer head than needed is a second byte form of the same key, so
+// the order and duplicate checks on raw bytes would miss it.
+function csilShortestHead(b: Uint8Array, at: number): boolean {
+  const major = b[at] >> 5;
+  const low = b[at] & 0x1f;
+  if (major === 7 || low < 24) return true;
+  if (low === 24) return b[at + 1] >= 24;
+  if (low === 25) return b[at + 1] !== 0;
+  if (low === 26) return b[at + 1] !== 0 || b[at + 2] !== 0;
+  return b[at + 1] !== 0 || b[at + 2] !== 0 || b[at + 3] !== 0 || b[at + 4] !== 0;
+}
+
+function csilKeyLabel(key: CborValue): string {
+  return typeof key === "string" ? JSON.stringify(key) : String(key);
 }
 
 type Cursor = { b: Uint8Array; pos: number };
@@ -132,8 +164,24 @@ function smallInt(arg: bigint): number | bigint {
   return arg <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(arg) : arg;
 }
 
+/** Widen an IEEE 754 half-precision value (RFC 8949 Appendix D) exactly to binary64. */
+function csilHalfToFloat64(half: number): number {
+  const exp = (half >> 10) & 0x1f;
+  const mant = half & 0x3ff;
+  let magnitude: number;
+  if (exp === 0) magnitude = mant * 2 ** -24;
+  else if (exp === 31) magnitude = mant === 0 ? Infinity : NaN;
+  else magnitude = (mant + 1024) * 2 ** (exp - 25);
+  return half & 0x8000 ? -magnitude : magnitude;
+}
+
 function readFloat(st: Cursor, low: number): number {
   const bits = readArg(st, low);
+  if (low === 25) {
+    const view = new DataView(new ArrayBuffer(2));
+    view.setUint16(0, Number(bits), false);
+    return csilHalfToFloat64(view.getUint16(0, false));
+  }
   if (low === 26) {
     const view = new DataView(new ArrayBuffer(4));
     view.setUint32(0, Number(bits), false);
@@ -163,7 +211,7 @@ function decInto(st: Cursor, depth: number): CborValue {
       st.pos += 1;
       return null;
     }
-    if (low === 26 || low === 27) return readFloat(st, low);
+    if (low === 25 || low === 26 || low === 27) return readFloat(st, low);
     throw new Error("malformed CBOR simple value");
   }
   const arg = readArg(st, low);
@@ -199,8 +247,21 @@ function decInto(st: Cursor, depth: number): CborValue {
       if (arg > BigInt(st.b.length - st.pos)) throw new Error("CBOR map length exceeds remaining input");
       const n = Number(arg);
       const m = new Map<CborValue, CborValue>();
+      // Raw key bytes catch a repeated byte-string key and a key encoded twice in
+      // different widths, which a JS `Map` cannot tell apart from distinct keys.
+      const seen = new Set<string>();
+      let prev: Uint8Array | null = null;
       for (let i = 0; i < n; i++) {
+        const start = st.pos;
         const k = decInto(st, depth + 1);
+        if (!csilShortestHead(st.b, start)) throw new Error("csil cbor: map key is not in shortest form");
+        const raw = st.b.subarray(start, st.pos);
+        let id = "";
+        for (const b of raw) id += String.fromCharCode(b);
+        if (seen.has(id) || m.has(k)) throw new Error(`csil cbor: duplicate key ${csilKeyLabel(k)}`);
+        seen.add(id);
+        if (prev !== null && csilCompareBytes(prev, raw) > 0) csilUnorderedMaps.add(m);
+        prev = raw;
         const val = decInto(st, depth + 1);
         m.set(k, val);
       }
@@ -266,6 +327,13 @@ export function asMap(value: CborValue): Map<CborValue, CborValue> {
   throw new Error("expected a map");
 }
 
+/** A `{ * K => V }` map: its keys must arrive in canonical order (RFC 8949 section 4.2.1). */
+export function asDynamicMap(value: CborValue): Map<CborValue, CborValue> {
+  const m = asMap(value);
+  if (csilUnorderedMaps.has(m)) throw new Error("csil cbor: map keys are not in canonical order");
+  return m;
+}
+
 /** A decoded integer may surface as `bigint` (see `decInto`'s large-value path), so a
  * numeric literal's expected `number` is compared against the `bigint`-normalized form
  * rather than failing on a type mismatch that isn't a value mismatch. */
@@ -278,6 +346,32 @@ export function asLiteral<T extends CborValue>(value: CborValue, expected: T): T
 /** Validate a decoded scalar against a literal-enum's declared vocabulary, erroring
  * on an unknown value. The caller reads through `asNumber`/`asString`/`asBool`, which
  * already normalize a decoded `bigint` to `number`, so a plain membership check suffices. */
+/** CBOR orders unsigned integer keys first, then negative keys by magnitude. */
+export function enumNumberMap(entries: [bigint, CborValue][]): Map<CborValue, CborValue> {
+  return new Map(entries.sort(([a], [b]) => {
+    if (a === b) return 0;
+    if ((a < 0n) !== (b < 0n)) return a < 0n ? 1 : -1;
+    if (a < 0n) return a > b ? -1 : 1;
+    return a < b ? -1 : 1;
+  }));
+}
+
+export function enumToNumber(label: string, entries: readonly (readonly [string, bigint])[]): bigint {
+  for (const [name, number] of entries) {
+    if (name === label) return number;
+  }
+  throw new Error("unknown enum label");
+}
+
+export function enumFromNumber(value: CborValue, entries: readonly (readonly [string, bigint])[]): string {
+  if (typeof value === "bigint" || (typeof value === "number" && Number.isSafeInteger(value))) {
+    for (const [name, number] of entries) {
+      if (BigInt(value) === number) return name;
+    }
+  }
+  throw new Error("unknown enum number");
+}
+
 export function asEnumMember<T extends number | string | boolean | null>(
   value: T,
   members: readonly T[],
@@ -322,7 +416,92 @@ function asTagged(value: CborValue, tag: number): CborValue {
 
 /** Decode a tag-0 (RFC 3339, UTC) timestamp into a `Date`. */
 export function asTimestamp(value: CborValue): Date {
-  return new Date(asString(asTagged(value, 0)));
+  return csilTsFromText(asString(asTagged(value, 0)));
+}
+
+// `Date` parsing accepts many shapes the wire contract forbids (a space for `T`, no
+// offset, leap seconds rolled over), so the grammar is checked by hand. `[0-9]` stays
+// ASCII-only, and `$` without the `m` flag matches only at the true end of input.
+const CSIL_TS_PATTERN =
+  /^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,9}))?(?:[Zz]|([+-])([0-9]{2}):([0-9]{2}))$/;
+
+/** Parse canonical tag-0 text strictly. `Date` holds milliseconds, so a nonzero digit
+ * past the third fraction digit is an error rather than a silent rounding. */
+export function csilTsFromText(text: string): Date {
+  const m = CSIL_TS_PATTERN.exec(text);
+  if (m === null) throw new Error(`invalid RFC 3339 timestamp ${JSON.stringify(text)}`);
+  const [year, month, day, hour, minute, second] = m.slice(1, 7).map(Number);
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const monthDays = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (year < 1 || month < 1 || month > 12 || day < 1 || day > monthDays[month - 1]) {
+    throw new Error(`invalid calendar date in timestamp ${JSON.stringify(text)}`);
+  }
+  if (hour > 23 || minute > 59 || second > 59) {
+    throw new Error(`invalid time of day in timestamp ${JSON.stringify(text)}`);
+  }
+  const fraction = m[7] ?? "";
+  if (/[1-9]/.test(fraction.slice(3))) {
+    throw new Error(`timestamp ${JSON.stringify(text)} is finer than milliseconds`);
+  }
+  let offsetMinutes = 0;
+  if (m[8] !== undefined) {
+    const offsetHour = Number(m[9]);
+    const offsetMinute = Number(m[10]);
+    if (offsetHour > 23 || offsetMinute > 59) {
+      throw new Error(`invalid offset in timestamp ${JSON.stringify(text)}`);
+    }
+    offsetMinutes = (m[8] === "-" ? -1 : 1) * (offsetHour * 60 + offsetMinute);
+  }
+  // `Date.UTC` maps years 0-99 to 1900-1999, so the year is set on its own.
+  const local = new Date(0);
+  local.setUTCFullYear(year, month - 1, day);
+  local.setUTCHours(hour, minute, second, Number(fraction.padEnd(3, "0").slice(0, 3)));
+  const instant = new Date(local.getTime() - offsetMinutes * 60000);
+  const utcYear = instant.getUTCFullYear();
+  if (utcYear < 1 || utcYear > 9999) {
+    throw new Error(`timestamp ${JSON.stringify(text)} is outside years 0001-9999 in UTC`);
+  }
+  return instant;
+}
+
+const CSIL_EPOCH_FIRST = -62135596800;
+const CSIL_EPOCH_LAST = 253402300799;
+
+/** Decode tag-1 epoch seconds (`cddl_time`) into a `Date`. A `Date` holds
+ * milliseconds, so a float fraction is rounded to three digits by the shared rule. */
+export function asCddlTime(value: CborValue): Date {
+  const inner = asTagged(value, 1);
+  // An integer past 2^53 decodes as a `bigint`; every one of those is out of range.
+  if (typeof inner === "bigint") throw new Error("cddl_time is outside years 0001-9999");
+  if (typeof inner !== "number") throw new Error("cddl_time content must be a number");
+  if (!Number.isFinite(inner)) throw new Error("cddl_time must be finite");
+  if (inner < CSIL_EPOCH_FIRST - 1 || inner > CSIL_EPOCH_LAST + 1) {
+    throw new Error("cddl_time is outside years 0001-9999");
+  }
+  // An integer and a float with the same value decode to the same `number`, and the
+  // rule gives an integer a zero fraction, so one path serves both.
+  let seconds = Math.floor(inner);
+  let units = Math.floor((inner - seconds) * 1000 + 0.5);
+  if (units === 1000) {
+    seconds += 1;
+    units = 0;
+  }
+  if (seconds < CSIL_EPOCH_FIRST || seconds > CSIL_EPOCH_LAST) {
+    throw new Error("cddl_time is outside years 0001-9999");
+  }
+  return new Date(seconds * 1000 + units);
+}
+
+/** A `Date` as tag-1 content: whole seconds as an integer, else a binary64 float. */
+export function csilEpochFromDate(d: Date): number {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) throw new Error("expected a valid Date");
+  const millis = d.getTime();
+  const seconds = Math.floor(millis / 1000);
+  if (seconds < CSIL_EPOCH_FIRST || seconds > CSIL_EPOCH_LAST) {
+    throw new Error("cddl_time is outside years 0001-9999");
+  }
+  const units = millis - seconds * 1000;
+  return units === 0 ? seconds : seconds + units / 1000;
 }
 
 /** Decode a tag-4 decimal fraction into its `[exponent, mantissa]` payload. */
@@ -337,6 +516,11 @@ export function asDecimalPayload(value: CborValue): [number | bigint, number | b
 
 /** A `Date` rendered as the canonical tag-0 text: RFC 3339, UTC, `Z` offset. */
 export function csilTsToText(d: Date): string {
+  // An Invalid Date or a year outside 0001-9999 has no canonical text, and
+  // `toISOString` would write an expanded `+YYYYYY` year for the latter.
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) throw new Error("expected a valid Date");
+  const year = d.getUTCFullYear();
+  if (year < 1 || year > 9999) throw new Error("timestamp is outside years 0001-9999");
   return d.toISOString().replace(/\.000Z$/, "Z");
 }
 
@@ -354,6 +538,7 @@ export function toTaskCborValue(v: Task): CborValue {
 }
 
 export function fromTaskCborValue(value: CborValue): Task {
+  asMap(value);
   return {
     uuid: asString(requireKey(value, "uuid")),
     queue: asString(requireKey(value, "queue")),
@@ -382,6 +567,7 @@ export function toTaskDeliveryCborValue(v: TaskDelivery): CborValue {
 }
 
 export function fromTaskDeliveryCborValue(value: CborValue): TaskDelivery {
+  asMap(value);
   return {
     task: fromTaskCborValue(requireKey(value, "task")),
     payload: asBytes(requireKey(value, "payload")),
@@ -408,6 +594,7 @@ export function toSubmitTaskRequestCborValue(v: SubmitTaskRequest): CborValue {
 }
 
 export function fromSubmitTaskRequestCborValue(value: CborValue): SubmitTaskRequest {
+  asMap(value);
   return {
     queue: asString(requireKey(value, "queue")),
     currentState: asString(requireKey(value, "current_state")),
@@ -433,6 +620,7 @@ export function toSubmitTaskResponseCborValue(v: SubmitTaskResponse): CborValue 
 }
 
 export function fromSubmitTaskResponseCborValue(value: CborValue): SubmitTaskResponse {
+  asMap(value);
   return {
     task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskCborValue(csilV))(mapGet(value, "task")),
   };
@@ -454,6 +642,7 @@ export function toGetTaskStateByIDRequestCborValue(v: GetTaskStateByIDRequest): 
 }
 
 export function fromGetTaskStateByIDRequestCborValue(value: CborValue): GetTaskStateByIDRequest {
+  asMap(value);
   return {
     uuid: asString(requireKey(value, "uuid")),
     queue: asString(requireKey(value, "queue")),
@@ -475,6 +664,7 @@ export function toGetTaskStateByIDResponseCborValue(v: GetTaskStateByIDResponse)
 }
 
 export function fromGetTaskStateByIDResponseCborValue(value: CborValue): GetTaskStateByIDResponse {
+  asMap(value);
   return {
     task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskCborValue(csilV))(mapGet(value, "task")),
   };
@@ -499,6 +689,7 @@ export function toGetNextTaskRequestCborValue(v: GetNextTaskRequest): CborValue 
 }
 
 export function fromGetNextTaskRequestCborValue(value: CborValue): GetNextTaskRequest {
+  asMap(value);
   return {
     queue: asString(requireKey(value, "queue")),
     currentState: asString(requireKey(value, "current_state")),
@@ -523,6 +714,7 @@ export function toGetNextTaskResponseCborValue(v: GetNextTaskResponse): CborValu
 }
 
 export function fromGetNextTaskResponseCborValue(value: CborValue): GetNextTaskResponse {
+  asMap(value);
   return {
     delivery: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskDeliveryCborValue(csilV))(mapGet(value, "delivery")),
   };
@@ -547,6 +739,7 @@ export function toGetNextTaskGroupRequestCborValue(v: GetNextTaskGroupRequest): 
 }
 
 export function fromGetNextTaskGroupRequestCborValue(value: CborValue): GetNextTaskGroupRequest {
+  asMap(value);
   return {
     queues: asArray(requireKey(value, "queues")).map((csilE) => asString(csilE)),
     currentState: asString(requireKey(value, "current_state")),
@@ -571,6 +764,7 @@ export function toGetNextTaskGroupResponseCborValue(v: GetNextTaskGroupResponse)
 }
 
 export function fromGetNextTaskGroupResponseCborValue(value: CborValue): GetNextTaskGroupResponse {
+  asMap(value);
   return {
     delivery: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskDeliveryCborValue(csilV))(mapGet(value, "delivery")),
   };
@@ -593,6 +787,7 @@ export function toCompleteTaskRequestCborValue(v: CompleteTaskRequest): CborValu
 }
 
 export function fromCompleteTaskRequestCborValue(value: CborValue): CompleteTaskRequest {
+  asMap(value);
   return {
     uuid: asString(requireKey(value, "uuid")),
     queue: asString(requireKey(value, "queue")),
@@ -615,6 +810,7 @@ export function toCompleteTaskResponseCborValue(v: CompleteTaskResponse): CborVa
 }
 
 export function fromCompleteTaskResponseCborValue(value: CborValue): CompleteTaskResponse {
+  asMap(value);
   return {
     task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskCborValue(csilV))(mapGet(value, "task")),
   };
@@ -642,6 +838,7 @@ export function toUpdateTaskRequestCborValue(v: UpdateTaskRequest): CborValue {
 }
 
 export function fromUpdateTaskRequestCborValue(value: CborValue): UpdateTaskRequest {
+  asMap(value);
   return {
     uuid: asString(requireKey(value, "uuid")),
     queue: asString(requireKey(value, "queue")),
@@ -669,6 +866,7 @@ export function toUpdateTaskResponseCborValue(v: UpdateTaskResponse): CborValue 
 }
 
 export function fromUpdateTaskResponseCborValue(value: CborValue): UpdateTaskResponse {
+  asMap(value);
   return {
     task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskCborValue(csilV))(mapGet(value, "task")),
   };
@@ -691,6 +889,7 @@ export function toCancelTaskRequestCborValue(v: CancelTaskRequest): CborValue {
 }
 
 export function fromCancelTaskRequestCborValue(value: CborValue): CancelTaskRequest {
+  asMap(value);
   return {
     uuid: asString(requireKey(value, "uuid")),
     queue: asString(requireKey(value, "queue")),
@@ -713,6 +912,7 @@ export function toCancelTaskResponseCborValue(v: CancelTaskResponse): CborValue 
 }
 
 export function fromCancelTaskResponseCborValue(value: CborValue): CancelTaskResponse {
+  asMap(value);
   return {
     task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromTaskCborValue(csilV))(mapGet(value, "task")),
   };
@@ -734,6 +934,7 @@ export function toCleanUpTimedOutRequestCborValue(v: CleanUpTimedOutRequest): Cb
 }
 
 export function fromCleanUpTimedOutRequestCborValue(value: CborValue): CleanUpTimedOutRequest {
+  asMap(value);
   return {
     atTime: asNumber(requireKey(value, "at_time")),
     queue: asString(requireKey(value, "queue")),
@@ -755,6 +956,7 @@ export function toCleanUpTimedOutResponseCborValue(v: CleanUpTimedOutResponse): 
 }
 
 export function fromCleanUpTimedOutResponseCborValue(value: CborValue): CleanUpTimedOutResponse {
+  asMap(value);
   return {
     timedOut: asNumber(requireKey(value, "timed_out")),
   };
@@ -774,7 +976,7 @@ export function toGetQueuesRequestCborValue(v: GetQueuesRequest): CborValue {
 }
 
 export function fromGetQueuesRequestCborValue(value: CborValue): GetQueuesRequest {
-  void value;
+  asMap(value);
   return {} as GetQueuesRequest;
 }
 
@@ -794,6 +996,7 @@ export function toGetQueuesResponseCborValue(v: GetQueuesResponse): CborValue {
 }
 
 export function fromGetQueuesResponseCborValue(value: CborValue): GetQueuesResponse {
+  asMap(value);
   return {
     queues: asArray(requireKey(value, "queues")).map((csilE) => asString(csilE)),
     totalTaskCount: asNumber(requireKey(value, "total_task_count")),
@@ -814,7 +1017,7 @@ export function toGetQueueTaskCountsRequestCborValue(v: GetQueueTaskCountsReques
 }
 
 export function fromGetQueueTaskCountsRequestCborValue(value: CborValue): GetQueueTaskCountsRequest {
-  void value;
+  asMap(value);
   return {} as GetQueueTaskCountsRequest;
 }
 
@@ -834,8 +1037,9 @@ export function toGetQueueTaskCountsResponseCborValue(v: GetQueueTaskCountsRespo
 }
 
 export function fromGetQueueTaskCountsResponseCborValue(value: CborValue): GetQueueTaskCountsResponse {
+  asMap(value);
   return {
-    queueCounts: Object.fromEntries(Array.from(asMap(requireKey(value, "queue_counts")), ([csilK, csilV]): [string, number] => [asString(csilK), asNumber(csilV)])),
+    queueCounts: Object.fromEntries(Array.from(asDynamicMap(requireKey(value, "queue_counts")), ([csilK, csilV]): [string, number] => [asString(csilK), asNumber(csilV)])),
     totalTaskCount: asNumber(requireKey(value, "total_task_count")),
   };
 }
@@ -855,6 +1059,7 @@ export function toGetTaskStateCountsRequestCborValue(v: GetTaskStateCountsReques
 }
 
 export function fromGetTaskStateCountsRequestCborValue(value: CborValue): GetTaskStateCountsRequest {
+  asMap(value);
   return {
     queue: asString(requireKey(value, "queue")),
   };
@@ -877,10 +1082,11 @@ export function toGetTaskStateCountsResponseCborValue(v: GetTaskStateCountsRespo
 }
 
 export function fromGetTaskStateCountsResponseCborValue(value: CborValue): GetTaskStateCountsResponse {
+  asMap(value);
   return {
     queue: asString(requireKey(value, "queue")),
     count: asNumber(requireKey(value, "count")),
-    stateCounts: Object.fromEntries(Array.from(asMap(requireKey(value, "state_counts")), ([csilK, csilV]): [string, number] => [asString(csilK), asNumber(csilV)])),
+    stateCounts: Object.fromEntries(Array.from(asDynamicMap(requireKey(value, "state_counts")), ([csilK, csilV]): [string, number] => [asString(csilK), asNumber(csilV)])),
   };
 }
 
@@ -901,10 +1107,11 @@ export function toQueueAndStateCountsCborValue(v: QueueAndStateCounts): CborValu
 }
 
 export function fromQueueAndStateCountsCborValue(value: CborValue): QueueAndStateCounts {
+  asMap(value);
   return {
     queue: asString(requireKey(value, "queue")),
     count: asNumber(requireKey(value, "count")),
-    stateCounts: Object.fromEntries(Array.from(asMap(requireKey(value, "state_counts")), ([csilK, csilV]): [string, number] => [asString(csilK), asNumber(csilV)])),
+    stateCounts: Object.fromEntries(Array.from(asDynamicMap(requireKey(value, "state_counts")), ([csilK, csilV]): [string, number] => [asString(csilK), asNumber(csilV)])),
   };
 }
 
@@ -922,7 +1129,7 @@ export function toGetQueueAndStateCountsRequestCborValue(v: GetQueueAndStateCoun
 }
 
 export function fromGetQueueAndStateCountsRequestCborValue(value: CborValue): GetQueueAndStateCountsRequest {
-  void value;
+  asMap(value);
   return {} as GetQueueAndStateCountsRequest;
 }
 
@@ -941,8 +1148,9 @@ export function toGetQueueAndStateCountsResponseCborValue(v: GetQueueAndStateCou
 }
 
 export function fromGetQueueAndStateCountsResponseCborValue(value: CborValue): GetQueueAndStateCountsResponse {
+  asMap(value);
   return {
-    queueAndStateCounts: Object.fromEntries(Array.from(asMap(requireKey(value, "queue_and_state_counts")), ([csilK, csilV]): [string, QueueAndStateCounts] => [asString(csilK), fromQueueAndStateCountsCborValue(csilV)])),
+    queueAndStateCounts: Object.fromEntries(Array.from(asDynamicMap(requireKey(value, "queue_and_state_counts")), ([csilK, csilV]): [string, QueueAndStateCounts] => [asString(csilK), fromQueueAndStateCountsCborValue(csilV)])),
   };
 }
 
@@ -960,7 +1168,7 @@ export function toGetServerInfoRequestCborValue(v: GetServerInfoRequest): CborVa
 }
 
 export function fromGetServerInfoRequestCborValue(value: CborValue): GetServerInfoRequest {
-  void value;
+  asMap(value);
   return {} as GetServerInfoRequest;
 }
 
@@ -983,6 +1191,7 @@ export function toGetServerInfoResponseCborValue(v: GetServerInfoResponse): Cbor
 }
 
 export function fromGetServerInfoResponseCborValue(value: CborValue): GetServerInfoResponse {
+  asMap(value);
   return {
     serverVersion: asString(requireKey(value, "server_version")),
     features: asArray(requireKey(value, "features")).map((csilE) => asString(csilE)),
@@ -1010,6 +1219,7 @@ export function toGuardedTaskCborValue(v: GuardedTask): CborValue {
 }
 
 export function fromGuardedTaskCborValue(value: CborValue): GuardedTask {
+  asMap(value);
   return {
     task: fromTaskCborValue(requireKey(value, "task")),
     guarded: asBool(requireKey(value, "guarded")),
@@ -1038,6 +1248,7 @@ export function toSubmissionReceiptCborValue(v: SubmissionReceipt): CborValue {
 }
 
 export function fromSubmissionReceiptCborValue(value: CborValue): SubmissionReceipt {
+  asMap(value);
   return {
     queue: asString(requireKey(value, "queue")),
     submissionKey: asString(requireKey(value, "submission_key")),
@@ -1070,6 +1281,7 @@ export function toSubmitKeyedTaskRequestCborValue(v: SubmitKeyedTaskRequest): Cb
 }
 
 export function fromSubmitKeyedTaskRequestCborValue(value: CborValue): SubmitKeyedTaskRequest {
+  asMap(value);
   return {
     submissionKey: asString(requireKey(value, "submission_key")),
     guarded: asBool(requireKey(value, "guarded")),
@@ -1099,6 +1311,7 @@ export function toSubmitKeyedTaskResponseCborValue(v: SubmitKeyedTaskResponse): 
 }
 
 export function fromSubmitKeyedTaskResponseCborValue(value: CborValue): SubmitKeyedTaskResponse {
+  asMap(value);
   return {
     receipt: fromSubmissionReceiptCborValue(requireKey(value, "receipt")),
     replayed: asBool(requireKey(value, "replayed")),
@@ -1122,6 +1335,7 @@ export function toLookupSubmissionRequestCborValue(v: LookupSubmissionRequest): 
 }
 
 export function fromLookupSubmissionRequestCborValue(value: CborValue): LookupSubmissionRequest {
+  asMap(value);
   return {
     queue: asString(requireKey(value, "queue")),
     submissionKey: asString(requireKey(value, "submission_key")),
@@ -1144,6 +1358,7 @@ export function toLookupSubmissionResponseCborValue(v: LookupSubmissionResponse)
 }
 
 export function fromLookupSubmissionResponseCborValue(value: CborValue): LookupSubmissionResponse {
+  asMap(value);
   return {
     receipt: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromSubmissionReceiptCborValue(csilV))(mapGet(value, "receipt")),
     task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromGuardedTaskCborValue(csilV))(mapGet(value, "task")),
@@ -1170,6 +1385,7 @@ export function toClaimGuardedTaskRequestCborValue(v: ClaimGuardedTaskRequest): 
 }
 
 export function fromClaimGuardedTaskRequestCborValue(value: CborValue): ClaimGuardedTaskRequest {
+  asMap(value);
   return {
     operationId: asString(requireKey(value, "operation_id")),
     queue: asString(requireKey(value, "queue")),
@@ -1196,6 +1412,7 @@ export function toGuardedDeliveryCborValue(v: GuardedDelivery): CborValue {
 }
 
 export function fromGuardedDeliveryCborValue(value: CborValue): GuardedDelivery {
+  asMap(value);
   return {
     task: fromGuardedTaskCborValue(requireKey(value, "task")),
     payload: asBytes(requireKey(value, "payload")),
@@ -1218,6 +1435,7 @@ export function toClaimGuardedTaskResponseCborValue(v: ClaimGuardedTaskResponse)
 }
 
 export function fromClaimGuardedTaskResponseCborValue(value: CborValue): ClaimGuardedTaskResponse {
+  asMap(value);
   return {
     delivery: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromGuardedDeliveryCborValue(csilV))(mapGet(value, "delivery")),
     replayed: asBool(requireKey(value, "replayed")),
@@ -1244,6 +1462,7 @@ export function toClaimGuardedTaskGroupRequestCborValue(v: ClaimGuardedTaskGroup
 }
 
 export function fromClaimGuardedTaskGroupRequestCborValue(value: CborValue): ClaimGuardedTaskGroupRequest {
+  asMap(value);
   return {
     operationId: asString(requireKey(value, "operation_id")),
     queues: asArray(requireKey(value, "queues")).map((csilE) => asString(csilE)),
@@ -1270,6 +1489,7 @@ export function toClaimGuardedTaskGroupResponseCborValue(v: ClaimGuardedTaskGrou
 }
 
 export function fromClaimGuardedTaskGroupResponseCborValue(value: CborValue): ClaimGuardedTaskGroupResponse {
+  asMap(value);
   return {
     delivery: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromGuardedDeliveryCborValue(csilV))(mapGet(value, "delivery")),
     replayed: asBool(requireKey(value, "replayed")),
@@ -1300,6 +1520,7 @@ export function toUpdateGuardedTaskRequestCborValue(v: UpdateGuardedTaskRequest)
 }
 
 export function fromUpdateGuardedTaskRequestCborValue(value: CborValue): UpdateGuardedTaskRequest {
+  asMap(value);
   return {
     operationId: asString(requireKey(value, "operation_id")),
     uuid: asString(requireKey(value, "uuid")),
@@ -1330,6 +1551,7 @@ export function toUpdateGuardedTaskResponseCborValue(v: UpdateGuardedTaskRespons
 }
 
 export function fromUpdateGuardedTaskResponseCborValue(value: CborValue): UpdateGuardedTaskResponse {
+  asMap(value);
   return {
     task: fromGuardedTaskCborValue(requireKey(value, "task")),
     replayed: asBool(requireKey(value, "replayed")),
@@ -1355,6 +1577,7 @@ export function toCompleteGuardedTaskRequestCborValue(v: CompleteGuardedTaskRequ
 }
 
 export function fromCompleteGuardedTaskRequestCborValue(value: CborValue): CompleteGuardedTaskRequest {
+  asMap(value);
   return {
     operationId: asString(requireKey(value, "operation_id")),
     uuid: asString(requireKey(value, "uuid")),
@@ -1380,6 +1603,7 @@ export function toCompleteGuardedTaskResponseCborValue(v: CompleteGuardedTaskRes
 }
 
 export function fromCompleteGuardedTaskResponseCborValue(value: CborValue): CompleteGuardedTaskResponse {
+  asMap(value);
   return {
     task: fromGuardedTaskCborValue(requireKey(value, "task")),
     replayed: asBool(requireKey(value, "replayed")),
@@ -1405,6 +1629,7 @@ export function toCancelGuardedTaskRequestCborValue(v: CancelGuardedTaskRequest)
 }
 
 export function fromCancelGuardedTaskRequestCborValue(value: CborValue): CancelGuardedTaskRequest {
+  asMap(value);
   return {
     operationId: asString(requireKey(value, "operation_id")),
     uuid: asString(requireKey(value, "uuid")),
@@ -1430,6 +1655,7 @@ export function toCancelGuardedTaskResponseCborValue(v: CancelGuardedTaskRespons
 }
 
 export function fromCancelGuardedTaskResponseCborValue(value: CborValue): CancelGuardedTaskResponse {
+  asMap(value);
   return {
     task: fromGuardedTaskCborValue(requireKey(value, "task")),
     replayed: asBool(requireKey(value, "replayed")),
@@ -1452,6 +1678,7 @@ export function toGetGuardedTaskRequestCborValue(v: GetGuardedTaskRequest): Cbor
 }
 
 export function fromGetGuardedTaskRequestCborValue(value: CborValue): GetGuardedTaskRequest {
+  asMap(value);
   return {
     uuid: asString(requireKey(value, "uuid")),
     queue: asString(requireKey(value, "queue")),
@@ -1473,6 +1700,7 @@ export function toGetGuardedTaskResponseCborValue(v: GetGuardedTaskResponse): Cb
 }
 
 export function fromGetGuardedTaskResponseCborValue(value: CborValue): GetGuardedTaskResponse {
+  asMap(value);
   return {
     task: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromGuardedTaskCborValue(csilV))(mapGet(value, "task")),
   };
@@ -1500,6 +1728,7 @@ export function toOperationReceiptCborValue(v: OperationReceipt): CborValue {
 }
 
 export function fromOperationReceiptCborValue(value: CborValue): OperationReceipt {
+  asMap(value);
   return {
     operationId: asString(requireKey(value, "operation_id")),
     op: asString(requireKey(value, "op")),
@@ -1527,6 +1756,7 @@ export function toLookupOperationRequestCborValue(v: LookupOperationRequest): Cb
 }
 
 export function fromLookupOperationRequestCborValue(value: CborValue): LookupOperationRequest {
+  asMap(value);
   return {
     operationId: asString(requireKey(value, "operation_id")),
   };
@@ -1547,6 +1777,7 @@ export function toLookupOperationResponseCborValue(v: LookupOperationResponse): 
 }
 
 export function fromLookupOperationResponseCborValue(value: CborValue): LookupOperationResponse {
+  asMap(value);
   return {
     receipt: ((csilV: CborValue | undefined) => csilV === undefined ? undefined : fromOperationReceiptCborValue(csilV))(mapGet(value, "receipt")),
   };
@@ -1568,6 +1799,7 @@ export function toServiceErrorCborValue(v: ServiceError): CborValue {
 }
 
 export function fromServiceErrorCborValue(value: CborValue): ServiceError {
+  asMap(value);
   return {
     code: asNumber(requireKey(value, "code")),
     message: asString(requireKey(value, "message")),
@@ -1582,3 +1814,391 @@ export function fromServiceErrorCbor(bytes: Uint8Array): ServiceError {
   return fromServiceErrorCborValue(decode(bytes));
 }
 
+export interface RpcReply { variant: string; payload: Uint8Array }
+
+export class ServiceErrorRefusal extends Error {
+  readonly value: ServiceError;
+
+  constructor(value: ServiceError) {
+    super("ServiceError");
+    this.value = value;
+  }
+}
+
+export async function encodeCorndogsServiceSubmitTaskReply(handler: () => Promise<SubmitTaskResponse> | SubmitTaskResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "SubmitTaskResponse", payload: encodeValue(toSubmitTaskResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceGetTaskStateByIDReply(handler: () => Promise<GetTaskStateByIDResponse> | GetTaskStateByIDResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "GetTaskStateByIDResponse", payload: encodeValue(toGetTaskStateByIDResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceGetNextTaskReply(handler: () => Promise<GetNextTaskResponse> | GetNextTaskResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "GetNextTaskResponse", payload: encodeValue(toGetNextTaskResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceGetNextTaskGroupReply(handler: () => Promise<GetNextTaskGroupResponse> | GetNextTaskGroupResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "GetNextTaskGroupResponse", payload: encodeValue(toGetNextTaskGroupResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceUpdateTaskReply(handler: () => Promise<UpdateTaskResponse> | UpdateTaskResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "UpdateTaskResponse", payload: encodeValue(toUpdateTaskResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceCompleteTaskReply(handler: () => Promise<CompleteTaskResponse> | CompleteTaskResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "CompleteTaskResponse", payload: encodeValue(toCompleteTaskResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceCancelTaskReply(handler: () => Promise<CancelTaskResponse> | CancelTaskResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "CancelTaskResponse", payload: encodeValue(toCancelTaskResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceCleanUpTimedOutReply(handler: () => Promise<CleanUpTimedOutResponse> | CleanUpTimedOutResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "CleanUpTimedOutResponse", payload: encodeValue(toCleanUpTimedOutResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceGetQueuesReply(handler: () => Promise<GetQueuesResponse> | GetQueuesResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "GetQueuesResponse", payload: encodeValue(toGetQueuesResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceGetQueueTaskCountsReply(handler: () => Promise<GetQueueTaskCountsResponse> | GetQueueTaskCountsResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "GetQueueTaskCountsResponse", payload: encodeValue(toGetQueueTaskCountsResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceGetTaskStateCountsReply(handler: () => Promise<GetTaskStateCountsResponse> | GetTaskStateCountsResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "GetTaskStateCountsResponse", payload: encodeValue(toGetTaskStateCountsResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceGetQueueAndStateCountsReply(handler: () => Promise<GetQueueAndStateCountsResponse> | GetQueueAndStateCountsResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "GetQueueAndStateCountsResponse", payload: encodeValue(toGetQueueAndStateCountsResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceGetServerInfoReply(handler: () => Promise<GetServerInfoResponse> | GetServerInfoResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "GetServerInfoResponse", payload: encodeValue(toGetServerInfoResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceSubmitKeyedTaskReply(handler: () => Promise<SubmitKeyedTaskResponse> | SubmitKeyedTaskResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "SubmitKeyedTaskResponse", payload: encodeValue(toSubmitKeyedTaskResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceLookupSubmissionReply(handler: () => Promise<LookupSubmissionResponse> | LookupSubmissionResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "LookupSubmissionResponse", payload: encodeValue(toLookupSubmissionResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceClaimGuardedTaskReply(handler: () => Promise<ClaimGuardedTaskResponse> | ClaimGuardedTaskResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "ClaimGuardedTaskResponse", payload: encodeValue(toClaimGuardedTaskResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceClaimGuardedTaskGroupReply(handler: () => Promise<ClaimGuardedTaskGroupResponse> | ClaimGuardedTaskGroupResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "ClaimGuardedTaskGroupResponse", payload: encodeValue(toClaimGuardedTaskGroupResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceUpdateGuardedTaskReply(handler: () => Promise<UpdateGuardedTaskResponse> | UpdateGuardedTaskResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "UpdateGuardedTaskResponse", payload: encodeValue(toUpdateGuardedTaskResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceCompleteGuardedTaskReply(handler: () => Promise<CompleteGuardedTaskResponse> | CompleteGuardedTaskResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "CompleteGuardedTaskResponse", payload: encodeValue(toCompleteGuardedTaskResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceCancelGuardedTaskReply(handler: () => Promise<CancelGuardedTaskResponse> | CancelGuardedTaskResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "CancelGuardedTaskResponse", payload: encodeValue(toCancelGuardedTaskResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceGetGuardedTaskReply(handler: () => Promise<GetGuardedTaskResponse> | GetGuardedTaskResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "GetGuardedTaskResponse", payload: encodeValue(toGetGuardedTaskResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export async function encodeCorndogsServiceLookupOperationReply(handler: () => Promise<LookupOperationResponse> | LookupOperationResponse): Promise<RpcReply> {
+  try {
+    const value = await handler();
+    return { variant: "LookupOperationResponse", payload: encodeValue(toLookupOperationResponseCborValue(value)) };
+  } catch (error) {
+    if (error instanceof ServiceErrorRefusal) return { variant: "ServiceError", payload: encodeValue(toServiceErrorCborValue(error.value)) };
+    throw error;
+  }
+}
+
+export function resolveRpcReply(service: string, op: string, variant: string | null | undefined, payload: Uint8Array): Uint8Array {
+  if (service === "CorndogsService" && op === "SubmitTask") {
+    switch (variant) {
+      case "SubmitTaskResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "GetTaskStateByID") {
+    switch (variant) {
+      case "GetTaskStateByIDResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "GetNextTask") {
+    switch (variant) {
+      case "GetNextTaskResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "GetNextTaskGroup") {
+    switch (variant) {
+      case "GetNextTaskGroupResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "UpdateTask") {
+    switch (variant) {
+      case "UpdateTaskResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "CompleteTask") {
+    switch (variant) {
+      case "CompleteTaskResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "CancelTask") {
+    switch (variant) {
+      case "CancelTaskResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "CleanUpTimedOut") {
+    switch (variant) {
+      case "CleanUpTimedOutResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "GetQueues") {
+    switch (variant) {
+      case "GetQueuesResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "GetQueueTaskCounts") {
+    switch (variant) {
+      case "GetQueueTaskCountsResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "GetTaskStateCounts") {
+    switch (variant) {
+      case "GetTaskStateCountsResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "GetQueueAndStateCounts") {
+    switch (variant) {
+      case "GetQueueAndStateCountsResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "GetServerInfo") {
+    switch (variant) {
+      case "GetServerInfoResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "SubmitKeyedTask") {
+    switch (variant) {
+      case "SubmitKeyedTaskResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "LookupSubmission") {
+    switch (variant) {
+      case "LookupSubmissionResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "ClaimGuardedTask") {
+    switch (variant) {
+      case "ClaimGuardedTaskResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "ClaimGuardedTaskGroup") {
+    switch (variant) {
+      case "ClaimGuardedTaskGroupResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "UpdateGuardedTask") {
+    switch (variant) {
+      case "UpdateGuardedTaskResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "CompleteGuardedTask") {
+    switch (variant) {
+      case "CompleteGuardedTaskResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "CancelGuardedTask") {
+    switch (variant) {
+      case "CancelGuardedTaskResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "GetGuardedTask") {
+    switch (variant) {
+      case "GetGuardedTaskResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  if (service === "CorndogsService" && op === "LookupOperation") {
+    switch (variant) {
+      case "LookupOperationResponse": return payload;
+      case "ServiceError": { const tree = decode(payload); throw new ServiceErrorRefusal(fromServiceErrorCborValue(tree)); }
+      default: throw new Error(`invalid RPC reply variant ${variant}`);
+    }
+  }
+  return payload;
+}

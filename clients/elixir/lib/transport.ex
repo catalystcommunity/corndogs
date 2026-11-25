@@ -92,16 +92,22 @@ defmodule Corndogs.Transport do
   """
   @impl Csilgen.Generated.Transport
   @spec call(t(), String.t(), String.t(), binary()) :: binary()
-  def call(%__MODULE__{pid: pid}, service, op, req) do
-    case GenServer.call(pid, {:rpc, service, op, req}, :infinity) do
-      {:ok, payload} ->
+  def call(transport, service, op, req) do
+    case call_reply(transport, service, op, req) do
+      {"ServiceError", payload} ->
+        error = GeneratedServiceError.from_cbor(payload)
+        raise ServiceError, code: error.code, message: error.message
+
+      {_, payload} ->
         payload
+    end
+  end
 
-      {:error, %GeneratedServiceError{code: code, message: message}} ->
-        raise ServiceError, code: code, message: message
-
-      {:error, reason} ->
-        raise TransportError, message: format_reason(reason)
+  @impl Csilgen.Generated.Transport
+  def call_reply(%__MODULE__{pid: pid}, service, op, req) do
+    case GenServer.call(pid, {:rpc, service, op, req}, :infinity) do
+      {:ok, reply} -> reply
+      {:error, reason} -> raise TransportError, message: format_reason(reason)
     end
   end
 
@@ -245,8 +251,7 @@ defmodule Corndogs.Transport do
     )
   end
 
-  # Decodes a CsilRpcResponse frame into {:ok, inner_payload} | {:error, reason}. A
-  # non-zero transport status or a "ServiceError" variant becomes an {:error, _}.
+  # Return the variant and payload of a successful response.
   defp parse_response(frame) do
     case Cbor.decode(frame) do
       {:map, _} = env ->
@@ -268,7 +273,7 @@ defmodule Corndogs.Transport do
   defp decode_payload(env) do
     case map_get(env, "payload") do
       nil ->
-        {:ok, <<>>}
+        wrap_variant(env, <<>>)
 
       {:tag, _num, {:bytes, inner}} ->
         wrap_variant(env, inner)
@@ -282,11 +287,7 @@ defmodule Corndogs.Transport do
   end
 
   defp wrap_variant(env, inner) do
-    if map_get_text(env, "variant", nil) == "ServiceError" do
-      {:error, GeneratedServiceError.from_cbor(inner)}
-    else
-      {:ok, inner}
-    end
+    {:ok, {map_get_text(env, "variant", nil), inner}}
   end
 
   defp map_get({:map, kvs}, key) do

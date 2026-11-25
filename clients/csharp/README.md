@@ -128,8 +128,8 @@ Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md
   health and Prometheus).
 - **Clustered deployments:** point the transport at any node; a write that lands on a
   follower is transparently redirected to the leader.
-- Errors: a service error raises the generated `corndogs.CsilClientException` (`Code` /
-  `Message`); a transport failure raises `corndogs.CorndogsTransportException`.
+- A service error raises `Codec.ServiceErrorRefusal`. Read the error code and message
+  from `Value`. A transport failure raises `CorndogsTransportException`.
 - `TcpTransport` implements `IDisposable`; `AsyncTcpTransport` implements
   `IAsyncDisposable`. Dispose (or `await using`) when you're done with a connection.
 - The generated package declares a `corndogs.Task` record (a queue task). If a file

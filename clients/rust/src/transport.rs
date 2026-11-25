@@ -63,9 +63,8 @@
 //! heartbeat. Thus you can give one clone to a `CorndogsClient` and keep
 //! another clone for a heartbeat.
 //!
-//! This carrier implements the generated [`crate::client::Transport`] trait's
-//! `call(service, op, req) -> Result<Vec<u8>, ClientError>` seam. Without the
-//! `tls` feature it has no dependencies: std only, no cbor crate.
+//! This carrier implements `call` and `call_reply` from [`crate::client::Transport`].
+//! The default build uses only the standard library.
 //!
 //! ### Why this file hand-rolls a few CBOR primitives
 //!
@@ -90,7 +89,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::client::ClientError;
+use crate::client::{ClientError, WireReply};
 use crate::CsilCborValue;
 
 #[cfg(feature = "tls")]
@@ -428,7 +427,7 @@ impl TransportInner {
     /// gets the mutex and covers the re-dial, the write, and the read. An I/O
     /// error, a timeout, an undecodable reply, or a reply with a different id
     /// drops the connection so the next call re-dials.
-    fn call(&self, service: &str, op: &str, req: &[u8]) -> Result<Vec<u8>, ClientError> {
+    fn call_reply(&self, service: &str, op: &str, req: &[u8]) -> Result<WireReply, ClientError> {
         let mut state = self.state.lock().unwrap();
         let deadline = self.io_timeout.map(|t| Instant::now() + t);
         if state.stream.is_none() {
@@ -474,7 +473,7 @@ impl TransportInner {
     }
 
     fn ping(&self) -> Result<(), ClientError> {
-        self.call(CONTROL_SERVICE, OP_PING, &[])?;
+        reply_payload(self.call_reply(CONTROL_SERVICE, OP_PING, &[])?)?;
         Ok(())
     }
 }
@@ -613,7 +612,11 @@ impl Transport {
 
 impl crate::client::Transport for Transport {
     fn call(&self, service: &str, op: &str, req: &[u8]) -> Result<Vec<u8>, ClientError> {
-        self.0.call(service, op, req)
+        reply_payload(self.0.call_reply(service, op, req)?)
+    }
+
+    fn call_reply(&self, service: &str, op: &str, req: &[u8]) -> Result<WireReply, ClientError> {
+        self.0.call_reply(service, op, req)
     }
 }
 
@@ -663,11 +666,7 @@ fn check_id(val: &CsilCborValue, expected: u64) -> Result<(), String> {
     }
 }
 
-/// Interprets one decoded response envelope and returns the inner payload
-/// bytes, or a `ClientError` for a non-zero transport status or a
-/// `"ServiceError"` variant (decoded via the generated
-/// [`crate::decode_service_error`]).
-fn parse_response(val: &CsilCborValue) -> Result<Vec<u8>, ClientError> {
+fn parse_response(val: &CsilCborValue) -> Result<WireReply, ClientError> {
     if let Some(status) = map_get(val, "status").and_then(as_i64) {
         if status != 0 {
             let msg = map_get(val, "error").and_then(as_text).unwrap_or_default();
@@ -677,8 +676,9 @@ fn parse_response(val: &CsilCborValue) -> Result<Vec<u8>, ClientError> {
         }
     }
 
+    let variant = map_get(val, "variant").and_then(as_text);
     let payload = match map_get(val, "payload") {
-        None => return Ok(Vec::new()), // control replies (e.g. $pong) may carry no payload
+        None => return Ok(WireReply { variant, payload: Vec::new() }), // control replies (e.g. $pong) may carry no payload
         Some(p) => p,
     };
     let inner = match payload {
@@ -687,20 +687,16 @@ fn parse_response(val: &CsilCborValue) -> Result<Vec<u8>, ClientError> {
     }
     .ok_or_else(|| ClientError::Transport("corndogs: response payload is not a byte string".to_string()))?;
 
-    if let Some(variant) = map_get(val, "variant").and_then(as_text) {
-        if variant == "ServiceError" {
-            return match crate::decode_service_error(&inner) {
-                Ok(se) => Err(ClientError::Service {
-                    code: se.code as i64,
-                    message: se.message,
-                }),
-                Err(_) => Err(ClientError::Transport(
-                    "corndogs: undecodable ServiceError payload".to_string(),
-                )),
-            };
-        }
+    Ok(WireReply { variant, payload: inner })
+}
+
+fn reply_payload(reply: WireReply) -> Result<Vec<u8>, ClientError> {
+    if reply.variant.as_deref() == Some("ServiceError") {
+        let se = crate::decode_service_error(&reply.payload)
+            .map_err(|_| ClientError::Transport("corndogs: undecodable ServiceError payload".into()))?;
+        return Err(ClientError::Service { code: se.code as i64, message: se.message });
     }
-    Ok(inner)
+    Ok(reply.payload)
 }
 
 fn map_get<'a>(v: &'a CsilCborValue, key: &str) -> Option<&'a CsilCborValue> {

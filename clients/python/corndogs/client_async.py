@@ -26,6 +26,15 @@ class AsyncTransport(Protocol):
     """
     async def call(self, service: str, method: str, req: bytes) -> bytes: ...
 
+    async def call_reply(
+        self, service: str, method: str, req: bytes
+    ) -> "tuple[Optional[str], bytes]":
+        """Perform an operation that declares more than one reply arm. Return
+        the CSIL-RPC response variant (the CSIL name of the arm, or None) and
+        its payload bytes; the client decodes the arm that the variant names.
+        """
+        ...
+
 class CorndogsAsyncClient:
     """Typed client for the CorndogsService service."""
     def __init__(self, transport: AsyncTransport):
@@ -33,89 +42,111 @@ class CorndogsAsyncClient:
 
     async def submit_task(self, req: SubmitTaskRequest) -> SubmitTaskResponse:
         """SubmitTask"""
-        return SubmitTaskResponse.from_cbor(await self._transport.call("CorndogsService", "SubmitTask", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "SubmitTask", req.to_cbor())
+        return SubmitTaskResponse.from_cbor(resolve_rpc_reply("CorndogsService", "SubmitTask", variant, payload))
 
     async def get_task_state_by_id(self, req: GetTaskStateByIdRequest) -> GetTaskStateByIdResponse:
         """GetTaskStateByID"""
-        return GetTaskStateByIdResponse.from_cbor(await self._transport.call("CorndogsService", "GetTaskStateByID", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "GetTaskStateByID", req.to_cbor())
+        return GetTaskStateByIdResponse.from_cbor(resolve_rpc_reply("CorndogsService", "GetTaskStateByID", variant, payload))
 
     async def get_next_task(self, req: GetNextTaskRequest) -> GetNextTaskResponse:
         """GetNextTask"""
-        return GetNextTaskResponse.from_cbor(await self._transport.call("CorndogsService", "GetNextTask", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "GetNextTask", req.to_cbor())
+        return GetNextTaskResponse.from_cbor(resolve_rpc_reply("CorndogsService", "GetNextTask", variant, payload))
 
     async def get_next_task_group(self, req: GetNextTaskGroupRequest) -> GetNextTaskGroupResponse:
         """GetNextTaskGroup"""
-        return GetNextTaskGroupResponse.from_cbor(await self._transport.call("CorndogsService", "GetNextTaskGroup", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "GetNextTaskGroup", req.to_cbor())
+        return GetNextTaskGroupResponse.from_cbor(resolve_rpc_reply("CorndogsService", "GetNextTaskGroup", variant, payload))
 
     async def update_task(self, req: UpdateTaskRequest) -> UpdateTaskResponse:
         """UpdateTask"""
-        return UpdateTaskResponse.from_cbor(await self._transport.call("CorndogsService", "UpdateTask", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "UpdateTask", req.to_cbor())
+        return UpdateTaskResponse.from_cbor(resolve_rpc_reply("CorndogsService", "UpdateTask", variant, payload))
 
     async def complete_task(self, req: CompleteTaskRequest) -> CompleteTaskResponse:
         """CompleteTask"""
-        return CompleteTaskResponse.from_cbor(await self._transport.call("CorndogsService", "CompleteTask", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "CompleteTask", req.to_cbor())
+        return CompleteTaskResponse.from_cbor(resolve_rpc_reply("CorndogsService", "CompleteTask", variant, payload))
 
     async def cancel_task(self, req: CancelTaskRequest) -> CancelTaskResponse:
         """CancelTask"""
-        return CancelTaskResponse.from_cbor(await self._transport.call("CorndogsService", "CancelTask", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "CancelTask", req.to_cbor())
+        return CancelTaskResponse.from_cbor(resolve_rpc_reply("CorndogsService", "CancelTask", variant, payload))
 
     async def clean_up_timed_out(self, req: CleanUpTimedOutRequest) -> CleanUpTimedOutResponse:
         """CleanUpTimedOut"""
-        return CleanUpTimedOutResponse.from_cbor(await self._transport.call("CorndogsService", "CleanUpTimedOut", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "CleanUpTimedOut", req.to_cbor())
+        return CleanUpTimedOutResponse.from_cbor(resolve_rpc_reply("CorndogsService", "CleanUpTimedOut", variant, payload))
 
     async def get_queues(self, req: GetQueuesRequest) -> GetQueuesResponse:
         """GetQueues"""
-        return GetQueuesResponse.from_cbor(await self._transport.call("CorndogsService", "GetQueues", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "GetQueues", req.to_cbor())
+        return GetQueuesResponse.from_cbor(resolve_rpc_reply("CorndogsService", "GetQueues", variant, payload))
 
     async def get_queue_task_counts(self, req: GetQueueTaskCountsRequest) -> GetQueueTaskCountsResponse:
         """GetQueueTaskCounts"""
-        return GetQueueTaskCountsResponse.from_cbor(await self._transport.call("CorndogsService", "GetQueueTaskCounts", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "GetQueueTaskCounts", req.to_cbor())
+        return GetQueueTaskCountsResponse.from_cbor(resolve_rpc_reply("CorndogsService", "GetQueueTaskCounts", variant, payload))
 
     async def get_task_state_counts(self, req: GetTaskStateCountsRequest) -> GetTaskStateCountsResponse:
         """GetTaskStateCounts"""
-        return GetTaskStateCountsResponse.from_cbor(await self._transport.call("CorndogsService", "GetTaskStateCounts", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "GetTaskStateCounts", req.to_cbor())
+        return GetTaskStateCountsResponse.from_cbor(resolve_rpc_reply("CorndogsService", "GetTaskStateCounts", variant, payload))
 
     async def get_queue_and_state_counts(self, req: GetQueueAndStateCountsRequest) -> GetQueueAndStateCountsResponse:
         """GetQueueAndStateCounts"""
-        return GetQueueAndStateCountsResponse.from_cbor(await self._transport.call("CorndogsService", "GetQueueAndStateCounts", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "GetQueueAndStateCounts", req.to_cbor())
+        return GetQueueAndStateCountsResponse.from_cbor(resolve_rpc_reply("CorndogsService", "GetQueueAndStateCounts", variant, payload))
 
     async def get_server_info(self, req: GetServerInfoRequest) -> GetServerInfoResponse:
         """GetServerInfo"""
-        return GetServerInfoResponse.from_cbor(await self._transport.call("CorndogsService", "GetServerInfo", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "GetServerInfo", req.to_cbor())
+        return GetServerInfoResponse.from_cbor(resolve_rpc_reply("CorndogsService", "GetServerInfo", variant, payload))
 
     async def submit_keyed_task(self, req: SubmitKeyedTaskRequest) -> SubmitKeyedTaskResponse:
         """SubmitKeyedTask"""
-        return SubmitKeyedTaskResponse.from_cbor(await self._transport.call("CorndogsService", "SubmitKeyedTask", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "SubmitKeyedTask", req.to_cbor())
+        return SubmitKeyedTaskResponse.from_cbor(resolve_rpc_reply("CorndogsService", "SubmitKeyedTask", variant, payload))
 
     async def lookup_submission(self, req: LookupSubmissionRequest) -> LookupSubmissionResponse:
         """LookupSubmission"""
-        return LookupSubmissionResponse.from_cbor(await self._transport.call("CorndogsService", "LookupSubmission", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "LookupSubmission", req.to_cbor())
+        return LookupSubmissionResponse.from_cbor(resolve_rpc_reply("CorndogsService", "LookupSubmission", variant, payload))
 
     async def claim_guarded_task(self, req: ClaimGuardedTaskRequest) -> ClaimGuardedTaskResponse:
         """ClaimGuardedTask"""
-        return ClaimGuardedTaskResponse.from_cbor(await self._transport.call("CorndogsService", "ClaimGuardedTask", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "ClaimGuardedTask", req.to_cbor())
+        return ClaimGuardedTaskResponse.from_cbor(resolve_rpc_reply("CorndogsService", "ClaimGuardedTask", variant, payload))
 
     async def claim_guarded_task_group(self, req: ClaimGuardedTaskGroupRequest) -> ClaimGuardedTaskGroupResponse:
         """ClaimGuardedTaskGroup"""
-        return ClaimGuardedTaskGroupResponse.from_cbor(await self._transport.call("CorndogsService", "ClaimGuardedTaskGroup", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "ClaimGuardedTaskGroup", req.to_cbor())
+        return ClaimGuardedTaskGroupResponse.from_cbor(resolve_rpc_reply("CorndogsService", "ClaimGuardedTaskGroup", variant, payload))
 
     async def update_guarded_task(self, req: UpdateGuardedTaskRequest) -> UpdateGuardedTaskResponse:
         """UpdateGuardedTask"""
-        return UpdateGuardedTaskResponse.from_cbor(await self._transport.call("CorndogsService", "UpdateGuardedTask", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "UpdateGuardedTask", req.to_cbor())
+        return UpdateGuardedTaskResponse.from_cbor(resolve_rpc_reply("CorndogsService", "UpdateGuardedTask", variant, payload))
 
     async def complete_guarded_task(self, req: CompleteGuardedTaskRequest) -> CompleteGuardedTaskResponse:
         """CompleteGuardedTask"""
-        return CompleteGuardedTaskResponse.from_cbor(await self._transport.call("CorndogsService", "CompleteGuardedTask", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "CompleteGuardedTask", req.to_cbor())
+        return CompleteGuardedTaskResponse.from_cbor(resolve_rpc_reply("CorndogsService", "CompleteGuardedTask", variant, payload))
 
     async def cancel_guarded_task(self, req: CancelGuardedTaskRequest) -> CancelGuardedTaskResponse:
         """CancelGuardedTask"""
-        return CancelGuardedTaskResponse.from_cbor(await self._transport.call("CorndogsService", "CancelGuardedTask", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "CancelGuardedTask", req.to_cbor())
+        return CancelGuardedTaskResponse.from_cbor(resolve_rpc_reply("CorndogsService", "CancelGuardedTask", variant, payload))
 
     async def get_guarded_task(self, req: GetGuardedTaskRequest) -> GetGuardedTaskResponse:
         """GetGuardedTask"""
-        return GetGuardedTaskResponse.from_cbor(await self._transport.call("CorndogsService", "GetGuardedTask", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "GetGuardedTask", req.to_cbor())
+        return GetGuardedTaskResponse.from_cbor(resolve_rpc_reply("CorndogsService", "GetGuardedTask", variant, payload))
 
     async def lookup_operation(self, req: LookupOperationRequest) -> LookupOperationResponse:
         """LookupOperation"""
-        return LookupOperationResponse.from_cbor(await self._transport.call("CorndogsService", "LookupOperation", req.to_cbor()))
+        variant, payload = await self._transport.call_reply("CorndogsService", "LookupOperation", req.to_cbor())
+        return LookupOperationResponse.from_cbor(resolve_rpc_reply("CorndogsService", "LookupOperation", variant, payload))
 

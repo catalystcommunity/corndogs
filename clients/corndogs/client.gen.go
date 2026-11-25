@@ -5,22 +5,13 @@ package corndogs
 
 import (
 	"context"
-	"fmt"
 )
 
-// ClientError is returned by a generated client call: a structured error the
-// service returned (Code/Message), or a transport-level failure (Err).
-type ClientError struct {
-	Code    int64
-	Message string
-	Err     error
-}
-
-func (e *ClientError) Error() string {
-	if e.Err != nil {
-		return "transport error: " + e.Err.Error()
-	}
-	return fmt.Sprintf("service error %d: %s", e.Code, e.Message)
+// WireReply is a status-zero CSIL-RPC reply: Variant names the declared output arm
+// that Payload encodes. A transport returns it from CallReply.
+type WireReply struct {
+	Variant *string
+	Payload []byte
 }
 
 // Transport is the caller-supplied byte carrier: it performs the call named by
@@ -28,9 +19,12 @@ func (e *ClientError) Error() string {
 // bytes, or an error. Both names are the verbatim CSIL names (service as written,
 // op in kebab-case as written), ready to go on the wire unmodified. The generated
 // client owns (de)serialization via the codec; the carrier only moves bytes, so
-// it can be HTTP, a queue, or an in-process loop.
+// it can be HTTP, a queue, or an in-process loop. CallReply serves operations
+// that declare several reply arms: it also returns the reply variant, so the
+// client can return the success arm or the declared error arm.
 type Transport interface {
 	Call(ctx context.Context, service string, op string, req []byte) ([]byte, error)
+	CallReply(ctx context.Context, service string, op string, req []byte) (WireReply, error)
 }
 
 // CorndogsClient is a typed client for the CorndogsService service. The client owns
@@ -45,198 +39,462 @@ func NewCorndogsClient(transport Transport) *CorndogsClient {
 
 func (c *CorndogsClient) SubmitTask(ctx context.Context, req SubmitTaskRequest) (SubmitTaskResponse, error) {
 	var csilZero SubmitTaskResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "SubmitTask", EncodeSubmitTaskRequest(req))
+	csilReq, csilErr := EncodeSubmitTaskRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "SubmitTask", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeSubmitTaskResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "SubmitTask", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeSubmitTaskResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) GetTaskStateByID(ctx context.Context, req GetTaskStateByIDRequest) (GetTaskStateByIDResponse, error) {
 	var csilZero GetTaskStateByIDResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "GetTaskStateByID", EncodeGetTaskStateByIDRequest(req))
+	csilReq, csilErr := EncodeGetTaskStateByIDRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "GetTaskStateByID", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeGetTaskStateByIDResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "GetTaskStateByID", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeGetTaskStateByIDResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) GetNextTask(ctx context.Context, req GetNextTaskRequest) (GetNextTaskResponse, error) {
 	var csilZero GetNextTaskResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "GetNextTask", EncodeGetNextTaskRequest(req))
+	csilReq, csilErr := EncodeGetNextTaskRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "GetNextTask", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeGetNextTaskResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "GetNextTask", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeGetNextTaskResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) GetNextTaskGroup(ctx context.Context, req GetNextTaskGroupRequest) (GetNextTaskGroupResponse, error) {
 	var csilZero GetNextTaskGroupResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "GetNextTaskGroup", EncodeGetNextTaskGroupRequest(req))
+	csilReq, csilErr := EncodeGetNextTaskGroupRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "GetNextTaskGroup", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeGetNextTaskGroupResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "GetNextTaskGroup", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeGetNextTaskGroupResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) UpdateTask(ctx context.Context, req UpdateTaskRequest) (UpdateTaskResponse, error) {
 	var csilZero UpdateTaskResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "UpdateTask", EncodeUpdateTaskRequest(req))
+	csilReq, csilErr := EncodeUpdateTaskRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "UpdateTask", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeUpdateTaskResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "UpdateTask", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeUpdateTaskResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) CompleteTask(ctx context.Context, req CompleteTaskRequest) (CompleteTaskResponse, error) {
 	var csilZero CompleteTaskResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "CompleteTask", EncodeCompleteTaskRequest(req))
+	csilReq, csilErr := EncodeCompleteTaskRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "CompleteTask", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeCompleteTaskResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "CompleteTask", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeCompleteTaskResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) CancelTask(ctx context.Context, req CancelTaskRequest) (CancelTaskResponse, error) {
 	var csilZero CancelTaskResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "CancelTask", EncodeCancelTaskRequest(req))
+	csilReq, csilErr := EncodeCancelTaskRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "CancelTask", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeCancelTaskResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "CancelTask", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeCancelTaskResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) CleanUpTimedOut(ctx context.Context, req CleanUpTimedOutRequest) (CleanUpTimedOutResponse, error) {
 	var csilZero CleanUpTimedOutResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "CleanUpTimedOut", EncodeCleanUpTimedOutRequest(req))
+	csilReq, csilErr := EncodeCleanUpTimedOutRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "CleanUpTimedOut", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeCleanUpTimedOutResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "CleanUpTimedOut", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeCleanUpTimedOutResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) GetQueues(ctx context.Context, req GetQueuesRequest) (GetQueuesResponse, error) {
 	var csilZero GetQueuesResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "GetQueues", EncodeGetQueuesRequest(req))
+	csilReq, csilErr := EncodeGetQueuesRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "GetQueues", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeGetQueuesResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "GetQueues", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeGetQueuesResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) GetQueueTaskCounts(ctx context.Context, req GetQueueTaskCountsRequest) (GetQueueTaskCountsResponse, error) {
 	var csilZero GetQueueTaskCountsResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "GetQueueTaskCounts", EncodeGetQueueTaskCountsRequest(req))
+	csilReq, csilErr := EncodeGetQueueTaskCountsRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "GetQueueTaskCounts", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeGetQueueTaskCountsResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "GetQueueTaskCounts", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeGetQueueTaskCountsResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) GetTaskStateCounts(ctx context.Context, req GetTaskStateCountsRequest) (GetTaskStateCountsResponse, error) {
 	var csilZero GetTaskStateCountsResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "GetTaskStateCounts", EncodeGetTaskStateCountsRequest(req))
+	csilReq, csilErr := EncodeGetTaskStateCountsRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "GetTaskStateCounts", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeGetTaskStateCountsResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "GetTaskStateCounts", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeGetTaskStateCountsResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) GetQueueAndStateCounts(ctx context.Context, req GetQueueAndStateCountsRequest) (GetQueueAndStateCountsResponse, error) {
 	var csilZero GetQueueAndStateCountsResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "GetQueueAndStateCounts", EncodeGetQueueAndStateCountsRequest(req))
+	csilReq, csilErr := EncodeGetQueueAndStateCountsRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "GetQueueAndStateCounts", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeGetQueueAndStateCountsResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "GetQueueAndStateCounts", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeGetQueueAndStateCountsResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) GetServerInfo(ctx context.Context, req GetServerInfoRequest) (GetServerInfoResponse, error) {
 	var csilZero GetServerInfoResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "GetServerInfo", EncodeGetServerInfoRequest(req))
+	csilReq, csilErr := EncodeGetServerInfoRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "GetServerInfo", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeGetServerInfoResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "GetServerInfo", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeGetServerInfoResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) SubmitKeyedTask(ctx context.Context, req SubmitKeyedTaskRequest) (SubmitKeyedTaskResponse, error) {
 	var csilZero SubmitKeyedTaskResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "SubmitKeyedTask", EncodeSubmitKeyedTaskRequest(req))
+	csilReq, csilErr := EncodeSubmitKeyedTaskRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "SubmitKeyedTask", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeSubmitKeyedTaskResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "SubmitKeyedTask", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeSubmitKeyedTaskResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) LookupSubmission(ctx context.Context, req LookupSubmissionRequest) (LookupSubmissionResponse, error) {
 	var csilZero LookupSubmissionResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "LookupSubmission", EncodeLookupSubmissionRequest(req))
+	csilReq, csilErr := EncodeLookupSubmissionRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "LookupSubmission", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeLookupSubmissionResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "LookupSubmission", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeLookupSubmissionResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) ClaimGuardedTask(ctx context.Context, req ClaimGuardedTaskRequest) (ClaimGuardedTaskResponse, error) {
 	var csilZero ClaimGuardedTaskResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "ClaimGuardedTask", EncodeClaimGuardedTaskRequest(req))
+	csilReq, csilErr := EncodeClaimGuardedTaskRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "ClaimGuardedTask", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeClaimGuardedTaskResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "ClaimGuardedTask", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeClaimGuardedTaskResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) ClaimGuardedTaskGroup(ctx context.Context, req ClaimGuardedTaskGroupRequest) (ClaimGuardedTaskGroupResponse, error) {
 	var csilZero ClaimGuardedTaskGroupResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "ClaimGuardedTaskGroup", EncodeClaimGuardedTaskGroupRequest(req))
+	csilReq, csilErr := EncodeClaimGuardedTaskGroupRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "ClaimGuardedTaskGroup", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeClaimGuardedTaskGroupResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "ClaimGuardedTaskGroup", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeClaimGuardedTaskGroupResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) UpdateGuardedTask(ctx context.Context, req UpdateGuardedTaskRequest) (UpdateGuardedTaskResponse, error) {
 	var csilZero UpdateGuardedTaskResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "UpdateGuardedTask", EncodeUpdateGuardedTaskRequest(req))
+	csilReq, csilErr := EncodeUpdateGuardedTaskRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "UpdateGuardedTask", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeUpdateGuardedTaskResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "UpdateGuardedTask", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeUpdateGuardedTaskResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) CompleteGuardedTask(ctx context.Context, req CompleteGuardedTaskRequest) (CompleteGuardedTaskResponse, error) {
 	var csilZero CompleteGuardedTaskResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "CompleteGuardedTask", EncodeCompleteGuardedTaskRequest(req))
+	csilReq, csilErr := EncodeCompleteGuardedTaskRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "CompleteGuardedTask", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeCompleteGuardedTaskResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "CompleteGuardedTask", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeCompleteGuardedTaskResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) CancelGuardedTask(ctx context.Context, req CancelGuardedTaskRequest) (CancelGuardedTaskResponse, error) {
 	var csilZero CancelGuardedTaskResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "CancelGuardedTask", EncodeCancelGuardedTaskRequest(req))
+	csilReq, csilErr := EncodeCancelGuardedTaskRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "CancelGuardedTask", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeCancelGuardedTaskResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "CancelGuardedTask", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeCancelGuardedTaskResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) GetGuardedTask(ctx context.Context, req GetGuardedTaskRequest) (GetGuardedTaskResponse, error) {
 	var csilZero GetGuardedTaskResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "GetGuardedTask", EncodeGetGuardedTaskRequest(req))
+	csilReq, csilErr := EncodeGetGuardedTaskRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "GetGuardedTask", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeGetGuardedTaskResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "GetGuardedTask", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeGetGuardedTaskResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }
 
 func (c *CorndogsClient) LookupOperation(ctx context.Context, req LookupOperationRequest) (LookupOperationResponse, error) {
 	var csilZero LookupOperationResponse
-	csilResp, csilErr := c.transport.Call(ctx, "CorndogsService", "LookupOperation", EncodeLookupOperationRequest(req))
+	csilReq, csilErr := EncodeLookupOperationRequest(req)
+	if csilErr != nil {
+		return csilZero, &RPCEncodeError{csilErr}
+	}
+	csilReply, csilErr := c.transport.CallReply(ctx, "CorndogsService", "LookupOperation", csilReq)
 	if csilErr != nil {
 		return csilZero, csilErr
 	}
-	return DecodeLookupOperationResponse(csilResp)
+	csilResp, csilErr := ResolveRPCReply("CorndogsService", "LookupOperation", csilReply.Variant, csilReply.Payload)
+	if csilErr != nil {
+		return csilZero, csilErr
+	}
+	value, err := DecodeLookupOperationResponse(csilResp)
+	if err != nil {
+		return csilZero, &RPCDecodeError{err}
+	}
+	return value, nil
 }

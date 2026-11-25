@@ -98,6 +98,15 @@ class TcpTransport(
 
     /** Performs one CSIL-RPC call: implements the generated [Transport] seam. */
     override fun call(service: String, op: String, request: ByteArray): ByteArray {
+        val reply = callReply(service, op, request)
+        if (reply.variant == "ServiceError") {
+            val se = serviceErrorFromCborValue(CsilCbor.decode(reply.payload))
+            throw ClientError(code = se.code.toLong(), message = se.message)
+        }
+        return reply.payload
+    }
+
+    override fun callReply(service: String, op: String, request: ByteArray): WireReply {
         synchronized(lock) {
             val (inp, out) = ensure()
             nextId += 1
@@ -231,24 +240,18 @@ private fun readFrame(input: DataInputStream): ByteArray? {
 }
 
 /**
- * Decodes a CsilRpcResponse frame into the inner payload bytes. A non-zero
- * transport status becomes a [TransportError]; a `"ServiceError"` variant becomes a
- * [ClientError] decoded from the generated [ServiceError] type.
+ * Returns the reply variant and payload. A nonzero transport status throws an exception.
  */
-private fun parseResponse(frame: ByteArray): ByteArray {
+private fun parseResponse(frame: ByteArray): WireReply {
     val value = CsilCbor.decode(frame)
     val status = CsilCbor.mapGet(value, "status")?.let { CsilCbor.asLong(it) } ?: 0L
     if (status != 0L) {
         val msg = CsilCbor.mapGet(value, "error")?.let { CsilCbor.asText(it) } ?: ""
         throw TransportError("corndogs: transport status $status: $msg")
     }
-    var payload = CsilCbor.mapGet(value, "payload") ?: return ByteArray(0) // e.g. $pong carries none
+    val variant = CsilCbor.mapGet(value, "variant")?.let { CsilCbor.asText(it) }
+    var payload = CsilCbor.mapGet(value, "payload") ?: return WireReply(variant, ByteArray(0)) // e.g. $pong carries none
     if (payload is CborValue.CTag) payload = payload.value
     val inner = CsilCbor.asBytes(payload)
-    val variant = CsilCbor.mapGet(value, "variant")?.let { CsilCbor.asText(it) }
-    if (variant == "ServiceError") {
-        val se = serviceErrorFromCborValue(CsilCbor.decode(inner))
-        throw ClientError(code = se.code.toLong(), message = se.message)
-    }
-    return inner
+    return WireReply(variant, inner)
 }

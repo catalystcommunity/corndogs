@@ -118,8 +118,10 @@ function sleepOrAbort(ms: number, signal: AbortSignal): Promise<"aborted" | "ela
   });
 }
 
+type WireReply = { variant?: string; payload: Uint8Array };
+
 interface Pending {
-  resolve: (payload: Uint8Array) => void;
+  resolve: (reply: WireReply) => void;
   reject: (err: Error) => void;
 }
 
@@ -237,12 +239,10 @@ export class TcpTransport implements AsyncServiceTransport {
     }
   }
 
-  /** Decodes one response envelope and delivers it to its waiting caller by
-   * correlation id. A non-zero transport status or a "ServiceError" variant
-   * becomes a rejection instead of a resolution. */
+  /** Delivers the reply variant and payload to the caller with the matching id. */
   private onFrame(frame: Buffer): void {
     let id = 0;
-    let ok: Uint8Array | null = null;
+    let ok: WireReply | null = null;
     let err: Error | null = null;
     try {
       const val = decode(frame);
@@ -257,19 +257,12 @@ export class TcpTransport implements AsyncServiceTransport {
         err = new TransportError(`transport status ${status}: ${msg}`);
       } else {
         const payloadV = mapGet(val, "payload");
-        if (payloadV === undefined) {
-          ok = new Uint8Array(0); // control replies (e.g. $pong) carry no payload
-        } else {
-          const inner = isCborTag(payloadV) ? payloadV.value : payloadV;
-          const bytes = asBytes(inner);
-          const variantV = mapGet(val, "variant");
-          if (variantV !== undefined && asString(variantV) === "ServiceError") {
-            const se = fromServiceErrorCborValue(decode(bytes));
-            err = new ServiceError(se.code, se.message);
-          } else {
-            ok = bytes;
-          }
-        }
+        const inner = payloadV !== undefined && isCborTag(payloadV) ? payloadV.value : payloadV;
+        const variant = mapGet(val, "variant");
+        ok = {
+          variant: variant == null ? undefined : asString(variant),
+          payload: inner === undefined ? new Uint8Array(0) : asBytes(inner),
+        };
       }
     } catch (e) {
       err = new TransportError(`corndogs: decode response envelope: ${(e as Error).message}`);
@@ -279,11 +272,20 @@ export class TcpTransport implements AsyncServiceTransport {
     if (!waiter) return; // unmatched id (e.g. arrived after the caller gave up)
     this.pending.delete(id);
     if (err) waiter.reject(err);
-    else waiter.resolve(ok as Uint8Array);
+    else waiter.resolve(ok as WireReply);
   }
 
   /** Sends one request and resolves with its correlated response payload. */
   async call(service: string, op: string, req: Uint8Array): Promise<Uint8Array> {
+    const { variant, payload } = await this.callReply(service, op, req);
+    if (variant === "ServiceError") {
+      const se = fromServiceErrorCborValue(decode(payload));
+      throw new ServiceError(se.code, se.message);
+    }
+    return payload;
+  }
+
+  async callReply(service: string, op: string, req: Uint8Array): Promise<WireReply> {
     const socket = await this.ensureConn();
 
     this.nextId += 1;
@@ -302,7 +304,7 @@ export class TcpTransport implements AsyncServiceTransport {
       throw new TransportError(`corndogs: frame too large (${envelope.length} > ${MAX_FRAME})`);
     }
 
-    return new Promise<Uint8Array>((resolve, reject) => {
+    return new Promise<WireReply>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       const frame = Buffer.alloc(4 + envelope.length);
       frame.writeUInt32BE(envelope.length, 0);

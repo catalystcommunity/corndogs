@@ -97,11 +97,8 @@ Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md
   RPC on its TCP port; HTTP is only for health and Prometheus.
 - **Clustered deployments:** point the transport at any node; a write that lands on
   a follower is transparently redirected to the leader.
-- Errors: both a service error and a transport failure raise
-  `csilgen.generated.ClientException` (a `RuntimeException`) — a service error's
-  message is prefixed `corndogs: service error <code>: <message>`; a transport
-  failure's is prefixed `corndogs: transport status ...` or wraps the underlying
-  `IOException`.
+- A service error raises `CsilCbor.ServiceErrorRefusal`. Read the error code and message
+  from `value`. A transport failure raises `ClientException`.
 - `TcpTransport` implements `AutoCloseable`; call `close()` (or use
   try-with-resources) to stop any heartbeat and close the connection when you're
   done with it.

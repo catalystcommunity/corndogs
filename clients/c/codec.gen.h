@@ -69,6 +69,60 @@ static inline int csilc_buf_append(csilc_buf *b, const uint8_t *p, size_t n) {
     return 0;
 }
 
+/* The bytewise order of the encoded keys of map entries i and j (RFC 8949 4.2.1).
+ * marks[2k] is where entry k's key starts and marks[2k+1] where its value starts. */
+static inline int csilc_key_cmp(const uint8_t *base, const size_t *marks, size_t i, size_t j) {
+    size_t li = marks[2 * i + 1] - marks[2 * i];
+    size_t lj = marks[2 * j + 1] - marks[2 * j];
+    int c = memcmp(base + marks[2 * i], base + marks[2 * j], li < lj ? li : lj);
+    if (c) return c;
+    return li < lj ? -1 : (li > lj ? 1 : 0);
+}
+
+/* Reorder the n map entries already written into b (bounded by marks, with
+ * marks[2n] the end of the last entry) into canonical key order. A bottom-up merge
+ * sort needs no comparator context, which qsort cannot carry. Two equal keys are
+ * an error: canonical CBOR has no duplicate map keys. */
+static inline int csilc_sort_map_entries(csilc_buf *b, const size_t *marks, size_t n) {
+    if (n < 2) return 0;
+    if (n > SIZE_MAX / (2 * sizeof(size_t))) return -1;
+    size_t *order = (size_t *)malloc(2 * n * sizeof(size_t));
+    if (!order) return -1;
+    size_t *tmp = order + n;
+    for (size_t i = 0; i < n; i++) order[i] = i;
+    for (size_t w = 1; w < n; w = w > n / 2 ? n : w * 2) {
+        for (size_t lo = 0; lo < n; lo += 2 * w) {
+            size_t mid = w < n - lo ? lo + w : n;
+            size_t hi = 2 * w < n - lo ? lo + 2 * w : n;
+            size_t i = lo, j = mid, k = lo;
+            while (i < mid && j < hi) {
+                tmp[k++] = csilc_key_cmp(b->data, marks, order[j], order[i]) < 0 ? order[j++] : order[i++];
+            }
+            while (i < mid) tmp[k++] = order[i++];
+            while (j < hi) tmp[k++] = order[j++];
+        }
+        memcpy(order, tmp, n * sizeof(size_t));
+    }
+    for (size_t i = 1; i < n; i++) {
+        if (csilc_key_cmp(b->data, marks, order[i - 1], order[i]) == 0) { free(order); return -1; }
+    }
+    size_t start = marks[0];
+    size_t total = marks[2 * n] - start;
+    uint8_t *copy = (uint8_t *)malloc(total);
+    if (!copy) { free(order); return -1; }
+    memcpy(copy, b->data + start, total);
+    size_t at = start;
+    for (size_t i = 0; i < n; i++) {
+        size_t e = order[i];
+        size_t len = marks[2 * e + 2] - marks[2 * e];
+        memcpy(b->data + at, copy + (marks[2 * e] - start), len);
+        at += len;
+    }
+    free(copy);
+    free(order);
+    return 0;
+}
+
 /* Emit the initial byte (major type in the high three bits) plus the shortest-form
  * argument bytes for n, per deterministic encoding. */
 static inline int csilc_head(csilc_buf *b, uint8_t major, uint64_t n) {
@@ -223,6 +277,11 @@ typedef struct csilc_value csilc_value;
 typedef struct csilc_pair {
     csilc_value *key;
     csilc_value *val;
+    /* Where the key's encoded bytes start, relative to the map's own first byte,
+     * and how many there are. Offsets, not pointers, because the input buffer does
+     * not outlive the decode call. */
+    size_t key_at;
+    size_t key_len;
 } csilc_pair;
 
 struct csilc_value {
@@ -243,6 +302,15 @@ struct csilc_value {
         struct {
             csilc_pair *pairs;
             size_t count;
+            /* The encoded keys are strictly ascending in bytewise order (RFC 8949
+             * 4.2.1). A dynamic map must arrive so; a record may not. */
+            bool canonical;
+            /* Some encoded key occurs twice. Only computed when not canonical. */
+            bool duplicate;
+            /* Some key's head is longer than its value or length needs
+             * ("csil cbor: map key is not in shortest form"). Such a map is not
+             * canonical either, because one key would have two byte forms. */
+            bool long_key;
         } map;
         struct {
             uint64_t num;
@@ -343,6 +411,58 @@ static inline double csilc_half_to_double(uint16_t h) {
     return (double)f;
 }
 
+/* Whether the head of the already decoded item at b uses the shortest argument for
+ * its value or length (RFC 8949 4.2.1). A float (major 7) has no such rule. */
+static inline bool csilc_shortest_head(const uint8_t *b) {
+    uint8_t major = b[0] >> 5;
+    uint8_t low = b[0] & 0x1f;
+    if (major == 7 || low < 24) return true;
+    uint64_t arg = 0;
+    size_t width = (size_t)1 << (low - 24);
+    for (size_t i = 1; i <= width; i++) arg = (arg << 8) | (uint64_t)b[i];
+    static const uint64_t floor_of[] = {24u, 0x100u, 0x10000u, 0x100000000u};
+    return arg >= floor_of[low - 24];
+}
+
+/* The bytewise order of two encoded map keys of one map that starts at base. */
+static inline int csilc_span_cmp(const uint8_t *base, const csilc_pair *x, const csilc_pair *y) {
+    size_t n = x->key_len < y->key_len ? x->key_len : y->key_len;
+    int c = memcmp(base + x->key_at, base + y->key_at, n);
+    if (c) return c;
+    return x->key_len < y->key_len ? -1 : (x->key_len > y->key_len ? 1 : 0);
+}
+
+/* 1 when two of the n keys have the same encoding, 0 when not, -1 when out of
+ * memory. A merge sort of the key spans keeps this O(n log n) for a hostile map
+ * that is not in canonical order; a canonical map never comes here. */
+static inline int csilc_has_duplicate_key(const uint8_t *base, const csilc_pair *pairs, size_t n) {
+    if (n < 2) return 0;
+    if (n > SIZE_MAX / (2 * sizeof(size_t))) return -1;
+    size_t *order = (size_t *)malloc(2 * n * sizeof(size_t));
+    if (!order) return -1;
+    size_t *tmp = order + n;
+    for (size_t i = 0; i < n; i++) order[i] = i;
+    for (size_t w = 1; w < n; w = w > n / 2 ? n : w * 2) {
+        for (size_t lo = 0; lo < n; lo += 2 * w) {
+            size_t mid = w < n - lo ? lo + w : n;
+            size_t hi = 2 * w < n - lo ? lo + 2 * w : n;
+            size_t i = lo, j = mid, k = lo;
+            while (i < mid && j < hi) {
+                tmp[k++] = csilc_span_cmp(base, &pairs[order[j]], &pairs[order[i]]) < 0 ? order[j++] : order[i++];
+            }
+            while (i < mid) tmp[k++] = order[i++];
+            while (j < hi) tmp[k++] = order[j++];
+        }
+        memcpy(order, tmp, n * sizeof(size_t));
+    }
+    int dup = 0;
+    for (size_t i = 1; i < n && !dup; i++) {
+        if (csilc_span_cmp(base, &pairs[order[i - 1]], &pairs[order[i]]) == 0) dup = 1;
+    }
+    free(order);
+    return dup;
+}
+
 static inline int csilc_decode_value(CsilCodecArena *a, const uint8_t *b, size_t len,
                               csilc_value *out, size_t *consumed, size_t depth) {
     if (depth > 64) return -1;
@@ -413,6 +533,8 @@ static inline int csilc_decode_value(CsilCodecArena *a, const uint8_t *b, size_t
             if (!pairs) return -1;
         }
         size_t off = head;
+        bool canonical = true;
+        bool long_key = false;
         for (uint64_t i = 0; i < arg; i++) {
             if (i == cap) {
                 size_t grown = cap * 2 < (size_t)arg ? cap * 2 : (size_t)arg;
@@ -425,6 +547,11 @@ static inline int csilc_decode_value(CsilCodecArena *a, const uint8_t *b, size_t
             if (!k || !v) return -1;
             size_t m = 0;
             if (csilc_decode_value(a, b + off, len - off, k, &m, depth + 1)) return -1;
+            pairs[i].key_at = off;
+            pairs[i].key_len = m;
+            if (!csilc_shortest_head(b + off)) long_key = true;
+            /* Comparing each key with the one before keeps the order check O(n). */
+            if (canonical && i > 0 && csilc_span_cmp(b, &pairs[i - 1], &pairs[i]) >= 0) canonical = false;
             off += m;
             if (csilc_decode_value(a, b + off, len - off, v, &m, depth + 1)) return -1;
             off += m;
@@ -434,6 +561,15 @@ static inline int csilc_decode_value(CsilCodecArena *a, const uint8_t *b, size_t
         out->kind = CSILC_MAP;
         out->as.map.pairs = pairs;
         out->as.map.count = (size_t)arg;
+        if (long_key) canonical = false;
+        out->as.map.canonical = canonical;
+        out->as.map.duplicate = false;
+        out->as.map.long_key = long_key;
+        if (!canonical) {
+            int dup = csilc_has_duplicate_key(b, pairs, (size_t)arg);
+            if (dup < 0) return -1;
+            out->as.map.duplicate = dup == 1;
+        }
         *consumed = off;
         return 0;
     }
@@ -587,6 +723,242 @@ static inline bool csilc_get_tagged_text(const csilc_value *v, uint64_t num, con
     }
     *out = (const char *)v->as.tag.content->as.bytes.ptr;
     return true;
+}
+
+static inline bool csilc_valid_date(const char *s) {
+    if (!s || strlen(s) != 10 || s[4] != '-' || s[7] != '-') return false;
+    for (int i = 0; i < 10; ++i)
+        if (i != 4 && i != 7 && (s[i] < '0' || s[i] > '9')) return false;
+    int year = (s[0]-'0')*1000 + (s[1]-'0')*100 + (s[2]-'0')*10 + (s[3]-'0');
+    int month = (s[5]-'0')*10 + (s[6]-'0');
+    int day = (s[8]-'0')*10 + (s[9]-'0');
+    const int days[] = {31, 28 + (year%4 == 0 && (year%100 != 0 || year%400 == 0)),
+                        31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    return month >= 1 && month <= 12 && day >= 1 && day <= days[month-1];
+}
+
+static inline bool csilc_get_date(const csilc_value *v, const char **out) {
+    return csilc_get_tagged_text(v, 1004, out) && v->as.tag.content->as.bytes.len == 10
+        && csilc_valid_date(*out);
+}
+
+/* The longest canonical timestamp, `YYYY-MM-DDThh:mm:ss.fffffffffZ`, plus its NUL. */
+#define CSILC_TIMESTAMP_CAP 31
+/* `0001-01-01T00:00:00Z` and `9999-12-31T23:59:59Z` as epoch seconds. */
+#define CSILC_EPOCH_FIRST INT64_C(-62135596800)
+#define CSILC_EPOCH_LAST INT64_C(253402300799)
+
+static inline bool csilc_ts_digits(const char *s, size_t n, size_t at, size_t width, int64_t *out) {
+    if (at + width > n) return false;
+    int64_t v = 0;
+    for (size_t i = at; i < at + width; i++) {
+        if (s[i] < '0' || s[i] > '9') return false;
+        v = v * 10 + (s[i] - '0');
+    }
+    *out = v;
+    return true;
+}
+
+/* C division truncates toward zero; the civil-date arithmetic needs floor. */
+static inline int64_t csilc_floor_div(int64_t a, int64_t b) {
+    int64_t q = a / b;
+    return (a % b != 0 && ((a < 0) != (b < 0))) ? q - 1 : q;
+}
+
+static inline int64_t csilc_days_from_civil(int64_t y, int64_t m, int64_t d) {
+    y -= m <= 2;
+    int64_t era = csilc_floor_div(y, 400);
+    int64_t yoe = y - era * 400;
+    int64_t doy = (153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1;
+    int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + doe - 719468;
+}
+
+static inline void csilc_ts_put(char *out, size_t at, int64_t v, size_t width) {
+    while (width > 0) {
+        width--;
+        out[at + width] = (char)('0' + v % 10);
+        v /= 10;
+    }
+}
+
+/* Read the strict RFC 3339 form of the wire contract into UTC epoch seconds and
+ * nanoseconds. The year must be 0001 to 9999 after conversion to UTC. */
+static inline bool csilc_timestamp_parse(const char *s, size_t n, int64_t *epoch, int64_t *nanos_out) {
+    int64_t year, month, day, hour, minute, second, nanos = 0, offset = 0;
+    if (n < 20 || s[4] != '-' || s[7] != '-' || (s[10] != 'T' && s[10] != 't') ||
+        s[13] != ':' || s[16] != ':') {
+        return 0;
+    }
+    if (!csilc_ts_digits(s, n, 0, 4, &year) || !csilc_ts_digits(s, n, 5, 2, &month) ||
+        !csilc_ts_digits(s, n, 8, 2, &day) || !csilc_ts_digits(s, n, 11, 2, &hour) ||
+        !csilc_ts_digits(s, n, 14, 2, &minute) || !csilc_ts_digits(s, n, 17, 2, &second)) {
+        return 0;
+    }
+    bool leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    const int64_t days[] = {31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (year < 1 || month < 1 || month > 12 || day < 1 || day > days[month - 1] || hour > 23 ||
+        minute > 59 || second > 59) {
+        return 0;
+    }
+    size_t i = 19;
+    if (s[i] == '.') {
+        size_t start = ++i;
+        while (i < n && s[i] >= '0' && s[i] <= '9') i++;
+        size_t width = i - start;
+        if (width < 1 || width > 9 || !csilc_ts_digits(s, n, start, width, &nanos)) return 0;
+        for (; width < 9; width++) nanos *= 10;
+    }
+    if (i >= n) return 0;
+    if ((s[i] == 'Z' || s[i] == 'z') && i + 1 == n) {
+        offset = 0;
+    } else if ((s[i] == '+' || s[i] == '-') && i + 6 == n && s[i + 3] == ':') {
+        int64_t oh, om;
+        if (!csilc_ts_digits(s, n, i + 1, 2, &oh) || !csilc_ts_digits(s, n, i + 4, 2, &om) ||
+            oh > 23 || om > 59) {
+            return 0;
+        }
+        offset = (oh * 3600 + om * 60) * (s[i] == '-' ? -1 : 1);
+    } else {
+        return 0;
+    }
+    int64_t utc = csilc_days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 +
+                  second - offset;
+    if (utc < CSILC_EPOCH_FIRST || utc > CSILC_EPOCH_LAST) return false;
+    *epoch = utc;
+    *nanos_out = nanos;
+    return true;
+}
+
+/* Write the canonical UTC text for an instant already known to lie in years
+ * 0001 to 9999, so that both wire forms produce the same text. */
+static inline size_t csilc_timestamp_write(int64_t utc, int64_t nanos, char out[CSILC_TIMESTAMP_CAP]) {
+    int64_t z = csilc_floor_div(utc, 86400) + 719468;
+    int64_t sod = utc - csilc_floor_div(utc, 86400) * 86400;
+    int64_t era = csilc_floor_div(z, 146097);
+    int64_t doe = z - era * 146097;
+    int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    int64_t mp = (5 * doy + 2) / 153;
+    int64_t d = doy - (153 * mp + 2) / 5 + 1;
+    int64_t m = mp < 10 ? mp + 3 : mp - 9;
+    int64_t y = yoe + era * 400 + (m <= 2);
+    csilc_ts_put(out, 0, y, 4);
+    out[4] = '-';
+    csilc_ts_put(out, 5, m, 2);
+    out[7] = '-';
+    csilc_ts_put(out, 8, d, 2);
+    out[10] = 'T';
+    csilc_ts_put(out, 11, sod / 3600, 2);
+    out[13] = ':';
+    csilc_ts_put(out, 14, sod / 60 % 60, 2);
+    out[16] = ':';
+    csilc_ts_put(out, 17, sod % 60, 2);
+    size_t len = 19;
+    if (nanos != 0) {
+        /* The fewest of 3, 6, or 9 digits that hold the value exactly, so every
+         * peer writes the same bytes for the same instant. */
+        size_t width = nanos % 1000000 == 0 ? 3 : nanos % 1000 == 0 ? 6 : 9;
+        int64_t scaled = width == 3 ? nanos / 1000000 : width == 6 ? nanos / 1000 : nanos;
+        out[len++] = '.';
+        csilc_ts_put(out, len, scaled, width);
+        len += width;
+    }
+    out[len++] = 'Z';
+    out[len] = 0;
+    return len;
+}
+
+/* Validate the strict RFC 3339 form of the wire contract and write the canonical
+ * UTC spelling to `out`, so equal instants compare equal as text. Returns the
+ * canonical length, or 0 when `s` is not a valid timestamp. */
+static inline size_t csilc_timestamp_canon(const char *s, size_t n, char out[CSILC_TIMESTAMP_CAP],
+                                           int64_t *epoch) {
+    int64_t nanos;
+    if (!csilc_timestamp_parse(s, n, epoch, &nanos)) return 0;
+    return csilc_timestamp_write(*epoch, nanos, out);
+}
+
+/* Decoded text that is already canonical is borrowed as is; only a value that
+ * needs normalizing costs an arena copy. */
+static inline bool csilc_get_timestamp(const csilc_value *v, CsilCodecArena *a, const char **text,
+                                       int64_t *epoch) {
+    const char *raw;
+    if (!csilc_get_tagged_text(v, 0, &raw)) return false;
+    size_t n = v->as.tag.content->as.bytes.len;
+    char buf[CSILC_TIMESTAMP_CAP];
+    size_t len = csilc_timestamp_canon(raw, n, buf, epoch);
+    if (!len) return false;
+    if (len == n && memcmp(buf, raw, n) == 0) {
+        *text = raw;
+        return true;
+    }
+    char *copy = (char *)csilc_arena_alloc(a, len + 1);
+    if (!copy) return false;
+    memcpy(copy, buf, len + 1);
+    *text = copy;
+    return true;
+}
+
+/* A caller-built value is normalized too, so the wire never carries an offset,
+ * lowercase separators, or a non-minimal fraction. */
+static inline int csilc_w_timestamp(csilc_buf *b, const char *text) {
+    char buf[CSILC_TIMESTAMP_CAP];
+    int64_t epoch;
+    size_t len = text ? csilc_timestamp_canon(text, strlen(text), buf, &epoch) : 0;
+    if (!len || csilc_w_tag(b, 0)) return -1;
+    return csilc_w_text(b, buf, len);
+}
+
+/* `cddl_time`: tag 1 around epoch seconds, kept as the same canonical text as a
+ * `timestamp` so both wire forms compare equal for one instant. */
+static inline bool csilc_get_epoch(const csilc_value *v, CsilCodecArena *a, const char **text,
+                                   int64_t *epoch) {
+    if (!v || v->kind != CSILC_TAG || v->as.tag.num != 1) return false;
+    const csilc_value *c = v->as.tag.content;
+    int64_t seconds, units = 0;
+    if (c->kind == CSILC_UINT) {
+        if (c->as.u > (uint64_t)CSILC_EPOCH_LAST) return false;
+        seconds = (int64_t)c->as.u;
+    } else if (c->kind == CSILC_NINT) {
+        seconds = c->as.i;
+    } else if (c->kind == CSILC_FLOAT) {
+        double value = c->as.f;
+        /* The range test also refuses NaN and infinity, and it comes before the
+         * conversion to an integer, which is undefined behavior out of range. */
+        if (!(value >= (double)(CSILC_EPOCH_FIRST - 1) && value <= (double)(CSILC_EPOCH_LAST + 1)))
+            return false;
+        seconds = (int64_t)value;
+        if ((double)seconds > value) seconds--;
+        /* Separate volatile stores keep the compiler from fusing the multiply and
+         * the add into one operation, which can round differently. */
+        volatile double scaled = (value - (double)seconds) * 1e9;
+        volatile double shifted = scaled + 0.5;
+        units = (int64_t)shifted;
+        if (units == 1000000000) {
+            seconds++;
+            units = 0;
+        }
+    } else {
+        return false;
+    }
+    if (seconds < CSILC_EPOCH_FIRST || seconds > CSILC_EPOCH_LAST) return false;
+    char buf[CSILC_TIMESTAMP_CAP];
+    size_t len = csilc_timestamp_write(seconds, units, buf);
+    char *copy = (char *)csilc_arena_alloc(a, len + 1);
+    if (!copy) return false;
+    memcpy(copy, buf, len + 1);
+    *text = copy;
+    *epoch = seconds;
+    return true;
+}
+
+static inline int csilc_w_epoch(csilc_buf *b, const char *text) {
+    int64_t seconds, nanos;
+    if (!text || !csilc_timestamp_parse(text, strlen(text), &seconds, &nanos) || csilc_w_tag(b, 1))
+        return -1;
+    if (nanos == 0) return csilc_w_int(b, seconds);
+    return csilc_w_f64(b, (double)seconds + (double)nanos / 1e9);
 }
 
 static inline bool csilc_get_decimal(const csilc_value *v, int64_t *exp, int64_t *mant) {
@@ -743,16 +1115,27 @@ static inline int csilc_dec_ServiceError(const csilc_value *m, CsilCodecArena *a
 /* csilc_enc_StringInt64Map writes StringInt64Map as a CBOR map of text keys to encoded values. */
 static inline int csilc_enc_StringInt64Map(csilc_buf *b, const StringInt64Map *v) {
     if (csilc_w_map_head(b, v->count)) return -1;
-    for (size_t csilc_i = 0; csilc_i < v->count; csilc_i++) {
-        if (csilc_w_text(b, (v->keys[csilc_i]), (v->keys[csilc_i]) ? strlen(v->keys[csilc_i]) : 0)) return -1;
-        if (csilc_w_int(b, (int64_t)(v->values[csilc_i]))) return -1;
+    if (v->count) {
+        if (v->count > (SIZE_MAX / sizeof(size_t) - 1) / 2) return -1;
+        size_t *csilc_marks = (size_t *)malloc((2 * v->count + 1) * sizeof(size_t));
+        if (!csilc_marks) return -1;
+        for (size_t csilc_i = 0; csilc_i < v->count; csilc_i++) {
+            csilc_marks[2 * csilc_i] = b->len;
+            if (csilc_w_text(b, (v->keys[csilc_i]), (v->keys[csilc_i]) ? strlen(v->keys[csilc_i]) : 0)) { free(csilc_marks); return -1; }
+            csilc_marks[2 * csilc_i + 1] = b->len;
+            if (csilc_w_int(b, (int64_t)(v->values[csilc_i]))) { free(csilc_marks); return -1; }
+        }
+        csilc_marks[2 * v->count] = b->len;
+        int csilc_sorted = csilc_sort_map_entries(b, csilc_marks, v->count);
+        free(csilc_marks);
+        if (csilc_sorted) return -1;
     }
     return 0;
 }
 
 /* csilc_dec_StringInt64Map reads StringInt64Map from a decoded CBOR map (arena-borrowed). */
 static inline int csilc_dec_StringInt64Map(const csilc_value *m, CsilCodecArena *a, StringInt64Map *out) {
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || !m->as.map.canonical) return -1;
     out->count = m->as.map.count;
     out->keys = NULL;
     out->values = NULL;
@@ -795,7 +1178,7 @@ static inline int csilc_enc_Task(csilc_buf *b, const Task *v) {
 static inline int csilc_dec_Task(const csilc_value *m, CsilCodecArena *a, Task *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "uuid");
     if (!csilc_get_text(csilc_f, &(out->uuid))) return -1;
     csilc_f = csilc_map_get(m, "queue");
@@ -830,7 +1213,7 @@ static inline int csilc_enc_TaskDelivery(csilc_buf *b, const TaskDelivery *v) {
 static inline int csilc_dec_TaskDelivery(const csilc_value *m, CsilCodecArena *a, TaskDelivery *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     if (csilc_dec_Task(csilc_f, a, &(out->task))) return -1;
     csilc_f = csilc_map_get(m, "payload");
@@ -861,7 +1244,7 @@ static inline int csilc_enc_SubmitTaskRequest(csilc_buf *b, const SubmitTaskRequ
 static inline int csilc_dec_SubmitTaskRequest(const csilc_value *m, CsilCodecArena *a, SubmitTaskRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queue");
     if (!csilc_get_text(csilc_f, &(out->queue))) return -1;
     csilc_f = csilc_map_get(m, "payload");
@@ -893,7 +1276,7 @@ static inline int csilc_enc_SubmitTaskResponse(csilc_buf *b, const SubmitTaskRes
 static inline int csilc_dec_SubmitTaskResponse(const csilc_value *m, CsilCodecArena *a, SubmitTaskResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     out->task = NULL;
     if (csilc_f) {
@@ -920,7 +1303,7 @@ static inline int csilc_enc_GetTaskStateByIDRequest(csilc_buf *b, const GetTaskS
 static inline int csilc_dec_GetTaskStateByIDRequest(const csilc_value *m, CsilCodecArena *a, GetTaskStateByIDRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "uuid");
     if (!csilc_get_text(csilc_f, &(out->uuid))) return -1;
     csilc_f = csilc_map_get(m, "queue");
@@ -944,7 +1327,7 @@ static inline int csilc_enc_GetTaskStateByIDResponse(csilc_buf *b, const GetTask
 static inline int csilc_dec_GetTaskStateByIDResponse(const csilc_value *m, CsilCodecArena *a, GetTaskStateByIDResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     out->task = NULL;
     if (csilc_f) {
@@ -977,7 +1360,7 @@ static inline int csilc_enc_GetNextTaskRequest(csilc_buf *b, const GetNextTaskRe
 static inline int csilc_dec_GetNextTaskRequest(const csilc_value *m, CsilCodecArena *a, GetNextTaskRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queue");
     if (!csilc_get_text(csilc_f, &(out->queue))) return -1;
     csilc_f = csilc_map_get(m, "current_state");
@@ -1007,7 +1390,7 @@ static inline int csilc_enc_GetNextTaskResponse(csilc_buf *b, const GetNextTaskR
 static inline int csilc_dec_GetNextTaskResponse(const csilc_value *m, CsilCodecArena *a, GetNextTaskResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "delivery");
     out->delivery = NULL;
     if (csilc_f) {
@@ -1043,7 +1426,7 @@ static inline int csilc_enc_GetNextTaskGroupRequest(csilc_buf *b, const GetNextT
 static inline int csilc_dec_GetNextTaskGroupRequest(const csilc_value *m, CsilCodecArena *a, GetNextTaskGroupRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queues");
     if (!csilc_f || csilc_f->kind != CSILC_ARRAY) return -1;
     out->queues_count = csilc_f->as.array.count;
@@ -1082,7 +1465,7 @@ static inline int csilc_enc_GetNextTaskGroupResponse(csilc_buf *b, const GetNext
 static inline int csilc_dec_GetNextTaskGroupResponse(const csilc_value *m, CsilCodecArena *a, GetNextTaskGroupResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "delivery");
     out->delivery = NULL;
     if (csilc_f) {
@@ -1111,7 +1494,7 @@ static inline int csilc_enc_CompleteTaskRequest(csilc_buf *b, const CompleteTask
 static inline int csilc_dec_CompleteTaskRequest(const csilc_value *m, CsilCodecArena *a, CompleteTaskRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "uuid");
     if (!csilc_get_text(csilc_f, &(out->uuid))) return -1;
     csilc_f = csilc_map_get(m, "queue");
@@ -1137,7 +1520,7 @@ static inline int csilc_enc_CompleteTaskResponse(csilc_buf *b, const CompleteTas
 static inline int csilc_dec_CompleteTaskResponse(const csilc_value *m, CsilCodecArena *a, CompleteTaskResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     out->task = NULL;
     if (csilc_f) {
@@ -1182,7 +1565,7 @@ static inline int csilc_enc_UpdateTaskRequest(csilc_buf *b, const UpdateTaskRequ
 static inline int csilc_dec_UpdateTaskRequest(const csilc_value *m, CsilCodecArena *a, UpdateTaskRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "uuid");
     if (!csilc_get_text(csilc_f, &(out->uuid))) return -1;
     csilc_f = csilc_map_get(m, "queue");
@@ -1230,7 +1613,7 @@ static inline int csilc_enc_UpdateTaskResponse(csilc_buf *b, const UpdateTaskRes
 static inline int csilc_dec_UpdateTaskResponse(const csilc_value *m, CsilCodecArena *a, UpdateTaskResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     out->task = NULL;
     if (csilc_f) {
@@ -1259,7 +1642,7 @@ static inline int csilc_enc_CancelTaskRequest(csilc_buf *b, const CancelTaskRequ
 static inline int csilc_dec_CancelTaskRequest(const csilc_value *m, CsilCodecArena *a, CancelTaskRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "uuid");
     if (!csilc_get_text(csilc_f, &(out->uuid))) return -1;
     csilc_f = csilc_map_get(m, "queue");
@@ -1285,7 +1668,7 @@ static inline int csilc_enc_CancelTaskResponse(csilc_buf *b, const CancelTaskRes
 static inline int csilc_dec_CancelTaskResponse(const csilc_value *m, CsilCodecArena *a, CancelTaskResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     out->task = NULL;
     if (csilc_f) {
@@ -1312,7 +1695,7 @@ static inline int csilc_enc_CleanUpTimedOutRequest(csilc_buf *b, const CleanUpTi
 static inline int csilc_dec_CleanUpTimedOutRequest(const csilc_value *m, CsilCodecArena *a, CleanUpTimedOutRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queue");
     if (!csilc_get_text(csilc_f, &(out->queue))) return -1;
     csilc_f = csilc_map_get(m, "at_time");
@@ -1333,7 +1716,7 @@ static inline int csilc_enc_CleanUpTimedOutResponse(csilc_buf *b, const CleanUpT
 static inline int csilc_dec_CleanUpTimedOutResponse(const csilc_value *m, CsilCodecArena *a, CleanUpTimedOutResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "timed_out");
     if (!csilc_as_i64(csilc_f, &(out->timed_out))) return -1;
     return 0;
@@ -1351,7 +1734,7 @@ static inline int csilc_enc_GetQueuesRequest(csilc_buf *b, const GetQueuesReques
 static inline int csilc_dec_GetQueuesRequest(const csilc_value *m, CsilCodecArena *a, GetQueuesRequest *out) {
     (void)a;
     (void)out;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     return 0;
 }
 
@@ -1373,7 +1756,7 @@ static inline int csilc_enc_GetQueuesResponse(csilc_buf *b, const GetQueuesRespo
 static inline int csilc_dec_GetQueuesResponse(const csilc_value *m, CsilCodecArena *a, GetQueuesResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queues");
     if (!csilc_f || csilc_f->kind != CSILC_ARRAY) return -1;
     out->queues_count = csilc_f->as.array.count;
@@ -1402,7 +1785,7 @@ static inline int csilc_enc_GetQueueTaskCountsRequest(csilc_buf *b, const GetQue
 static inline int csilc_dec_GetQueueTaskCountsRequest(const csilc_value *m, CsilCodecArena *a, GetQueueTaskCountsRequest *out) {
     (void)a;
     (void)out;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     return 0;
 }
 
@@ -1421,7 +1804,7 @@ static inline int csilc_enc_GetQueueTaskCountsResponse(csilc_buf *b, const GetQu
 static inline int csilc_dec_GetQueueTaskCountsResponse(const csilc_value *m, CsilCodecArena *a, GetQueueTaskCountsResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queue_counts");
     if (csilc_dec_StringInt64Map(csilc_f, a, &(out->queue_counts))) return -1;
     csilc_f = csilc_map_get(m, "total_task_count");
@@ -1442,7 +1825,7 @@ static inline int csilc_enc_GetTaskStateCountsRequest(csilc_buf *b, const GetTas
 static inline int csilc_dec_GetTaskStateCountsRequest(const csilc_value *m, CsilCodecArena *a, GetTaskStateCountsRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queue");
     if (!csilc_get_text(csilc_f, &(out->queue))) return -1;
     return 0;
@@ -1465,7 +1848,7 @@ static inline int csilc_enc_GetTaskStateCountsResponse(csilc_buf *b, const GetTa
 static inline int csilc_dec_GetTaskStateCountsResponse(const csilc_value *m, CsilCodecArena *a, GetTaskStateCountsResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "count");
     if (!csilc_as_i64(csilc_f, &(out->count))) return -1;
     csilc_f = csilc_map_get(m, "queue");
@@ -1492,7 +1875,7 @@ static inline int csilc_enc_QueueAndStateCounts(csilc_buf *b, const QueueAndStat
 static inline int csilc_dec_QueueAndStateCounts(const csilc_value *m, CsilCodecArena *a, QueueAndStateCounts *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "count");
     if (!csilc_as_i64(csilc_f, &(out->count))) return -1;
     csilc_f = csilc_map_get(m, "queue");
@@ -1505,16 +1888,27 @@ static inline int csilc_dec_QueueAndStateCounts(const csilc_value *m, CsilCodecA
 /* csilc_enc_QueueAndStateCountsMap writes QueueAndStateCountsMap as a CBOR map of text keys to encoded values. */
 static inline int csilc_enc_QueueAndStateCountsMap(csilc_buf *b, const QueueAndStateCountsMap *v) {
     if (csilc_w_map_head(b, v->count)) return -1;
-    for (size_t csilc_i = 0; csilc_i < v->count; csilc_i++) {
-        if (csilc_w_text(b, (v->keys[csilc_i]), (v->keys[csilc_i]) ? strlen(v->keys[csilc_i]) : 0)) return -1;
-        if (csilc_enc_QueueAndStateCounts(b, &(v->values[csilc_i]))) return -1;
+    if (v->count) {
+        if (v->count > (SIZE_MAX / sizeof(size_t) - 1) / 2) return -1;
+        size_t *csilc_marks = (size_t *)malloc((2 * v->count + 1) * sizeof(size_t));
+        if (!csilc_marks) return -1;
+        for (size_t csilc_i = 0; csilc_i < v->count; csilc_i++) {
+            csilc_marks[2 * csilc_i] = b->len;
+            if (csilc_w_text(b, (v->keys[csilc_i]), (v->keys[csilc_i]) ? strlen(v->keys[csilc_i]) : 0)) { free(csilc_marks); return -1; }
+            csilc_marks[2 * csilc_i + 1] = b->len;
+            if (csilc_enc_QueueAndStateCounts(b, &(v->values[csilc_i]))) { free(csilc_marks); return -1; }
+        }
+        csilc_marks[2 * v->count] = b->len;
+        int csilc_sorted = csilc_sort_map_entries(b, csilc_marks, v->count);
+        free(csilc_marks);
+        if (csilc_sorted) return -1;
     }
     return 0;
 }
 
 /* csilc_dec_QueueAndStateCountsMap reads QueueAndStateCountsMap from a decoded CBOR map (arena-borrowed). */
 static inline int csilc_dec_QueueAndStateCountsMap(const csilc_value *m, CsilCodecArena *a, QueueAndStateCountsMap *out) {
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || !m->as.map.canonical) return -1;
     out->count = m->as.map.count;
     out->keys = NULL;
     out->values = NULL;
@@ -1542,7 +1936,7 @@ static inline int csilc_enc_GetQueueAndStateCountsRequest(csilc_buf *b, const Ge
 static inline int csilc_dec_GetQueueAndStateCountsRequest(const csilc_value *m, CsilCodecArena *a, GetQueueAndStateCountsRequest *out) {
     (void)a;
     (void)out;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     return 0;
 }
 
@@ -1559,7 +1953,7 @@ static inline int csilc_enc_GetQueueAndStateCountsResponse(csilc_buf *b, const G
 static inline int csilc_dec_GetQueueAndStateCountsResponse(const csilc_value *m, CsilCodecArena *a, GetQueueAndStateCountsResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queue_and_state_counts");
     if (csilc_dec_QueueAndStateCountsMap(csilc_f, a, &(out->queue_and_state_counts))) return -1;
     return 0;
@@ -1577,7 +1971,7 @@ static inline int csilc_enc_GetServerInfoRequest(csilc_buf *b, const GetServerIn
 static inline int csilc_dec_GetServerInfoRequest(const csilc_value *m, CsilCodecArena *a, GetServerInfoRequest *out) {
     (void)a;
     (void)out;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     return 0;
 }
 
@@ -1605,7 +1999,7 @@ static inline int csilc_enc_GetServerInfoResponse(csilc_buf *b, const GetServerI
 static inline int csilc_dec_GetServerInfoResponse(const csilc_value *m, CsilCodecArena *a, GetServerInfoResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "features");
     if (!csilc_f || csilc_f->kind != CSILC_ARRAY) return -1;
     out->features_count = csilc_f->as.array.count;
@@ -1647,7 +2041,7 @@ static inline int csilc_enc_GuardedTask(csilc_buf *b, const GuardedTask *v) {
 static inline int csilc_dec_GuardedTask(const csilc_value *m, CsilCodecArena *a, GuardedTask *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     if (csilc_dec_Task(csilc_f, a, &(out->task))) return -1;
     csilc_f = csilc_map_get(m, "guarded");
@@ -1682,7 +2076,7 @@ static inline int csilc_enc_SubmissionReceipt(csilc_buf *b, const SubmissionRece
 static inline int csilc_dec_SubmissionReceipt(const csilc_value *m, CsilCodecArena *a, SubmissionReceipt *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queue");
     if (!csilc_get_text(csilc_f, &(out->queue))) return -1;
     csilc_f = csilc_map_get(m, "guarded");
@@ -1725,7 +2119,7 @@ static inline int csilc_enc_SubmitKeyedTaskRequest(csilc_buf *b, const SubmitKey
 static inline int csilc_dec_SubmitKeyedTaskRequest(const csilc_value *m, CsilCodecArena *a, SubmitKeyedTaskRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queue");
     if (!csilc_get_text(csilc_f, &(out->queue))) return -1;
     csilc_f = csilc_map_get(m, "guarded");
@@ -1765,7 +2159,7 @@ static inline int csilc_enc_SubmitKeyedTaskResponse(csilc_buf *b, const SubmitKe
 static inline int csilc_dec_SubmitKeyedTaskResponse(const csilc_value *m, CsilCodecArena *a, SubmitKeyedTaskResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     out->task = NULL;
     if (csilc_f) {
@@ -1796,7 +2190,7 @@ static inline int csilc_enc_LookupSubmissionRequest(csilc_buf *b, const LookupSu
 static inline int csilc_dec_LookupSubmissionRequest(const csilc_value *m, CsilCodecArena *a, LookupSubmissionRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queue");
     if (!csilc_get_text(csilc_f, &(out->queue))) return -1;
     csilc_f = csilc_map_get(m, "submission_key");
@@ -1825,7 +2219,7 @@ static inline int csilc_enc_LookupSubmissionResponse(csilc_buf *b, const LookupS
 static inline int csilc_dec_LookupSubmissionResponse(const csilc_value *m, CsilCodecArena *a, LookupSubmissionResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     out->task = NULL;
     if (csilc_f) {
@@ -1868,7 +2262,7 @@ static inline int csilc_enc_ClaimGuardedTaskRequest(csilc_buf *b, const ClaimGua
 static inline int csilc_dec_ClaimGuardedTaskRequest(const csilc_value *m, CsilCodecArena *a, ClaimGuardedTaskRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queue");
     if (!csilc_get_text(csilc_f, &(out->queue))) return -1;
     csilc_f = csilc_map_get(m, "operation_id");
@@ -1899,7 +2293,7 @@ static inline int csilc_enc_GuardedDelivery(csilc_buf *b, const GuardedDelivery 
 static inline int csilc_dec_GuardedDelivery(const csilc_value *m, CsilCodecArena *a, GuardedDelivery *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     if (csilc_dec_GuardedTask(csilc_f, a, &(out->task))) return -1;
     csilc_f = csilc_map_get(m, "payload");
@@ -1925,7 +2319,7 @@ static inline int csilc_enc_ClaimGuardedTaskResponse(csilc_buf *b, const ClaimGu
 static inline int csilc_dec_ClaimGuardedTaskResponse(const csilc_value *m, CsilCodecArena *a, ClaimGuardedTaskResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "delivery");
     out->delivery = NULL;
     if (csilc_f) {
@@ -1965,7 +2359,7 @@ static inline int csilc_enc_ClaimGuardedTaskGroupRequest(csilc_buf *b, const Cla
 static inline int csilc_dec_ClaimGuardedTaskGroupRequest(const csilc_value *m, CsilCodecArena *a, ClaimGuardedTaskGroupRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "queues");
     if (!csilc_f || csilc_f->kind != CSILC_ARRAY) return -1;
     out->queues_count = csilc_f->as.array.count;
@@ -2008,7 +2402,7 @@ static inline int csilc_enc_ClaimGuardedTaskGroupResponse(csilc_buf *b, const Cl
 static inline int csilc_dec_ClaimGuardedTaskGroupResponse(const csilc_value *m, CsilCodecArena *a, ClaimGuardedTaskGroupResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "delivery");
     out->delivery = NULL;
     if (csilc_f) {
@@ -2062,7 +2456,7 @@ static inline int csilc_enc_UpdateGuardedTaskRequest(csilc_buf *b, const UpdateG
 static inline int csilc_dec_UpdateGuardedTaskRequest(const csilc_value *m, CsilCodecArena *a, UpdateGuardedTaskRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "uuid");
     if (!csilc_get_text(csilc_f, &(out->uuid))) return -1;
     csilc_f = csilc_map_get(m, "queue");
@@ -2113,7 +2507,7 @@ static inline int csilc_enc_UpdateGuardedTaskResponse(csilc_buf *b, const Update
 static inline int csilc_dec_UpdateGuardedTaskResponse(const csilc_value *m, CsilCodecArena *a, UpdateGuardedTaskResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     if (csilc_dec_GuardedTask(csilc_f, a, &(out->task))) return -1;
     csilc_f = csilc_map_get(m, "replayed");
@@ -2145,7 +2539,7 @@ static inline int csilc_enc_CompleteGuardedTaskRequest(csilc_buf *b, const Compl
 static inline int csilc_dec_CompleteGuardedTaskRequest(const csilc_value *m, CsilCodecArena *a, CompleteGuardedTaskRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "uuid");
     if (!csilc_get_text(csilc_f, &(out->uuid))) return -1;
     csilc_f = csilc_map_get(m, "queue");
@@ -2174,7 +2568,7 @@ static inline int csilc_enc_CompleteGuardedTaskResponse(csilc_buf *b, const Comp
 static inline int csilc_dec_CompleteGuardedTaskResponse(const csilc_value *m, CsilCodecArena *a, CompleteGuardedTaskResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     if (csilc_dec_GuardedTask(csilc_f, a, &(out->task))) return -1;
     csilc_f = csilc_map_get(m, "replayed");
@@ -2206,7 +2600,7 @@ static inline int csilc_enc_CancelGuardedTaskRequest(csilc_buf *b, const CancelG
 static inline int csilc_dec_CancelGuardedTaskRequest(const csilc_value *m, CsilCodecArena *a, CancelGuardedTaskRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "uuid");
     if (!csilc_get_text(csilc_f, &(out->uuid))) return -1;
     csilc_f = csilc_map_get(m, "queue");
@@ -2235,7 +2629,7 @@ static inline int csilc_enc_CancelGuardedTaskResponse(csilc_buf *b, const Cancel
 static inline int csilc_dec_CancelGuardedTaskResponse(const csilc_value *m, CsilCodecArena *a, CancelGuardedTaskResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     if (csilc_dec_GuardedTask(csilc_f, a, &(out->task))) return -1;
     csilc_f = csilc_map_get(m, "replayed");
@@ -2258,7 +2652,7 @@ static inline int csilc_enc_GetGuardedTaskRequest(csilc_buf *b, const GetGuarded
 static inline int csilc_dec_GetGuardedTaskRequest(const csilc_value *m, CsilCodecArena *a, GetGuardedTaskRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "uuid");
     if (!csilc_get_text(csilc_f, &(out->uuid))) return -1;
     csilc_f = csilc_map_get(m, "queue");
@@ -2282,7 +2676,7 @@ static inline int csilc_enc_GetGuardedTaskResponse(csilc_buf *b, const GetGuarde
 static inline int csilc_dec_GetGuardedTaskResponse(const csilc_value *m, CsilCodecArena *a, GetGuardedTaskResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "task");
     out->task = NULL;
     if (csilc_f) {
@@ -2321,7 +2715,7 @@ static inline int csilc_enc_OperationReceipt(csilc_buf *b, const OperationReceip
 static inline int csilc_dec_OperationReceipt(const csilc_value *m, CsilCodecArena *a, OperationReceipt *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "at");
     if (!csilc_as_i64(csilc_f, &(out->at))) return -1;
     csilc_f = csilc_map_get(m, "op");
@@ -2354,7 +2748,7 @@ static inline int csilc_enc_LookupOperationRequest(csilc_buf *b, const LookupOpe
 static inline int csilc_dec_LookupOperationRequest(const csilc_value *m, CsilCodecArena *a, LookupOperationRequest *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "operation_id");
     if (!csilc_get_text(csilc_f, &(out->operation_id))) return -1;
     return 0;
@@ -2376,7 +2770,7 @@ static inline int csilc_enc_LookupOperationResponse(csilc_buf *b, const LookupOp
 static inline int csilc_dec_LookupOperationResponse(const csilc_value *m, CsilCodecArena *a, LookupOperationResponse *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "receipt");
     out->receipt = NULL;
     if (csilc_f) {
@@ -2403,7 +2797,7 @@ static inline int csilc_enc_ServiceError(csilc_buf *b, const ServiceError *v) {
 static inline int csilc_dec_ServiceError(const csilc_value *m, CsilCodecArena *a, ServiceError *out) {
     (void)a;
     const csilc_value *csilc_f;
-    if (!m || m->kind != CSILC_MAP) return -1;
+    if (!m || m->kind != CSILC_MAP || m->as.map.duplicate || m->as.map.long_key) return -1;
     csilc_f = csilc_map_get(m, "code");
     if (!csilc_as_u64(csilc_f, &(out->code))) return -1;
     csilc_f = csilc_map_get(m, "message");
@@ -3651,6 +4045,556 @@ static inline int csil_decode_ServiceError(const uint8_t *in, size_t len, Servic
     if (csilc_dec_ServiceError(root, a, out)) { csil_codec_arena_free(a); return -1; }
     *owner = a;
     return 0;
+}
+
+static inline int csil_encode_CorndogsServiceSubmitTaskReply(const CorndogsServiceSubmitTaskReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceSubmitTaskReply_as_submit_task_response:
+        *variant = "SubmitTaskResponse";
+        return csil_encode_SubmitTaskResponse(&reply->value.as_submit_task_response, payload, len);
+    case CorndogsServiceSubmitTaskReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceSubmitTaskReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceSubmitTaskReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "SubmitTaskResponse") == 0) {
+        reply->kind = CorndogsServiceSubmitTaskReply_as_submit_task_response;
+        return csil_decode_SubmitTaskResponse(payload, len, &reply->value.as_submit_task_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceSubmitTaskReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceGetTaskStateByIDReply(const CorndogsServiceGetTaskStateByIDReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceGetTaskStateByIDReply_as_get_task_state_by_i_d_response:
+        *variant = "GetTaskStateByIDResponse";
+        return csil_encode_GetTaskStateByIDResponse(&reply->value.as_get_task_state_by_i_d_response, payload, len);
+    case CorndogsServiceGetTaskStateByIDReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceGetTaskStateByIDReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceGetTaskStateByIDReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "GetTaskStateByIDResponse") == 0) {
+        reply->kind = CorndogsServiceGetTaskStateByIDReply_as_get_task_state_by_i_d_response;
+        return csil_decode_GetTaskStateByIDResponse(payload, len, &reply->value.as_get_task_state_by_i_d_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceGetTaskStateByIDReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceGetNextTaskReply(const CorndogsServiceGetNextTaskReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceGetNextTaskReply_as_get_next_task_response:
+        *variant = "GetNextTaskResponse";
+        return csil_encode_GetNextTaskResponse(&reply->value.as_get_next_task_response, payload, len);
+    case CorndogsServiceGetNextTaskReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceGetNextTaskReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceGetNextTaskReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "GetNextTaskResponse") == 0) {
+        reply->kind = CorndogsServiceGetNextTaskReply_as_get_next_task_response;
+        return csil_decode_GetNextTaskResponse(payload, len, &reply->value.as_get_next_task_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceGetNextTaskReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceGetNextTaskGroupReply(const CorndogsServiceGetNextTaskGroupReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceGetNextTaskGroupReply_as_get_next_task_group_response:
+        *variant = "GetNextTaskGroupResponse";
+        return csil_encode_GetNextTaskGroupResponse(&reply->value.as_get_next_task_group_response, payload, len);
+    case CorndogsServiceGetNextTaskGroupReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceGetNextTaskGroupReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceGetNextTaskGroupReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "GetNextTaskGroupResponse") == 0) {
+        reply->kind = CorndogsServiceGetNextTaskGroupReply_as_get_next_task_group_response;
+        return csil_decode_GetNextTaskGroupResponse(payload, len, &reply->value.as_get_next_task_group_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceGetNextTaskGroupReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceUpdateTaskReply(const CorndogsServiceUpdateTaskReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceUpdateTaskReply_as_update_task_response:
+        *variant = "UpdateTaskResponse";
+        return csil_encode_UpdateTaskResponse(&reply->value.as_update_task_response, payload, len);
+    case CorndogsServiceUpdateTaskReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceUpdateTaskReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceUpdateTaskReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "UpdateTaskResponse") == 0) {
+        reply->kind = CorndogsServiceUpdateTaskReply_as_update_task_response;
+        return csil_decode_UpdateTaskResponse(payload, len, &reply->value.as_update_task_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceUpdateTaskReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceCompleteTaskReply(const CorndogsServiceCompleteTaskReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceCompleteTaskReply_as_complete_task_response:
+        *variant = "CompleteTaskResponse";
+        return csil_encode_CompleteTaskResponse(&reply->value.as_complete_task_response, payload, len);
+    case CorndogsServiceCompleteTaskReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceCompleteTaskReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceCompleteTaskReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "CompleteTaskResponse") == 0) {
+        reply->kind = CorndogsServiceCompleteTaskReply_as_complete_task_response;
+        return csil_decode_CompleteTaskResponse(payload, len, &reply->value.as_complete_task_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceCompleteTaskReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceCancelTaskReply(const CorndogsServiceCancelTaskReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceCancelTaskReply_as_cancel_task_response:
+        *variant = "CancelTaskResponse";
+        return csil_encode_CancelTaskResponse(&reply->value.as_cancel_task_response, payload, len);
+    case CorndogsServiceCancelTaskReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceCancelTaskReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceCancelTaskReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "CancelTaskResponse") == 0) {
+        reply->kind = CorndogsServiceCancelTaskReply_as_cancel_task_response;
+        return csil_decode_CancelTaskResponse(payload, len, &reply->value.as_cancel_task_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceCancelTaskReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceCleanUpTimedOutReply(const CorndogsServiceCleanUpTimedOutReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceCleanUpTimedOutReply_as_clean_up_timed_out_response:
+        *variant = "CleanUpTimedOutResponse";
+        return csil_encode_CleanUpTimedOutResponse(&reply->value.as_clean_up_timed_out_response, payload, len);
+    case CorndogsServiceCleanUpTimedOutReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceCleanUpTimedOutReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceCleanUpTimedOutReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "CleanUpTimedOutResponse") == 0) {
+        reply->kind = CorndogsServiceCleanUpTimedOutReply_as_clean_up_timed_out_response;
+        return csil_decode_CleanUpTimedOutResponse(payload, len, &reply->value.as_clean_up_timed_out_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceCleanUpTimedOutReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceGetQueuesReply(const CorndogsServiceGetQueuesReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceGetQueuesReply_as_get_queues_response:
+        *variant = "GetQueuesResponse";
+        return csil_encode_GetQueuesResponse(&reply->value.as_get_queues_response, payload, len);
+    case CorndogsServiceGetQueuesReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceGetQueuesReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceGetQueuesReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "GetQueuesResponse") == 0) {
+        reply->kind = CorndogsServiceGetQueuesReply_as_get_queues_response;
+        return csil_decode_GetQueuesResponse(payload, len, &reply->value.as_get_queues_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceGetQueuesReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceGetQueueTaskCountsReply(const CorndogsServiceGetQueueTaskCountsReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceGetQueueTaskCountsReply_as_get_queue_task_counts_response:
+        *variant = "GetQueueTaskCountsResponse";
+        return csil_encode_GetQueueTaskCountsResponse(&reply->value.as_get_queue_task_counts_response, payload, len);
+    case CorndogsServiceGetQueueTaskCountsReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceGetQueueTaskCountsReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceGetQueueTaskCountsReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "GetQueueTaskCountsResponse") == 0) {
+        reply->kind = CorndogsServiceGetQueueTaskCountsReply_as_get_queue_task_counts_response;
+        return csil_decode_GetQueueTaskCountsResponse(payload, len, &reply->value.as_get_queue_task_counts_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceGetQueueTaskCountsReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceGetTaskStateCountsReply(const CorndogsServiceGetTaskStateCountsReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceGetTaskStateCountsReply_as_get_task_state_counts_response:
+        *variant = "GetTaskStateCountsResponse";
+        return csil_encode_GetTaskStateCountsResponse(&reply->value.as_get_task_state_counts_response, payload, len);
+    case CorndogsServiceGetTaskStateCountsReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceGetTaskStateCountsReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceGetTaskStateCountsReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "GetTaskStateCountsResponse") == 0) {
+        reply->kind = CorndogsServiceGetTaskStateCountsReply_as_get_task_state_counts_response;
+        return csil_decode_GetTaskStateCountsResponse(payload, len, &reply->value.as_get_task_state_counts_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceGetTaskStateCountsReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceGetQueueAndStateCountsReply(const CorndogsServiceGetQueueAndStateCountsReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceGetQueueAndStateCountsReply_as_get_queue_and_state_counts_response:
+        *variant = "GetQueueAndStateCountsResponse";
+        return csil_encode_GetQueueAndStateCountsResponse(&reply->value.as_get_queue_and_state_counts_response, payload, len);
+    case CorndogsServiceGetQueueAndStateCountsReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceGetQueueAndStateCountsReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceGetQueueAndStateCountsReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "GetQueueAndStateCountsResponse") == 0) {
+        reply->kind = CorndogsServiceGetQueueAndStateCountsReply_as_get_queue_and_state_counts_response;
+        return csil_decode_GetQueueAndStateCountsResponse(payload, len, &reply->value.as_get_queue_and_state_counts_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceGetQueueAndStateCountsReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceGetServerInfoReply(const CorndogsServiceGetServerInfoReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceGetServerInfoReply_as_get_server_info_response:
+        *variant = "GetServerInfoResponse";
+        return csil_encode_GetServerInfoResponse(&reply->value.as_get_server_info_response, payload, len);
+    case CorndogsServiceGetServerInfoReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceGetServerInfoReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceGetServerInfoReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "GetServerInfoResponse") == 0) {
+        reply->kind = CorndogsServiceGetServerInfoReply_as_get_server_info_response;
+        return csil_decode_GetServerInfoResponse(payload, len, &reply->value.as_get_server_info_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceGetServerInfoReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceSubmitKeyedTaskReply(const CorndogsServiceSubmitKeyedTaskReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceSubmitKeyedTaskReply_as_submit_keyed_task_response:
+        *variant = "SubmitKeyedTaskResponse";
+        return csil_encode_SubmitKeyedTaskResponse(&reply->value.as_submit_keyed_task_response, payload, len);
+    case CorndogsServiceSubmitKeyedTaskReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceSubmitKeyedTaskReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceSubmitKeyedTaskReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "SubmitKeyedTaskResponse") == 0) {
+        reply->kind = CorndogsServiceSubmitKeyedTaskReply_as_submit_keyed_task_response;
+        return csil_decode_SubmitKeyedTaskResponse(payload, len, &reply->value.as_submit_keyed_task_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceSubmitKeyedTaskReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceLookupSubmissionReply(const CorndogsServiceLookupSubmissionReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceLookupSubmissionReply_as_lookup_submission_response:
+        *variant = "LookupSubmissionResponse";
+        return csil_encode_LookupSubmissionResponse(&reply->value.as_lookup_submission_response, payload, len);
+    case CorndogsServiceLookupSubmissionReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceLookupSubmissionReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceLookupSubmissionReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "LookupSubmissionResponse") == 0) {
+        reply->kind = CorndogsServiceLookupSubmissionReply_as_lookup_submission_response;
+        return csil_decode_LookupSubmissionResponse(payload, len, &reply->value.as_lookup_submission_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceLookupSubmissionReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceClaimGuardedTaskReply(const CorndogsServiceClaimGuardedTaskReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceClaimGuardedTaskReply_as_claim_guarded_task_response:
+        *variant = "ClaimGuardedTaskResponse";
+        return csil_encode_ClaimGuardedTaskResponse(&reply->value.as_claim_guarded_task_response, payload, len);
+    case CorndogsServiceClaimGuardedTaskReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceClaimGuardedTaskReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceClaimGuardedTaskReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "ClaimGuardedTaskResponse") == 0) {
+        reply->kind = CorndogsServiceClaimGuardedTaskReply_as_claim_guarded_task_response;
+        return csil_decode_ClaimGuardedTaskResponse(payload, len, &reply->value.as_claim_guarded_task_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceClaimGuardedTaskReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceClaimGuardedTaskGroupReply(const CorndogsServiceClaimGuardedTaskGroupReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceClaimGuardedTaskGroupReply_as_claim_guarded_task_group_response:
+        *variant = "ClaimGuardedTaskGroupResponse";
+        return csil_encode_ClaimGuardedTaskGroupResponse(&reply->value.as_claim_guarded_task_group_response, payload, len);
+    case CorndogsServiceClaimGuardedTaskGroupReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceClaimGuardedTaskGroupReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceClaimGuardedTaskGroupReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "ClaimGuardedTaskGroupResponse") == 0) {
+        reply->kind = CorndogsServiceClaimGuardedTaskGroupReply_as_claim_guarded_task_group_response;
+        return csil_decode_ClaimGuardedTaskGroupResponse(payload, len, &reply->value.as_claim_guarded_task_group_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceClaimGuardedTaskGroupReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceUpdateGuardedTaskReply(const CorndogsServiceUpdateGuardedTaskReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceUpdateGuardedTaskReply_as_update_guarded_task_response:
+        *variant = "UpdateGuardedTaskResponse";
+        return csil_encode_UpdateGuardedTaskResponse(&reply->value.as_update_guarded_task_response, payload, len);
+    case CorndogsServiceUpdateGuardedTaskReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceUpdateGuardedTaskReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceUpdateGuardedTaskReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "UpdateGuardedTaskResponse") == 0) {
+        reply->kind = CorndogsServiceUpdateGuardedTaskReply_as_update_guarded_task_response;
+        return csil_decode_UpdateGuardedTaskResponse(payload, len, &reply->value.as_update_guarded_task_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceUpdateGuardedTaskReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceCompleteGuardedTaskReply(const CorndogsServiceCompleteGuardedTaskReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceCompleteGuardedTaskReply_as_complete_guarded_task_response:
+        *variant = "CompleteGuardedTaskResponse";
+        return csil_encode_CompleteGuardedTaskResponse(&reply->value.as_complete_guarded_task_response, payload, len);
+    case CorndogsServiceCompleteGuardedTaskReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceCompleteGuardedTaskReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceCompleteGuardedTaskReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "CompleteGuardedTaskResponse") == 0) {
+        reply->kind = CorndogsServiceCompleteGuardedTaskReply_as_complete_guarded_task_response;
+        return csil_decode_CompleteGuardedTaskResponse(payload, len, &reply->value.as_complete_guarded_task_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceCompleteGuardedTaskReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceCancelGuardedTaskReply(const CorndogsServiceCancelGuardedTaskReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceCancelGuardedTaskReply_as_cancel_guarded_task_response:
+        *variant = "CancelGuardedTaskResponse";
+        return csil_encode_CancelGuardedTaskResponse(&reply->value.as_cancel_guarded_task_response, payload, len);
+    case CorndogsServiceCancelGuardedTaskReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceCancelGuardedTaskReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceCancelGuardedTaskReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "CancelGuardedTaskResponse") == 0) {
+        reply->kind = CorndogsServiceCancelGuardedTaskReply_as_cancel_guarded_task_response;
+        return csil_decode_CancelGuardedTaskResponse(payload, len, &reply->value.as_cancel_guarded_task_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceCancelGuardedTaskReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceGetGuardedTaskReply(const CorndogsServiceGetGuardedTaskReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceGetGuardedTaskReply_as_get_guarded_task_response:
+        *variant = "GetGuardedTaskResponse";
+        return csil_encode_GetGuardedTaskResponse(&reply->value.as_get_guarded_task_response, payload, len);
+    case CorndogsServiceGetGuardedTaskReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceGetGuardedTaskReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceGetGuardedTaskReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "GetGuardedTaskResponse") == 0) {
+        reply->kind = CorndogsServiceGetGuardedTaskReply_as_get_guarded_task_response;
+        return csil_decode_GetGuardedTaskResponse(payload, len, &reply->value.as_get_guarded_task_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceGetGuardedTaskReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
+}
+
+static inline int csil_encode_CorndogsServiceLookupOperationReply(const CorndogsServiceLookupOperationReply *reply, const char **variant, uint8_t **payload, size_t *len) {
+    switch (reply->kind) {
+    case CorndogsServiceLookupOperationReply_as_lookup_operation_response:
+        *variant = "LookupOperationResponse";
+        return csil_encode_LookupOperationResponse(&reply->value.as_lookup_operation_response, payload, len);
+    case CorndogsServiceLookupOperationReply_as_service_error:
+        *variant = "ServiceError";
+        return csil_encode_ServiceError(&reply->value.as_service_error, payload, len);
+    }
+    return -1;
+}
+
+static inline int csil_decode_CorndogsServiceLookupOperationReply(const char *variant, const uint8_t *payload, size_t len, CorndogsServiceLookupOperationReply *reply, CsilCodecArena **owner) {
+    if (!variant) return -1;
+    if (strcmp(variant, "LookupOperationResponse") == 0) {
+        reply->kind = CorndogsServiceLookupOperationReply_as_lookup_operation_response;
+        return csil_decode_LookupOperationResponse(payload, len, &reply->value.as_lookup_operation_response, owner);
+    }
+    if (strcmp(variant, "ServiceError") == 0) {
+        reply->kind = CorndogsServiceLookupOperationReply_as_service_error;
+        return csil_decode_ServiceError(payload, len, &reply->value.as_service_error, owner);
+    }
+    return -1;
 }
 
 #endif /* CSILGEN_CODEC_GEN_H */

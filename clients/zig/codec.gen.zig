@@ -6,9 +6,15 @@ const types = @import("types.gen.zig");
 
 // ===== self-contained canonical CBOR codec (RFC 8949 subset) =====
 
-const CodecError = error{ Malformed, UnexpectedEof, TrailingBytes, WrongType, MissingField } || std.mem.Allocator.Error;
+/// `DuplicateKey`: csil cbor: a map holds one key twice. `NonCanonicalMapOrder`:
+/// csil cbor: map keys are not in canonical order (RFC 8949 section 4.2.1).
+/// `NonShortestMapKey`: csil cbor: map key is not in shortest form.
+const CodecError = error{ Malformed, UnexpectedEof, TrailingBytes, WrongType, MissingField, DuplicateKey, NonCanonicalMapOrder, NonShortestMapKey } || std.mem.Allocator.Error;
 
-pub const Pair = struct { key: Value, val: Value };
+/// `raw_key` holds the key's encoded bytes as decoded, so a dynamic map can check
+/// the canonical key order without encoding its keys again. It stays empty for a
+/// pair built in memory; the encoder never reads it.
+pub const Pair = struct { key: Value, val: Value, raw_key: []const u8 = &.{} };
 pub const Tag = struct { num: u64, content: *Value };
 
 pub const Value = union(enum) {
@@ -196,7 +202,7 @@ fn half_to_f64(h: u16) f64 {
 // frame reserve a large multiple of its size at every nesting level.
 const prealloc_limit: usize = 1024;
 
-fn decode_value(alloc: std.mem.Allocator, b: []const u8, depth: usize) CodecError!Decoded {
+fn csil_decode_value(alloc: std.mem.Allocator, b: []const u8, depth: usize) CodecError!Decoded {
     if (depth > 64) return error.Malformed;
     if (b.len == 0) return error.UnexpectedEof;
     const ib = b[0];
@@ -226,7 +232,7 @@ fn decode_value(alloc: std.mem.Allocator, b: []const u8, depth: usize) CodecErro
             var off = n;
             var i: usize = 0;
             while (i < count) : (i += 1) {
-                const d = try decode_value(alloc, b[off..], depth + 1);
+                const d = try csil_decode_value(alloc, b[off..], depth + 1);
                 try items.append(alloc, d.value);
                 off += d.consumed;
             }
@@ -238,17 +244,33 @@ fn decode_value(alloc: std.mem.Allocator, b: []const u8, depth: usize) CodecErro
             var pairs = try std.ArrayListUnmanaged(Pair).initCapacity(alloc, @min(count, prealloc_limit));
             var off = n;
             var i: usize = 0;
+            // Keys in canonical order cannot repeat, so only a map out of that order
+            // pays for the hash set that finds a repeated key.
+            var ascending = true;
             while (i < count) : (i += 1) {
-                const k = try decode_value(alloc, b[off..], depth + 1);
+                const k = try csil_decode_value(alloc, b[off..], depth + 1);
+                if (!csil_shortest_head(b[off..])) return error.NonShortestMapKey;
+                const raw_key = try alloc.dupe(u8, b[off .. off + k.consumed]);
                 off += k.consumed;
-                const v = try decode_value(alloc, b[off..], depth + 1);
+                const v = try csil_decode_value(alloc, b[off..], depth + 1);
                 off += v.consumed;
-                try pairs.append(alloc, .{ .key = k.value, .val = v.value });
+                if (pairs.items.len > 0 and std.mem.order(u8, pairs.items[pairs.items.len - 1].raw_key, raw_key) != .lt) {
+                    ascending = false;
+                }
+                try pairs.append(alloc, .{ .key = k.value, .val = v.value, .raw_key = raw_key });
+            }
+            if (!ascending) {
+                var seen: std.StringHashMapUnmanaged(void) = .{};
+                defer seen.deinit(alloc);
+                try seen.ensureTotalCapacity(alloc, @intCast(pairs.items.len));
+                for (pairs.items) |p| {
+                    if ((try seen.getOrPut(alloc, p.raw_key)).found_existing) return error.DuplicateKey;
+                }
             }
             return .{ .value = .{ .map = try pairs.toOwnedSlice(alloc) }, .consumed = off };
         },
         6 => {
-            const inner = try decode_value(alloc, b[n..], depth + 1);
+            const inner = try csil_decode_value(alloc, b[n..], depth + 1);
             const content = try alloc.create(Value);
             content.* = inner.value;
             return .{ .value = .{ .tag = .{ .num = arg, .content = content } }, .consumed = n + inner.consumed };
@@ -267,9 +289,52 @@ fn decode_value(alloc: std.mem.Allocator, b: []const u8, depth: usize) CodecErro
 }
 
 fn decode(alloc: std.mem.Allocator, b: []const u8) CodecError!Value {
-    const d = try decode_value(alloc, b, 0);
+    const d = try csil_decode_value(alloc, b, 0);
     if (d.consumed != b.len) return error.TrailingBytes;
     return d.value;
+}
+
+/// Whether the head at the start of `b` (already read once, so it is complete)
+/// uses the shortest argument for its value. A key with a longer head has a
+/// second byte form, so the key order check alone could accept it. A float head
+/// (major 7) has no shorter form to compare with.
+fn csil_shortest_head(b: []const u8) bool {
+    const major = b[0] >> 5;
+    if (major == 7) return true;
+    const arg = read_arg(b, b[0] & 0x1f) catch return false;
+    return switch (b[0] & 0x1f) {
+        24 => arg.arg >= 24,
+        25 => arg.arg > 0xff,
+        26 => arg.arg > 0xffff,
+        27 => arg.arg > 0xffff_ffff,
+        else => true,
+    };
+}
+
+/// A dynamic map must arrive with its encoded keys strictly ascending in bytewise
+/// order. Each key is compared with the one before it, so the check is O(n).
+fn csil_check_canonical(pairs: []const Pair) CodecError!void {
+    var i: usize = 1;
+    while (i < pairs.len) : (i += 1) {
+        if (std.mem.order(u8, pairs[i - 1].raw_key, pairs[i].raw_key) != .lt) return error.NonCanonicalMapOrder;
+    }
+}
+
+/// One encoded entry of a dynamic map inside a scratch buffer: the key is
+/// `buf[start..key_end]`, the value runs on to `end`.
+const CsilSpan = struct { start: usize, key_end: usize, end: usize };
+
+fn csil_span_less(buf: []const u8, a: CsilSpan, b: CsilSpan) bool {
+    return std.mem.order(u8, buf[a.start..a.key_end], buf[b.start..b.key_end]) == .lt;
+}
+
+/// Writes the entries of a dynamic map in canonical order: sorted by the bytes of
+/// each encoded key (RFC 8949 section 4.2.1). A hash map iterates in no fixed
+/// order, so the entries are encoded first and sorted by their key bytes.
+fn csil_w_sorted_map(out: *std.ArrayList(u8), buf: []const u8, spans: []CsilSpan) std.mem.Allocator.Error!void {
+    std.mem.sort(CsilSpan, spans, buf, csil_span_less);
+    try w_map_head(out, spans.len);
+    for (spans) |span| try out.appendSlice(buf[span.start..span.end]);
 }
 
 fn mget(m: Value, key: []const u8) ?Value {
@@ -280,7 +345,7 @@ fn mget(m: Value, key: []const u8) ?Value {
     return null;
 }
 
-fn req(m: Value, key: []const u8) CodecError!Value {
+fn csil_required_field(m: Value, key: []const u8) CodecError!Value {
     return mget(m, key) orelse error.MissingField;
 }
 
@@ -330,9 +395,217 @@ fn as_bytes(v: Value) CodecError![]const u8 {
     };
 }
 
+fn calendar_date(s: []const u8) CodecError![]const u8 {
+    if (s.len != 10 or s[4] != '-' or s[7] != '-') return error.WrongType;
+    for (s, 0..) |c, i| {
+        if (i != 4 and i != 7 and (c < '0' or c > '9')) return error.WrongType;
+    }
+    const year = std.fmt.parseInt(u16, s[0..4], 10) catch return error.WrongType;
+    const month = std.fmt.parseInt(u8, s[5..7], 10) catch return error.WrongType;
+    const day = std.fmt.parseInt(u8, s[8..10], 10) catch return error.WrongType;
+    const leap = year % 4 == 0 and (year % 100 != 0 or year % 400 == 0);
+    const days = [_]u8{ 31, if (leap) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    if (month < 1 or month > 12 or day < 1 or day > days[month - 1]) return error.WrongType;
+    return s;
+}
+
 fn as_tagged_text(v: Value, num: u64) CodecError![]const u8 {
     if (v != .tag or v.tag.num != num or v.tag.content.* != .text) return error.WrongType;
     return v.tag.content.text;
+}
+
+/// The longest canonical timestamp: `YYYY-MM-DDThh:mm:ss.fffffffffZ`.
+const csil_timestamp_max_len = 30;
+
+const CsilTimestampParts = struct { rfc3339: []const u8, epoch_seconds: i64 };
+
+fn csil_timestamp_digits(s: []const u8, at: usize, width: usize) CodecError!i64 {
+    if (at + width > s.len) return error.WrongType;
+    var v: i64 = 0;
+    for (s[at .. at + width]) |c| {
+        if (c < '0' or c > '9') return error.WrongType;
+        v = v * 10 + (c - '0');
+    }
+    return v;
+}
+
+fn csil_days_from_civil(year: i64, month: i64, day: i64) i64 {
+    const y = if (month <= 2) year - 1 else year;
+    const era = @divFloor(y, 400);
+    const yoe = y - era * 400;
+    const doy = @divFloor(153 * @mod(month + 9, 12) + 2, 5) + day - 1;
+    const doe = yoe * 365 + @divFloor(yoe, 4) - @divFloor(yoe, 100) + doy;
+    return era * 146097 + doe - 719468;
+}
+
+fn csil_timestamp_put(buf: []u8, at: usize, value: i64, width: usize) void {
+    var v: u64 = @intCast(value);
+    var k = width;
+    while (k > 0) {
+        k -= 1;
+        buf[at + k] = '0' + @as(u8, @intCast(v % 10));
+        v /= 10;
+    }
+}
+
+/// `0001-01-01T00:00:00Z` and `9999-12-31T23:59:59Z` as epoch seconds.
+const csil_epoch_first: i64 = -62135596800;
+const csil_epoch_last: i64 = 253402300799;
+
+const CsilInstant = struct { seconds: i64, nanos: i64 };
+
+/// Reads the strict RFC 3339 form of the wire contract into UTC epoch seconds and
+/// nanoseconds. The year must be 0001 to 9999 after conversion to UTC.
+fn csil_timestamp_parse(s: []const u8) CodecError!CsilInstant {
+    if (s.len < 20 or s[4] != '-' or s[7] != '-' or (s[10] != 'T' and s[10] != 't') or
+        s[13] != ':' or s[16] != ':') return error.WrongType;
+    const year = try csil_timestamp_digits(s, 0, 4);
+    const month = try csil_timestamp_digits(s, 5, 2);
+    const day = try csil_timestamp_digits(s, 8, 2);
+    const hour = try csil_timestamp_digits(s, 11, 2);
+    const minute = try csil_timestamp_digits(s, 14, 2);
+    const second = try csil_timestamp_digits(s, 17, 2);
+    const leap = @mod(year, 4) == 0 and (@mod(year, 100) != 0 or @mod(year, 400) == 0);
+    const days = [_]i64{ 31, if (leap) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    if (year < 1 or month < 1 or month > 12 or day < 1 or day > days[@intCast(month - 1)]) return error.WrongType;
+    if (hour > 23 or minute > 59 or second > 59) return error.WrongType;
+    var i: usize = 19;
+    var nanos: i64 = 0;
+    if (s[i] == '.') {
+        i += 1;
+        const start = i;
+        while (i < s.len and s[i] >= '0' and s[i] <= '9') : (i += 1) {}
+        var width = i - start;
+        if (width < 1 or width > 9) return error.WrongType;
+        nanos = try csil_timestamp_digits(s, start, width);
+        while (width < 9) : (width += 1) nanos *= 10;
+    }
+    if (i >= s.len) return error.WrongType;
+    var offset: i64 = 0;
+    if ((s[i] == '+' or s[i] == '-') and i + 6 == s.len and s[i + 3] == ':') {
+        const oh = try csil_timestamp_digits(s, i + 1, 2);
+        const om = try csil_timestamp_digits(s, i + 4, 2);
+        if (oh > 23 or om > 59) return error.WrongType;
+        offset = oh * 3600 + om * 60;
+        if (s[i] == '-') offset = -offset;
+    } else if ((s[i] != 'Z' and s[i] != 'z') or i + 1 != s.len) {
+        return error.WrongType;
+    }
+    const utc = csil_days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second - offset;
+    if (utc < csil_epoch_first or utc > csil_epoch_last) return error.WrongType;
+    return .{ .seconds = utc, .nanos = nanos };
+}
+
+/// Writes the canonical UTC text for an instant already known to lie in years
+/// 0001 to 9999, so that both wire forms produce the same text.
+fn csil_timestamp_write(utc: i64, nanos: i64, buf: *[csil_timestamp_max_len]u8) []const u8 {
+    const z = @divFloor(utc, 86400) + 719468;
+    const sod = @mod(utc, 86400);
+    const era = @divFloor(z, 146097);
+    const doe = z - era * 146097;
+    const yoe = @divFloor(doe - @divFloor(doe, 1460) + @divFloor(doe, 36524) - @divFloor(doe, 146096), 365);
+    const doy = doe - (365 * yoe + @divFloor(yoe, 4) - @divFloor(yoe, 100));
+    const mp = @divFloor(5 * doy + 2, 153);
+    const d = doy - @divFloor(153 * mp + 2, 5) + 1;
+    const m = if (mp < 10) mp + 3 else mp - 9;
+    const y = yoe + era * 400 + @as(i64, if (m <= 2) 1 else 0);
+    csil_timestamp_put(buf, 0, y, 4);
+    buf[4] = '-';
+    csil_timestamp_put(buf, 5, m, 2);
+    buf[7] = '-';
+    csil_timestamp_put(buf, 8, d, 2);
+    buf[10] = 'T';
+    csil_timestamp_put(buf, 11, @divFloor(sod, 3600), 2);
+    buf[13] = ':';
+    csil_timestamp_put(buf, 14, @mod(@divFloor(sod, 60), 60), 2);
+    buf[16] = ':';
+    csil_timestamp_put(buf, 17, @mod(sod, 60), 2);
+    var len: usize = 19;
+    if (nanos != 0) {
+        // The fewest of 3, 6, or 9 digits that hold the value exactly, so every
+        // peer writes the same bytes for the same instant.
+        const width: usize = if (@mod(nanos, 1_000_000) == 0) 3 else if (@mod(nanos, 1000) == 0) 6 else 9;
+        const scaled = if (width == 3) @divFloor(nanos, 1_000_000) else if (width == 6) @divFloor(nanos, 1000) else nanos;
+        buf[len] = '.';
+        csil_timestamp_put(buf, len + 1, scaled, width);
+        len += 1 + width;
+    }
+    buf[len] = 'Z';
+    return buf[0 .. len + 1];
+}
+
+/// Validates the strict RFC 3339 form of the wire contract and writes the canonical
+/// UTC spelling into `buf`, so equal instants compare equal as text.
+fn csil_timestamp_text(s: []const u8, buf: *[csil_timestamp_max_len]u8, epoch: *i64) CodecError![]const u8 {
+    const instant = try csil_timestamp_parse(s);
+    epoch.* = instant.seconds;
+    return csil_timestamp_write(instant.seconds, instant.nanos, buf);
+}
+
+/// Decoded text that is already canonical is borrowed as is; only a value that
+/// needs normalizing costs an allocation.
+fn csil_as_timestamp(alloc: std.mem.Allocator, v: Value) CodecError!CsilTimestampParts {
+    const raw = try as_tagged_text(v, 0);
+    var buf: [csil_timestamp_max_len]u8 = undefined;
+    var epoch: i64 = 0;
+    const canonical = try csil_timestamp_text(raw, &buf, &epoch);
+    const text = if (std.mem.eql(u8, canonical, raw)) raw else try alloc.dupe(u8, canonical);
+    return .{ .rfc3339 = text, .epoch_seconds = epoch };
+}
+
+/// A caller-built value is normalized too, so the wire never carries an offset,
+/// lowercase separators, or a non-minimal fraction.
+fn csil_w_timestamp(out: *std.ArrayList(u8), text: []const u8) CodecError!void {
+    var buf: [csil_timestamp_max_len]u8 = undefined;
+    var epoch: i64 = 0;
+    const canonical = try csil_timestamp_text(text, &buf, &epoch);
+    try w_tag(out, 0);
+    try w_text(out, canonical);
+}
+
+/// `cddl_time`: tag 1 around epoch seconds, kept as the same canonical text as a
+/// `timestamp` so both wire forms compare equal for one instant.
+fn csil_as_epoch(alloc: std.mem.Allocator, v: Value) CodecError!CsilTimestampParts {
+    if (v != .tag or v.tag.num != 1) return error.WrongType;
+    var seconds: i64 = 0;
+    var units: i64 = 0;
+    switch (v.tag.content.*) {
+        .uint => |n| {
+            if (n > @as(u64, @intCast(csil_epoch_last))) return error.WrongType;
+            seconds = @intCast(n);
+        },
+        .int => |n| seconds = n,
+        .float => |value| {
+            // The range test also refuses NaN and infinity, and it comes before
+            // the conversion to an integer, which panics out of range.
+            const low: f64 = @floatFromInt(csil_epoch_first - 1);
+            const high: f64 = @floatFromInt(csil_epoch_last + 1);
+            if (!(value >= low and value <= high)) return error.WrongType;
+            const whole = @floor(value);
+            seconds = @intFromFloat(whole);
+            // Two operations, not a fused multiply-add, which can round differently.
+            const scaled = (value - whole) * 1e9;
+            units = @intFromFloat(@floor(scaled + 0.5));
+            if (units == 1_000_000_000) {
+                seconds += 1;
+                units = 0;
+            }
+        },
+        else => return error.WrongType,
+    }
+    if (seconds < csil_epoch_first or seconds > csil_epoch_last) return error.WrongType;
+    var buf: [csil_timestamp_max_len]u8 = undefined;
+    const text = try alloc.dupe(u8, csil_timestamp_write(seconds, units, &buf));
+    return .{ .rfc3339 = text, .epoch_seconds = seconds };
+}
+
+fn csil_w_epoch(out: *std.ArrayList(u8), text: []const u8) CodecError!void {
+    const instant = try csil_timestamp_parse(text);
+    try w_tag(out, 1);
+    if (instant.nanos == 0) return w_int(out, instant.seconds);
+    const seconds: f64 = @floatFromInt(instant.seconds);
+    const fraction = @as(f64, @floatFromInt(instant.nanos)) / 1e9;
+    try w_f64(out, seconds + fraction);
 }
 
 const Decimal = struct { exp: i64, mant: i64 };
@@ -371,35 +644,35 @@ fn dec_Task(alloc: std.mem.Allocator, m: Value, out: *types.Task) CodecError!voi
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "uuid");
+        const csil_fv = try csil_required_field(m, "uuid");
         out.uuid = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "timeout");
+        const csil_fv = try csil_required_field(m, "timeout");
         out.timeout = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "priority");
+        const csil_fv = try csil_required_field(m, "priority");
         out.priority = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "submit_time");
+        const csil_fv = try csil_required_field(m, "submit_time");
         out.submit_time = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "update_time");
+        const csil_fv = try csil_required_field(m, "update_time");
         out.update_time = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "current_state");
+        const csil_fv = try csil_required_field(m, "current_state");
         out.current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "auto_target_state");
+        const csil_fv = try csil_required_field(m, "auto_target_state");
         out.auto_target_state = try as_text(csil_fv);
     }
 }
@@ -415,11 +688,11 @@ fn enc_TaskDelivery(out: *std.ArrayList(u8), v: *const types.TaskDelivery) Codec
 fn dec_TaskDelivery(alloc: std.mem.Allocator, m: Value, out: *types.TaskDelivery) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "task");
+        const csil_fv = try csil_required_field(m, "task");
         try dec_Task(alloc, csil_fv, &(out.task));
     }
     {
-        const csil_fv = try req(m, "payload");
+        const csil_fv = try csil_required_field(m, "payload");
         out.payload = try as_bytes(csil_fv);
     }
 }
@@ -444,27 +717,27 @@ fn dec_SubmitTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.SubmitT
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "payload");
+        const csil_fv = try csil_required_field(m, "payload");
         out.payload = try as_bytes(csil_fv);
     }
     {
-        const csil_fv = try req(m, "timeout");
+        const csil_fv = try csil_required_field(m, "timeout");
         out.timeout = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "priority");
+        const csil_fv = try csil_required_field(m, "priority");
         out.priority = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "current_state");
+        const csil_fv = try csil_required_field(m, "current_state");
         out.current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "auto_target_state");
+        const csil_fv = try csil_required_field(m, "auto_target_state");
         out.auto_target_state = try as_text(csil_fv);
     }
 }
@@ -484,7 +757,7 @@ fn dec_SubmitTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.Submit
     {
         if (mget(m, "task")) |csil_fv| {
             var csil_tmp: types.Task = undefined;
-            try dec_Task(alloc, csil_fv, &csil_tmp);
+            try dec_Task(alloc, csil_fv, &(csil_tmp));
             out.task = csil_tmp;
         } else {
             out.task = null;
@@ -504,11 +777,11 @@ fn dec_GetTaskStateByIDRequest(alloc: std.mem.Allocator, m: Value, out: *types.G
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "uuid");
+        const csil_fv = try csil_required_field(m, "uuid");
         out.uuid = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
 }
@@ -528,7 +801,7 @@ fn dec_GetTaskStateByIDResponse(alloc: std.mem.Allocator, m: Value, out: *types.
     {
         if (mget(m, "task")) |csil_fv| {
             var csil_tmp: types.Task = undefined;
-            try dec_Task(alloc, csil_fv, &csil_tmp);
+            try dec_Task(alloc, csil_fv, &(csil_tmp));
             out.task = csil_tmp;
         } else {
             out.task = null;
@@ -554,23 +827,23 @@ fn dec_GetNextTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.GetNex
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "current_state");
+        const csil_fv = try csil_required_field(m, "current_state");
         out.current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_timeout");
+        const csil_fv = try csil_required_field(m, "override_timeout");
         out.override_timeout = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_current_state");
+        const csil_fv = try csil_required_field(m, "override_current_state");
         out.override_current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_auto_target_state");
+        const csil_fv = try csil_required_field(m, "override_auto_target_state");
         out.override_auto_target_state = try as_text(csil_fv);
     }
 }
@@ -590,7 +863,7 @@ fn dec_GetNextTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetNe
     {
         if (mget(m, "delivery")) |csil_fv| {
             var csil_tmp: types.TaskDelivery = undefined;
-            try dec_TaskDelivery(alloc, csil_fv, &csil_tmp);
+            try dec_TaskDelivery(alloc, csil_fv, &(csil_tmp));
             out.delivery = csil_tmp;
         } else {
             out.delivery = null;
@@ -618,7 +891,7 @@ fn enc_GetNextTaskGroupRequest(out: *std.ArrayList(u8), v: *const types.GetNextT
 fn dec_GetNextTaskGroupRequest(alloc: std.mem.Allocator, m: Value, out: *types.GetNextTaskGroupRequest) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queues");
+        const csil_fv = try csil_required_field(m, "queues");
         if (csil_fv != .array) return error.WrongType;
         out.queues = try alloc.alloc([]const u8, csil_fv.array.len);
         for (csil_fv.array, 0..) |csil_it, csil_i| {
@@ -626,19 +899,19 @@ fn dec_GetNextTaskGroupRequest(alloc: std.mem.Allocator, m: Value, out: *types.G
         }
     }
     {
-        const csil_fv = try req(m, "current_state");
+        const csil_fv = try csil_required_field(m, "current_state");
         out.current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_timeout");
+        const csil_fv = try csil_required_field(m, "override_timeout");
         out.override_timeout = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_current_state");
+        const csil_fv = try csil_required_field(m, "override_current_state");
         out.override_current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_auto_target_state");
+        const csil_fv = try csil_required_field(m, "override_auto_target_state");
         out.override_auto_target_state = try as_text(csil_fv);
     }
 }
@@ -658,7 +931,7 @@ fn dec_GetNextTaskGroupResponse(alloc: std.mem.Allocator, m: Value, out: *types.
     {
         if (mget(m, "delivery")) |csil_fv| {
             var csil_tmp: types.TaskDelivery = undefined;
-            try dec_TaskDelivery(alloc, csil_fv, &csil_tmp);
+            try dec_TaskDelivery(alloc, csil_fv, &(csil_tmp));
             out.delivery = csil_tmp;
         } else {
             out.delivery = null;
@@ -680,15 +953,15 @@ fn dec_CompleteTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.Compl
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "uuid");
+        const csil_fv = try csil_required_field(m, "uuid");
         out.uuid = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "current_state");
+        const csil_fv = try csil_required_field(m, "current_state");
         out.current_state = try as_text(csil_fv);
     }
 }
@@ -708,7 +981,7 @@ fn dec_CompleteTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.Comp
     {
         if (mget(m, "task")) |csil_fv| {
             var csil_tmp: types.Task = undefined;
-            try dec_Task(alloc, csil_fv, &csil_tmp);
+            try dec_Task(alloc, csil_fv, &(csil_tmp));
             out.task = csil_tmp;
         } else {
             out.task = null;
@@ -747,11 +1020,11 @@ fn dec_UpdateTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.UpdateT
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "uuid");
+        const csil_fv = try csil_required_field(m, "uuid");
         out.uuid = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
@@ -762,7 +1035,7 @@ fn dec_UpdateTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.UpdateT
         }
     }
     {
-        const csil_fv = try req(m, "timeout");
+        const csil_fv = try csil_required_field(m, "timeout");
         out.timeout = try as_i64(csil_fv);
     }
     {
@@ -773,15 +1046,15 @@ fn dec_UpdateTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.UpdateT
         }
     }
     {
-        const csil_fv = try req(m, "new_state");
+        const csil_fv = try csil_required_field(m, "new_state");
         out.new_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "current_state");
+        const csil_fv = try csil_required_field(m, "current_state");
         out.current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "auto_target_state");
+        const csil_fv = try csil_required_field(m, "auto_target_state");
         out.auto_target_state = try as_text(csil_fv);
     }
 }
@@ -801,7 +1074,7 @@ fn dec_UpdateTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.Update
     {
         if (mget(m, "task")) |csil_fv| {
             var csil_tmp: types.Task = undefined;
-            try dec_Task(alloc, csil_fv, &csil_tmp);
+            try dec_Task(alloc, csil_fv, &(csil_tmp));
             out.task = csil_tmp;
         } else {
             out.task = null;
@@ -823,15 +1096,15 @@ fn dec_CancelTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.CancelT
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "uuid");
+        const csil_fv = try csil_required_field(m, "uuid");
         out.uuid = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "current_state");
+        const csil_fv = try csil_required_field(m, "current_state");
         out.current_state = try as_text(csil_fv);
     }
 }
@@ -851,7 +1124,7 @@ fn dec_CancelTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.Cancel
     {
         if (mget(m, "task")) |csil_fv| {
             var csil_tmp: types.Task = undefined;
-            try dec_Task(alloc, csil_fv, &csil_tmp);
+            try dec_Task(alloc, csil_fv, &(csil_tmp));
             out.task = csil_tmp;
         } else {
             out.task = null;
@@ -871,11 +1144,11 @@ fn dec_CleanUpTimedOutRequest(alloc: std.mem.Allocator, m: Value, out: *types.Cl
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "at_time");
+        const csil_fv = try csil_required_field(m, "at_time");
         out.at_time = try as_i64(csil_fv);
     }
 }
@@ -890,7 +1163,7 @@ fn dec_CleanUpTimedOutResponse(alloc: std.mem.Allocator, m: Value, out: *types.C
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "timed_out");
+        const csil_fv = try csil_required_field(m, "timed_out");
         out.timed_out = try as_i64(csil_fv);
     }
 }
@@ -920,7 +1193,7 @@ fn enc_GetQueuesResponse(out: *std.ArrayList(u8), v: *const types.GetQueuesRespo
 fn dec_GetQueuesResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetQueuesResponse) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queues");
+        const csil_fv = try csil_required_field(m, "queues");
         if (csil_fv != .array) return error.WrongType;
         out.queues = try alloc.alloc([]const u8, csil_fv.array.len);
         for (csil_fv.array, 0..) |csil_it, csil_i| {
@@ -928,7 +1201,7 @@ fn dec_GetQueuesResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetQueu
         }
     }
     {
-        const csil_fv = try req(m, "total_task_count");
+        const csil_fv = try csil_required_field(m, "total_task_count");
         out.total_task_count = try as_i64(csil_fv);
     }
 }
@@ -946,15 +1219,8 @@ fn dec_GetQueueTaskCountsRequest(alloc: std.mem.Allocator, m: Value, out: *types
 
 fn enc_GetQueueTaskCountsResponse(out: *std.ArrayList(u8), v: *const types.GetQueueTaskCountsResponse) CodecError!void {
     try w_map_head(out, 2);
-    {
-        try w_text(out, "queue_counts");
-        try w_map_head(out, v.queue_counts.count());
-        var csil_mi = v.queue_counts.iterator();
-        while (csil_mi.next()) |csil_e| {
-            try w_text(out, csil_e.key_ptr.*);
-            try w_int(out, csil_e.value_ptr.*);
-        }
-    }
+    try w_text(out, "queue_counts");
+    try csil_enc_map_835cb08d109f0461(out, &(v.queue_counts));
     try w_text(out, "total_task_count");
     try w_int(out, v.total_task_count);
 }
@@ -962,18 +1228,11 @@ fn enc_GetQueueTaskCountsResponse(out: *std.ArrayList(u8), v: *const types.GetQu
 fn dec_GetQueueTaskCountsResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetQueueTaskCountsResponse) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queue_counts");
-        if (csil_fv != .map) return error.WrongType;
-        out.queue_counts = .{};
-        for (csil_fv.map) |csil_kv| {
-            const csil_k = try as_text(csil_kv.key);
-            var csil_val: i64 = undefined;
-            csil_val = try as_i64(csil_kv.val);
-            try out.queue_counts.put(alloc, csil_k, csil_val);
-        }
+        const csil_fv = try csil_required_field(m, "queue_counts");
+        try csil_dec_map_835cb08d109f0461(alloc, csil_fv, &(out.queue_counts));
     }
     {
-        const csil_fv = try req(m, "total_task_count");
+        const csil_fv = try csil_required_field(m, "total_task_count");
         out.total_task_count = try as_i64(csil_fv);
     }
 }
@@ -988,7 +1247,7 @@ fn dec_GetTaskStateCountsRequest(alloc: std.mem.Allocator, m: Value, out: *types
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
 }
@@ -999,37 +1258,23 @@ fn enc_GetTaskStateCountsResponse(out: *std.ArrayList(u8), v: *const types.GetTa
     try w_int(out, v.count);
     try w_text(out, "queue");
     try w_text(out, v.queue);
-    {
-        try w_text(out, "state_counts");
-        try w_map_head(out, v.state_counts.count());
-        var csil_mi = v.state_counts.iterator();
-        while (csil_mi.next()) |csil_e| {
-            try w_text(out, csil_e.key_ptr.*);
-            try w_int(out, csil_e.value_ptr.*);
-        }
-    }
+    try w_text(out, "state_counts");
+    try csil_enc_map_835cb08d109f0461(out, &(v.state_counts));
 }
 
 fn dec_GetTaskStateCountsResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetTaskStateCountsResponse) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "count");
+        const csil_fv = try csil_required_field(m, "count");
         out.count = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "state_counts");
-        if (csil_fv != .map) return error.WrongType;
-        out.state_counts = .{};
-        for (csil_fv.map) |csil_kv| {
-            const csil_k = try as_text(csil_kv.key);
-            var csil_val: i64 = undefined;
-            csil_val = try as_i64(csil_kv.val);
-            try out.state_counts.put(alloc, csil_k, csil_val);
-        }
+        const csil_fv = try csil_required_field(m, "state_counts");
+        try csil_dec_map_835cb08d109f0461(alloc, csil_fv, &(out.state_counts));
     }
 }
 
@@ -1039,37 +1284,23 @@ fn enc_QueueAndStateCounts(out: *std.ArrayList(u8), v: *const types.QueueAndStat
     try w_int(out, v.count);
     try w_text(out, "queue");
     try w_text(out, v.queue);
-    {
-        try w_text(out, "state_counts");
-        try w_map_head(out, v.state_counts.count());
-        var csil_mi = v.state_counts.iterator();
-        while (csil_mi.next()) |csil_e| {
-            try w_text(out, csil_e.key_ptr.*);
-            try w_int(out, csil_e.value_ptr.*);
-        }
-    }
+    try w_text(out, "state_counts");
+    try csil_enc_map_835cb08d109f0461(out, &(v.state_counts));
 }
 
 fn dec_QueueAndStateCounts(alloc: std.mem.Allocator, m: Value, out: *types.QueueAndStateCounts) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "count");
+        const csil_fv = try csil_required_field(m, "count");
         out.count = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "state_counts");
-        if (csil_fv != .map) return error.WrongType;
-        out.state_counts = .{};
-        for (csil_fv.map) |csil_kv| {
-            const csil_k = try as_text(csil_kv.key);
-            var csil_val: i64 = undefined;
-            csil_val = try as_i64(csil_kv.val);
-            try out.state_counts.put(alloc, csil_k, csil_val);
-        }
+        const csil_fv = try csil_required_field(m, "state_counts");
+        try csil_dec_map_835cb08d109f0461(alloc, csil_fv, &(out.state_counts));
     }
 }
 
@@ -1086,29 +1317,15 @@ fn dec_GetQueueAndStateCountsRequest(alloc: std.mem.Allocator, m: Value, out: *t
 
 fn enc_GetQueueAndStateCountsResponse(out: *std.ArrayList(u8), v: *const types.GetQueueAndStateCountsResponse) CodecError!void {
     try w_map_head(out, 1);
-    {
-        try w_text(out, "queue_and_state_counts");
-        try w_map_head(out, v.queue_and_state_counts.count());
-        var csil_mi = v.queue_and_state_counts.iterator();
-        while (csil_mi.next()) |csil_e| {
-            try w_text(out, csil_e.key_ptr.*);
-            try enc_QueueAndStateCounts(out, &(csil_e.value_ptr.*));
-        }
-    }
+    try w_text(out, "queue_and_state_counts");
+    try csil_enc_map_bed87b5bfb2a6663(out, &(v.queue_and_state_counts));
 }
 
 fn dec_GetQueueAndStateCountsResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetQueueAndStateCountsResponse) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queue_and_state_counts");
-        if (csil_fv != .map) return error.WrongType;
-        out.queue_and_state_counts = .{};
-        for (csil_fv.map) |csil_kv| {
-            const csil_k = try as_text(csil_kv.key);
-            var csil_val: types.QueueAndStateCounts = undefined;
-            try dec_QueueAndStateCounts(alloc, csil_kv.val, &csil_val);
-            try out.queue_and_state_counts.put(alloc, csil_k, csil_val);
-        }
+        const csil_fv = try csil_required_field(m, "queue_and_state_counts");
+        try csil_dec_map_bed87b5bfb2a6663(alloc, csil_fv, &(out.queue_and_state_counts));
     }
 }
 
@@ -1143,7 +1360,7 @@ fn enc_GetServerInfoResponse(out: *std.ArrayList(u8), v: *const types.GetServerI
 fn dec_GetServerInfoResponse(alloc: std.mem.Allocator, m: Value, out: *types.GetServerInfoResponse) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "features");
+        const csil_fv = try csil_required_field(m, "features");
         if (csil_fv != .array) return error.WrongType;
         out.features = try alloc.alloc([]const u8, csil_fv.array.len);
         for (csil_fv.array, 0..) |csil_it, csil_i| {
@@ -1151,19 +1368,19 @@ fn dec_GetServerInfoResponse(alloc: std.mem.Allocator, m: Value, out: *types.Get
         }
     }
     {
-        const csil_fv = try req(m, "server_version");
+        const csil_fv = try csil_required_field(m, "server_version");
         out.server_version = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "task_guard_policy");
+        const csil_fv = try csil_required_field(m, "task_guard_policy");
         out.task_guard_policy = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "submission_key_policy");
+        const csil_fv = try csil_required_field(m, "submission_key_policy");
         out.submission_key_policy = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "receipt_retention_seconds");
+        const csil_fv = try csil_required_field(m, "receipt_retention_seconds");
         out.receipt_retention_seconds = try as_i64(csil_fv);
     }
 }
@@ -1183,19 +1400,19 @@ fn enc_GuardedTask(out: *std.ArrayList(u8), v: *const types.GuardedTask) CodecEr
 fn dec_GuardedTask(alloc: std.mem.Allocator, m: Value, out: *types.GuardedTask) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "task");
+        const csil_fv = try csil_required_field(m, "task");
         try dec_Task(alloc, csil_fv, &(out.task));
     }
     {
-        const csil_fv = try req(m, "guarded");
+        const csil_fv = try csil_required_field(m, "guarded");
         out.guarded = try as_bool(csil_fv);
     }
     {
-        const csil_fv = try req(m, "revision");
+        const csil_fv = try csil_required_field(m, "revision");
         out.revision = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "terminal");
+        const csil_fv = try csil_required_field(m, "terminal");
         out.terminal = try as_bool(csil_fv);
     }
 }
@@ -1220,27 +1437,27 @@ fn dec_SubmissionReceipt(alloc: std.mem.Allocator, m: Value, out: *types.Submiss
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "guarded");
+        const csil_fv = try csil_required_field(m, "guarded");
         out.guarded = try as_bool(csil_fv);
     }
     {
-        const csil_fv = try req(m, "task_uuid");
+        const csil_fv = try csil_required_field(m, "task_uuid");
         out.task_uuid = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "expires_at");
+        const csil_fv = try csil_required_field(m, "expires_at");
         out.expires_at = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "accepted_at");
+        const csil_fv = try csil_required_field(m, "accepted_at");
         out.accepted_at = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "submission_key");
+        const csil_fv = try csil_required_field(m, "submission_key");
         out.submission_key = try as_text(csil_fv);
     }
 }
@@ -1269,35 +1486,35 @@ fn dec_SubmitKeyedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.Su
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "guarded");
+        const csil_fv = try csil_required_field(m, "guarded");
         out.guarded = try as_bool(csil_fv);
     }
     {
-        const csil_fv = try req(m, "payload");
+        const csil_fv = try csil_required_field(m, "payload");
         out.payload = try as_bytes(csil_fv);
     }
     {
-        const csil_fv = try req(m, "timeout");
+        const csil_fv = try csil_required_field(m, "timeout");
         out.timeout = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "priority");
+        const csil_fv = try csil_required_field(m, "priority");
         out.priority = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "current_state");
+        const csil_fv = try csil_required_field(m, "current_state");
         out.current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "submission_key");
+        const csil_fv = try csil_required_field(m, "submission_key");
         out.submission_key = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "auto_target_state");
+        const csil_fv = try csil_required_field(m, "auto_target_state");
         out.auto_target_state = try as_text(csil_fv);
     }
 }
@@ -1321,18 +1538,18 @@ fn dec_SubmitKeyedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.S
     {
         if (mget(m, "task")) |csil_fv| {
             var csil_tmp: types.GuardedTask = undefined;
-            try dec_GuardedTask(alloc, csil_fv, &csil_tmp);
+            try dec_GuardedTask(alloc, csil_fv, &(csil_tmp));
             out.task = csil_tmp;
         } else {
             out.task = null;
         }
     }
     {
-        const csil_fv = try req(m, "receipt");
+        const csil_fv = try csil_required_field(m, "receipt");
         try dec_SubmissionReceipt(alloc, csil_fv, &(out.receipt));
     }
     {
-        const csil_fv = try req(m, "replayed");
+        const csil_fv = try csil_required_field(m, "replayed");
         out.replayed = try as_bool(csil_fv);
     }
 }
@@ -1349,11 +1566,11 @@ fn dec_LookupSubmissionRequest(alloc: std.mem.Allocator, m: Value, out: *types.L
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "submission_key");
+        const csil_fv = try csil_required_field(m, "submission_key");
         out.submission_key = try as_text(csil_fv);
     }
 }
@@ -1378,7 +1595,7 @@ fn dec_LookupSubmissionResponse(alloc: std.mem.Allocator, m: Value, out: *types.
     {
         if (mget(m, "task")) |csil_fv| {
             var csil_tmp: types.GuardedTask = undefined;
-            try dec_GuardedTask(alloc, csil_fv, &csil_tmp);
+            try dec_GuardedTask(alloc, csil_fv, &(csil_tmp));
             out.task = csil_tmp;
         } else {
             out.task = null;
@@ -1387,7 +1604,7 @@ fn dec_LookupSubmissionResponse(alloc: std.mem.Allocator, m: Value, out: *types.
     {
         if (mget(m, "receipt")) |csil_fv| {
             var csil_tmp: types.SubmissionReceipt = undefined;
-            try dec_SubmissionReceipt(alloc, csil_fv, &csil_tmp);
+            try dec_SubmissionReceipt(alloc, csil_fv, &(csil_tmp));
             out.receipt = csil_tmp;
         } else {
             out.receipt = null;
@@ -1415,27 +1632,27 @@ fn dec_ClaimGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.C
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "operation_id");
+        const csil_fv = try csil_required_field(m, "operation_id");
         out.operation_id = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "current_state");
+        const csil_fv = try csil_required_field(m, "current_state");
         out.current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_timeout");
+        const csil_fv = try csil_required_field(m, "override_timeout");
         out.override_timeout = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_current_state");
+        const csil_fv = try csil_required_field(m, "override_current_state");
         out.override_current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_auto_target_state");
+        const csil_fv = try csil_required_field(m, "override_auto_target_state");
         out.override_auto_target_state = try as_text(csil_fv);
     }
 }
@@ -1451,11 +1668,11 @@ fn enc_GuardedDelivery(out: *std.ArrayList(u8), v: *const types.GuardedDelivery)
 fn dec_GuardedDelivery(alloc: std.mem.Allocator, m: Value, out: *types.GuardedDelivery) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "task");
+        const csil_fv = try csil_required_field(m, "task");
         try dec_GuardedTask(alloc, csil_fv, &(out.task));
     }
     {
-        const csil_fv = try req(m, "payload");
+        const csil_fv = try csil_required_field(m, "payload");
         out.payload = try as_bytes(csil_fv);
     }
 }
@@ -1477,14 +1694,14 @@ fn dec_ClaimGuardedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.
     {
         if (mget(m, "delivery")) |csil_fv| {
             var csil_tmp: types.GuardedDelivery = undefined;
-            try dec_GuardedDelivery(alloc, csil_fv, &csil_tmp);
+            try dec_GuardedDelivery(alloc, csil_fv, &(csil_tmp));
             out.delivery = csil_tmp;
         } else {
             out.delivery = null;
         }
     }
     {
-        const csil_fv = try req(m, "replayed");
+        const csil_fv = try csil_required_field(m, "replayed");
         out.replayed = try as_bool(csil_fv);
     }
 }
@@ -1511,7 +1728,7 @@ fn enc_ClaimGuardedTaskGroupRequest(out: *std.ArrayList(u8), v: *const types.Cla
 fn dec_ClaimGuardedTaskGroupRequest(alloc: std.mem.Allocator, m: Value, out: *types.ClaimGuardedTaskGroupRequest) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "queues");
+        const csil_fv = try csil_required_field(m, "queues");
         if (csil_fv != .array) return error.WrongType;
         out.queues = try alloc.alloc([]const u8, csil_fv.array.len);
         for (csil_fv.array, 0..) |csil_it, csil_i| {
@@ -1519,23 +1736,23 @@ fn dec_ClaimGuardedTaskGroupRequest(alloc: std.mem.Allocator, m: Value, out: *ty
         }
     }
     {
-        const csil_fv = try req(m, "operation_id");
+        const csil_fv = try csil_required_field(m, "operation_id");
         out.operation_id = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "current_state");
+        const csil_fv = try csil_required_field(m, "current_state");
         out.current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_timeout");
+        const csil_fv = try csil_required_field(m, "override_timeout");
         out.override_timeout = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_current_state");
+        const csil_fv = try csil_required_field(m, "override_current_state");
         out.override_current_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "override_auto_target_state");
+        const csil_fv = try csil_required_field(m, "override_auto_target_state");
         out.override_auto_target_state = try as_text(csil_fv);
     }
 }
@@ -1557,14 +1774,14 @@ fn dec_ClaimGuardedTaskGroupResponse(alloc: std.mem.Allocator, m: Value, out: *t
     {
         if (mget(m, "delivery")) |csil_fv| {
             var csil_tmp: types.GuardedDelivery = undefined;
-            try dec_GuardedDelivery(alloc, csil_fv, &csil_tmp);
+            try dec_GuardedDelivery(alloc, csil_fv, &(csil_tmp));
             out.delivery = csil_tmp;
         } else {
             out.delivery = null;
         }
     }
     {
-        const csil_fv = try req(m, "replayed");
+        const csil_fv = try csil_required_field(m, "replayed");
         out.replayed = try as_bool(csil_fv);
     }
 }
@@ -1607,11 +1824,11 @@ fn dec_UpdateGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "uuid");
+        const csil_fv = try csil_required_field(m, "uuid");
         out.uuid = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
@@ -1622,7 +1839,7 @@ fn dec_UpdateGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.
         }
     }
     {
-        const csil_fv = try req(m, "timeout");
+        const csil_fv = try csil_required_field(m, "timeout");
         out.timeout = try as_i64(csil_fv);
     }
     {
@@ -1633,11 +1850,11 @@ fn dec_UpdateGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.
         }
     }
     {
-        const csil_fv = try req(m, "new_state");
+        const csil_fv = try csil_required_field(m, "new_state");
         out.new_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "operation_id");
+        const csil_fv = try csil_required_field(m, "operation_id");
         out.operation_id = try as_text(csil_fv);
     }
     {
@@ -1648,11 +1865,11 @@ fn dec_UpdateGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.
         }
     }
     {
-        const csil_fv = try req(m, "auto_target_state");
+        const csil_fv = try csil_required_field(m, "auto_target_state");
         out.auto_target_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "expected_revision");
+        const csil_fv = try csil_required_field(m, "expected_revision");
         out.expected_revision = try as_i64(csil_fv);
     }
 }
@@ -1668,11 +1885,11 @@ fn enc_UpdateGuardedTaskResponse(out: *std.ArrayList(u8), v: *const types.Update
 fn dec_UpdateGuardedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.UpdateGuardedTaskResponse) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "task");
+        const csil_fv = try csil_required_field(m, "task");
         try dec_GuardedTask(alloc, csil_fv, &(out.task));
     }
     {
-        const csil_fv = try req(m, "replayed");
+        const csil_fv = try csil_required_field(m, "replayed");
         out.replayed = try as_bool(csil_fv);
     }
 }
@@ -1699,15 +1916,15 @@ fn dec_CompleteGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *type
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "uuid");
+        const csil_fv = try csil_required_field(m, "uuid");
         out.uuid = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "operation_id");
+        const csil_fv = try csil_required_field(m, "operation_id");
         out.operation_id = try as_text(csil_fv);
     }
     {
@@ -1718,7 +1935,7 @@ fn dec_CompleteGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *type
         }
     }
     {
-        const csil_fv = try req(m, "expected_revision");
+        const csil_fv = try csil_required_field(m, "expected_revision");
         out.expected_revision = try as_i64(csil_fv);
     }
 }
@@ -1734,11 +1951,11 @@ fn enc_CompleteGuardedTaskResponse(out: *std.ArrayList(u8), v: *const types.Comp
 fn dec_CompleteGuardedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.CompleteGuardedTaskResponse) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "task");
+        const csil_fv = try csil_required_field(m, "task");
         try dec_GuardedTask(alloc, csil_fv, &(out.task));
     }
     {
-        const csil_fv = try req(m, "replayed");
+        const csil_fv = try csil_required_field(m, "replayed");
         out.replayed = try as_bool(csil_fv);
     }
 }
@@ -1765,15 +1982,15 @@ fn dec_CancelGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "uuid");
+        const csil_fv = try csil_required_field(m, "uuid");
         out.uuid = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "operation_id");
+        const csil_fv = try csil_required_field(m, "operation_id");
         out.operation_id = try as_text(csil_fv);
     }
     {
@@ -1784,7 +2001,7 @@ fn dec_CancelGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.
         }
     }
     {
-        const csil_fv = try req(m, "expected_revision");
+        const csil_fv = try csil_required_field(m, "expected_revision");
         out.expected_revision = try as_i64(csil_fv);
     }
 }
@@ -1800,11 +2017,11 @@ fn enc_CancelGuardedTaskResponse(out: *std.ArrayList(u8), v: *const types.Cancel
 fn dec_CancelGuardedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.CancelGuardedTaskResponse) CodecError!void {
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "task");
+        const csil_fv = try csil_required_field(m, "task");
         try dec_GuardedTask(alloc, csil_fv, &(out.task));
     }
     {
-        const csil_fv = try req(m, "replayed");
+        const csil_fv = try csil_required_field(m, "replayed");
         out.replayed = try as_bool(csil_fv);
     }
 }
@@ -1821,11 +2038,11 @@ fn dec_GetGuardedTaskRequest(alloc: std.mem.Allocator, m: Value, out: *types.Get
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "uuid");
+        const csil_fv = try csil_required_field(m, "uuid");
         out.uuid = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
 }
@@ -1845,7 +2062,7 @@ fn dec_GetGuardedTaskResponse(alloc: std.mem.Allocator, m: Value, out: *types.Ge
     {
         if (mget(m, "task")) |csil_fv| {
             var csil_tmp: types.GuardedTask = undefined;
-            try dec_GuardedTask(alloc, csil_fv, &csil_tmp);
+            try dec_GuardedTask(alloc, csil_fv, &(csil_tmp));
             out.task = csil_tmp;
         } else {
             out.task = null;
@@ -1877,35 +2094,35 @@ fn dec_OperationReceipt(alloc: std.mem.Allocator, m: Value, out: *types.Operatio
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "at");
+        const csil_fv = try csil_required_field(m, "at");
         out.at = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "op");
+        const csil_fv = try csil_required_field(m, "op");
         out.op = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "queue");
+        const csil_fv = try csil_required_field(m, "queue");
         out.queue = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "task_uuid");
+        const csil_fv = try csil_required_field(m, "task_uuid");
         out.task_uuid = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "expires_at");
+        const csil_fv = try csil_required_field(m, "expires_at");
         out.expires_at = try as_i64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "operation_id");
+        const csil_fv = try csil_required_field(m, "operation_id");
         out.operation_id = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "result_state");
+        const csil_fv = try csil_required_field(m, "result_state");
         out.result_state = try as_text(csil_fv);
     }
     {
-        const csil_fv = try req(m, "result_revision");
+        const csil_fv = try csil_required_field(m, "result_revision");
         out.result_revision = try as_i64(csil_fv);
     }
 }
@@ -1920,7 +2137,7 @@ fn dec_LookupOperationRequest(alloc: std.mem.Allocator, m: Value, out: *types.Lo
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "operation_id");
+        const csil_fv = try csil_required_field(m, "operation_id");
         out.operation_id = try as_text(csil_fv);
     }
 }
@@ -1940,7 +2157,7 @@ fn dec_LookupOperationResponse(alloc: std.mem.Allocator, m: Value, out: *types.L
     {
         if (mget(m, "receipt")) |csil_fv| {
             var csil_tmp: types.OperationReceipt = undefined;
-            try dec_OperationReceipt(alloc, csil_fv, &csil_tmp);
+            try dec_OperationReceipt(alloc, csil_fv, &(csil_tmp));
             out.receipt = csil_tmp;
         } else {
             out.receipt = null;
@@ -1960,12 +2177,74 @@ fn dec_ServiceError(alloc: std.mem.Allocator, m: Value, out: *types.ServiceError
     _ = alloc;
     if (m != .map) return error.WrongType;
     {
-        const csil_fv = try req(m, "code");
+        const csil_fv = try csil_required_field(m, "code");
         out.code = try as_u64(csil_fv);
     }
     {
-        const csil_fv = try req(m, "message");
+        const csil_fv = try csil_required_field(m, "message");
         out.message = try as_text(csil_fv);
+    }
+}
+
+fn csil_enc_map_835cb08d109f0461(csil_dst: *std.ArrayList(u8), csil_m: *const std.StringHashMapUnmanaged(i64)) CodecError!void {
+    var csil_buf = std.ArrayList(u8).init(csil_dst.allocator);
+    defer csil_buf.deinit();
+    const out = &csil_buf;
+    var csil_spans = try std.ArrayList(CsilSpan).initCapacity(csil_dst.allocator, csil_m.count());
+    defer csil_spans.deinit();
+    var csil_mi = csil_m.iterator();
+    while (csil_mi.next()) |csil_e| {
+        const csil_start = out.items.len;
+        try w_text(out, csil_e.key_ptr.*);
+        const csil_key_end = out.items.len;
+        try w_int(out, csil_e.value_ptr.*);
+        csil_spans.appendAssumeCapacity(.{ .start = csil_start, .key_end = csil_key_end, .end = out.items.len });
+    }
+    try csil_w_sorted_map(csil_dst, out.items, csil_spans.items);
+}
+
+fn csil_dec_map_835cb08d109f0461(alloc: std.mem.Allocator, csil_src: Value, csil_out: *std.StringHashMapUnmanaged(i64)) CodecError!void {
+    if (csil_src != .map) return error.WrongType;
+    try csil_check_canonical(csil_src.map);
+    csil_out.* = .{};
+    try csil_out.ensureTotalCapacity(alloc, @intCast(@min(csil_src.map.len, prealloc_limit)));
+    for (csil_src.map) |csil_kv| {
+        var csil_k: []const u8 = undefined;
+        csil_k = try as_text(csil_kv.key);
+        var csil_val: i64 = undefined;
+        csil_val = try as_i64(csil_kv.val);
+        try csil_out.put(alloc, csil_k, csil_val);
+    }
+}
+
+fn csil_enc_map_bed87b5bfb2a6663(csil_dst: *std.ArrayList(u8), csil_m: *const std.StringHashMapUnmanaged(types.QueueAndStateCounts)) CodecError!void {
+    var csil_buf = std.ArrayList(u8).init(csil_dst.allocator);
+    defer csil_buf.deinit();
+    const out = &csil_buf;
+    var csil_spans = try std.ArrayList(CsilSpan).initCapacity(csil_dst.allocator, csil_m.count());
+    defer csil_spans.deinit();
+    var csil_mi = csil_m.iterator();
+    while (csil_mi.next()) |csil_e| {
+        const csil_start = out.items.len;
+        try w_text(out, csil_e.key_ptr.*);
+        const csil_key_end = out.items.len;
+        try enc_QueueAndStateCounts(out, &(csil_e.value_ptr.*));
+        csil_spans.appendAssumeCapacity(.{ .start = csil_start, .key_end = csil_key_end, .end = out.items.len });
+    }
+    try csil_w_sorted_map(csil_dst, out.items, csil_spans.items);
+}
+
+fn csil_dec_map_bed87b5bfb2a6663(alloc: std.mem.Allocator, csil_src: Value, csil_out: *std.StringHashMapUnmanaged(types.QueueAndStateCounts)) CodecError!void {
+    if (csil_src != .map) return error.WrongType;
+    try csil_check_canonical(csil_src.map);
+    csil_out.* = .{};
+    try csil_out.ensureTotalCapacity(alloc, @intCast(@min(csil_src.map.len, prealloc_limit)));
+    for (csil_src.map) |csil_kv| {
+        var csil_k: []const u8 = undefined;
+        csil_k = try as_text(csil_kv.key);
+        var csil_val: types.QueueAndStateCounts = undefined;
+        try dec_QueueAndStateCounts(alloc, csil_kv.val, &(csil_val));
+        try csil_out.put(alloc, csil_k, csil_val);
     }
 }
 
@@ -2799,4 +3078,754 @@ pub fn encode_ServiceError(alloc: std.mem.Allocator, v: *const types.ServiceErro
 pub fn decode_ServiceError(alloc: std.mem.Allocator, bytes: []const u8, out: *types.ServiceError) CodecError!void {
     const root = try decode(alloc, bytes);
     try dec_ServiceError(alloc, root, out);
+}
+
+pub const RpcReply = struct { variant: []const u8, payload: []u8 };
+
+pub fn encode_CorndogsServiceSubmitTaskReply(alloc: std.mem.Allocator, value: types.CorndogsServiceSubmitTaskReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .submit_task_response => |v| {
+            try enc_SubmitTaskResponse(out, &(v));
+            return .{ .variant = "SubmitTaskResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceSubmitTaskReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceSubmitTaskReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "SubmitTaskResponse")) {
+        var v: types.SubmitTaskResponse = undefined;
+        try dec_SubmitTaskResponse(alloc, src, &(v));
+        out.* = .{ .submit_task_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceGetTaskStateByIDReply(alloc: std.mem.Allocator, value: types.CorndogsServiceGetTaskStateByIDReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .get_task_state_by_id_response => |v| {
+            try enc_GetTaskStateByIDResponse(out, &(v));
+            return .{ .variant = "GetTaskStateByIDResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceGetTaskStateByIDReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceGetTaskStateByIDReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "GetTaskStateByIDResponse")) {
+        var v: types.GetTaskStateByIDResponse = undefined;
+        try dec_GetTaskStateByIDResponse(alloc, src, &(v));
+        out.* = .{ .get_task_state_by_id_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceGetNextTaskReply(alloc: std.mem.Allocator, value: types.CorndogsServiceGetNextTaskReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .get_next_task_response => |v| {
+            try enc_GetNextTaskResponse(out, &(v));
+            return .{ .variant = "GetNextTaskResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceGetNextTaskReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceGetNextTaskReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "GetNextTaskResponse")) {
+        var v: types.GetNextTaskResponse = undefined;
+        try dec_GetNextTaskResponse(alloc, src, &(v));
+        out.* = .{ .get_next_task_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceGetNextTaskGroupReply(alloc: std.mem.Allocator, value: types.CorndogsServiceGetNextTaskGroupReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .get_next_task_group_response => |v| {
+            try enc_GetNextTaskGroupResponse(out, &(v));
+            return .{ .variant = "GetNextTaskGroupResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceGetNextTaskGroupReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceGetNextTaskGroupReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "GetNextTaskGroupResponse")) {
+        var v: types.GetNextTaskGroupResponse = undefined;
+        try dec_GetNextTaskGroupResponse(alloc, src, &(v));
+        out.* = .{ .get_next_task_group_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceUpdateTaskReply(alloc: std.mem.Allocator, value: types.CorndogsServiceUpdateTaskReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .update_task_response => |v| {
+            try enc_UpdateTaskResponse(out, &(v));
+            return .{ .variant = "UpdateTaskResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceUpdateTaskReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceUpdateTaskReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "UpdateTaskResponse")) {
+        var v: types.UpdateTaskResponse = undefined;
+        try dec_UpdateTaskResponse(alloc, src, &(v));
+        out.* = .{ .update_task_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceCompleteTaskReply(alloc: std.mem.Allocator, value: types.CorndogsServiceCompleteTaskReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .complete_task_response => |v| {
+            try enc_CompleteTaskResponse(out, &(v));
+            return .{ .variant = "CompleteTaskResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceCompleteTaskReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceCompleteTaskReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "CompleteTaskResponse")) {
+        var v: types.CompleteTaskResponse = undefined;
+        try dec_CompleteTaskResponse(alloc, src, &(v));
+        out.* = .{ .complete_task_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceCancelTaskReply(alloc: std.mem.Allocator, value: types.CorndogsServiceCancelTaskReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .cancel_task_response => |v| {
+            try enc_CancelTaskResponse(out, &(v));
+            return .{ .variant = "CancelTaskResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceCancelTaskReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceCancelTaskReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "CancelTaskResponse")) {
+        var v: types.CancelTaskResponse = undefined;
+        try dec_CancelTaskResponse(alloc, src, &(v));
+        out.* = .{ .cancel_task_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceCleanUpTimedOutReply(alloc: std.mem.Allocator, value: types.CorndogsServiceCleanUpTimedOutReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .clean_up_timed_out_response => |v| {
+            try enc_CleanUpTimedOutResponse(out, &(v));
+            return .{ .variant = "CleanUpTimedOutResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceCleanUpTimedOutReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceCleanUpTimedOutReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "CleanUpTimedOutResponse")) {
+        var v: types.CleanUpTimedOutResponse = undefined;
+        try dec_CleanUpTimedOutResponse(alloc, src, &(v));
+        out.* = .{ .clean_up_timed_out_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceGetQueuesReply(alloc: std.mem.Allocator, value: types.CorndogsServiceGetQueuesReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .get_queues_response => |v| {
+            try enc_GetQueuesResponse(out, &(v));
+            return .{ .variant = "GetQueuesResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceGetQueuesReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceGetQueuesReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "GetQueuesResponse")) {
+        var v: types.GetQueuesResponse = undefined;
+        try dec_GetQueuesResponse(alloc, src, &(v));
+        out.* = .{ .get_queues_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceGetQueueTaskCountsReply(alloc: std.mem.Allocator, value: types.CorndogsServiceGetQueueTaskCountsReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .get_queue_task_counts_response => |v| {
+            try enc_GetQueueTaskCountsResponse(out, &(v));
+            return .{ .variant = "GetQueueTaskCountsResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceGetQueueTaskCountsReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceGetQueueTaskCountsReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "GetQueueTaskCountsResponse")) {
+        var v: types.GetQueueTaskCountsResponse = undefined;
+        try dec_GetQueueTaskCountsResponse(alloc, src, &(v));
+        out.* = .{ .get_queue_task_counts_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceGetTaskStateCountsReply(alloc: std.mem.Allocator, value: types.CorndogsServiceGetTaskStateCountsReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .get_task_state_counts_response => |v| {
+            try enc_GetTaskStateCountsResponse(out, &(v));
+            return .{ .variant = "GetTaskStateCountsResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceGetTaskStateCountsReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceGetTaskStateCountsReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "GetTaskStateCountsResponse")) {
+        var v: types.GetTaskStateCountsResponse = undefined;
+        try dec_GetTaskStateCountsResponse(alloc, src, &(v));
+        out.* = .{ .get_task_state_counts_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceGetQueueAndStateCountsReply(alloc: std.mem.Allocator, value: types.CorndogsServiceGetQueueAndStateCountsReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .get_queue_and_state_counts_response => |v| {
+            try enc_GetQueueAndStateCountsResponse(out, &(v));
+            return .{ .variant = "GetQueueAndStateCountsResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceGetQueueAndStateCountsReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceGetQueueAndStateCountsReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "GetQueueAndStateCountsResponse")) {
+        var v: types.GetQueueAndStateCountsResponse = undefined;
+        try dec_GetQueueAndStateCountsResponse(alloc, src, &(v));
+        out.* = .{ .get_queue_and_state_counts_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceGetServerInfoReply(alloc: std.mem.Allocator, value: types.CorndogsServiceGetServerInfoReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .get_server_info_response => |v| {
+            try enc_GetServerInfoResponse(out, &(v));
+            return .{ .variant = "GetServerInfoResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceGetServerInfoReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceGetServerInfoReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "GetServerInfoResponse")) {
+        var v: types.GetServerInfoResponse = undefined;
+        try dec_GetServerInfoResponse(alloc, src, &(v));
+        out.* = .{ .get_server_info_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceSubmitKeyedTaskReply(alloc: std.mem.Allocator, value: types.CorndogsServiceSubmitKeyedTaskReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .submit_keyed_task_response => |v| {
+            try enc_SubmitKeyedTaskResponse(out, &(v));
+            return .{ .variant = "SubmitKeyedTaskResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceSubmitKeyedTaskReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceSubmitKeyedTaskReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "SubmitKeyedTaskResponse")) {
+        var v: types.SubmitKeyedTaskResponse = undefined;
+        try dec_SubmitKeyedTaskResponse(alloc, src, &(v));
+        out.* = .{ .submit_keyed_task_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceLookupSubmissionReply(alloc: std.mem.Allocator, value: types.CorndogsServiceLookupSubmissionReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .lookup_submission_response => |v| {
+            try enc_LookupSubmissionResponse(out, &(v));
+            return .{ .variant = "LookupSubmissionResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceLookupSubmissionReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceLookupSubmissionReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "LookupSubmissionResponse")) {
+        var v: types.LookupSubmissionResponse = undefined;
+        try dec_LookupSubmissionResponse(alloc, src, &(v));
+        out.* = .{ .lookup_submission_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceClaimGuardedTaskReply(alloc: std.mem.Allocator, value: types.CorndogsServiceClaimGuardedTaskReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .claim_guarded_task_response => |v| {
+            try enc_ClaimGuardedTaskResponse(out, &(v));
+            return .{ .variant = "ClaimGuardedTaskResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceClaimGuardedTaskReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceClaimGuardedTaskReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "ClaimGuardedTaskResponse")) {
+        var v: types.ClaimGuardedTaskResponse = undefined;
+        try dec_ClaimGuardedTaskResponse(alloc, src, &(v));
+        out.* = .{ .claim_guarded_task_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceClaimGuardedTaskGroupReply(alloc: std.mem.Allocator, value: types.CorndogsServiceClaimGuardedTaskGroupReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .claim_guarded_task_group_response => |v| {
+            try enc_ClaimGuardedTaskGroupResponse(out, &(v));
+            return .{ .variant = "ClaimGuardedTaskGroupResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceClaimGuardedTaskGroupReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceClaimGuardedTaskGroupReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "ClaimGuardedTaskGroupResponse")) {
+        var v: types.ClaimGuardedTaskGroupResponse = undefined;
+        try dec_ClaimGuardedTaskGroupResponse(alloc, src, &(v));
+        out.* = .{ .claim_guarded_task_group_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceUpdateGuardedTaskReply(alloc: std.mem.Allocator, value: types.CorndogsServiceUpdateGuardedTaskReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .update_guarded_task_response => |v| {
+            try enc_UpdateGuardedTaskResponse(out, &(v));
+            return .{ .variant = "UpdateGuardedTaskResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceUpdateGuardedTaskReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceUpdateGuardedTaskReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "UpdateGuardedTaskResponse")) {
+        var v: types.UpdateGuardedTaskResponse = undefined;
+        try dec_UpdateGuardedTaskResponse(alloc, src, &(v));
+        out.* = .{ .update_guarded_task_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceCompleteGuardedTaskReply(alloc: std.mem.Allocator, value: types.CorndogsServiceCompleteGuardedTaskReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .complete_guarded_task_response => |v| {
+            try enc_CompleteGuardedTaskResponse(out, &(v));
+            return .{ .variant = "CompleteGuardedTaskResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceCompleteGuardedTaskReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceCompleteGuardedTaskReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "CompleteGuardedTaskResponse")) {
+        var v: types.CompleteGuardedTaskResponse = undefined;
+        try dec_CompleteGuardedTaskResponse(alloc, src, &(v));
+        out.* = .{ .complete_guarded_task_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceCancelGuardedTaskReply(alloc: std.mem.Allocator, value: types.CorndogsServiceCancelGuardedTaskReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .cancel_guarded_task_response => |v| {
+            try enc_CancelGuardedTaskResponse(out, &(v));
+            return .{ .variant = "CancelGuardedTaskResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceCancelGuardedTaskReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceCancelGuardedTaskReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "CancelGuardedTaskResponse")) {
+        var v: types.CancelGuardedTaskResponse = undefined;
+        try dec_CancelGuardedTaskResponse(alloc, src, &(v));
+        out.* = .{ .cancel_guarded_task_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceGetGuardedTaskReply(alloc: std.mem.Allocator, value: types.CorndogsServiceGetGuardedTaskReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .get_guarded_task_response => |v| {
+            try enc_GetGuardedTaskResponse(out, &(v));
+            return .{ .variant = "GetGuardedTaskResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceGetGuardedTaskReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceGetGuardedTaskReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "GetGuardedTaskResponse")) {
+        var v: types.GetGuardedTaskResponse = undefined;
+        try dec_GetGuardedTaskResponse(alloc, src, &(v));
+        out.* = .{ .get_guarded_task_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
+}
+
+pub fn encode_CorndogsServiceLookupOperationReply(alloc: std.mem.Allocator, value: types.CorndogsServiceLookupOperationReply) CodecError!RpcReply {
+    var buf = std.ArrayList(u8).init(alloc);
+    errdefer buf.deinit();
+    const out = &buf;
+    switch (value) {
+        .lookup_operation_response => |v| {
+            try enc_LookupOperationResponse(out, &(v));
+            return .{ .variant = "LookupOperationResponse", .payload = try buf.toOwnedSlice() };
+        },
+        .service_error => |v| {
+            try enc_ServiceError(out, &(v));
+            return .{ .variant = "ServiceError", .payload = try buf.toOwnedSlice() };
+        },
+    }
+}
+
+pub fn decode_CorndogsServiceLookupOperationReply(alloc: std.mem.Allocator, variant: ?[]const u8, payload: []const u8, out: *types.CorndogsServiceLookupOperationReply) CodecError!void {
+    const name = variant orelse return error.WrongType;
+    const src = try decode(alloc, payload);
+    if (std.mem.eql(u8, name, "LookupOperationResponse")) {
+        var v: types.LookupOperationResponse = undefined;
+        try dec_LookupOperationResponse(alloc, src, &(v));
+        out.* = .{ .lookup_operation_response = v };
+        return;
+    }
+    if (std.mem.eql(u8, name, "ServiceError")) {
+        var v: types.ServiceError = undefined;
+        try dec_ServiceError(alloc, src, &(v));
+        out.* = .{ .service_error = v };
+        return;
+    }
+    return error.WrongType;
 }

@@ -18,6 +18,19 @@ defmodule Csilgen.Generated.Transport do
   def call(%mod{} = transport, service, method, req) do
     mod.call(transport, service, method, req)
   end
+
+  @doc """
+  Performs a call for an operation with more than one reply arm and returns
+  `{variant, payload}`; `variant` is `nil` when the reply carries none.
+  """
+  @callback call_reply(t(), service :: String.t(), method :: String.t(), req :: binary()) ::
+              {String.t() | nil, binary()}
+
+  @doc "Dispatches a multi-arm call to the transport struct's implementing module."
+  @spec call_reply(t(), String.t(), String.t(), binary()) :: {String.t() | nil, binary()}
+  def call_reply(%mod{} = transport, service, method, req) do
+    mod.call_reply(transport, service, method, req)
+  end
 end
 
 defmodule Csilgen.Generated.CorndogsClient do
@@ -33,13 +46,16 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec submit_task(t(), Csilgen.Generated.SubmitTaskRequest.t()) ::
           Csilgen.Generated.SubmitTaskResponse.t()
   def submit_task(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "SubmitTask",
         Csilgen.Generated.SubmitTaskRequest.to_cbor(req)
       )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply("CorndogsService", "SubmitTask", variant, payload)
 
     Csilgen.Generated.SubmitTaskResponse.from_cbor(resp)
   end
@@ -47,12 +63,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec get_task_state_by_id(t(), Csilgen.Generated.GetTaskStateByIDRequest.t()) ::
           Csilgen.Generated.GetTaskStateByIDResponse.t()
   def get_task_state_by_id(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "GetTaskStateByID",
         Csilgen.Generated.GetTaskStateByIDRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "GetTaskStateByID",
+        variant,
+        payload
       )
 
     Csilgen.Generated.GetTaskStateByIDResponse.from_cbor(resp)
@@ -61,13 +85,16 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec get_next_task(t(), Csilgen.Generated.GetNextTaskRequest.t()) ::
           Csilgen.Generated.GetNextTaskResponse.t()
   def get_next_task(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "GetNextTask",
         Csilgen.Generated.GetNextTaskRequest.to_cbor(req)
       )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply("CorndogsService", "GetNextTask", variant, payload)
 
     Csilgen.Generated.GetNextTaskResponse.from_cbor(resp)
   end
@@ -75,12 +102,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec get_next_task_group(t(), Csilgen.Generated.GetNextTaskGroupRequest.t()) ::
           Csilgen.Generated.GetNextTaskGroupResponse.t()
   def get_next_task_group(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "GetNextTaskGroup",
         Csilgen.Generated.GetNextTaskGroupRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "GetNextTaskGroup",
+        variant,
+        payload
       )
 
     Csilgen.Generated.GetNextTaskGroupResponse.from_cbor(resp)
@@ -89,13 +124,16 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec update_task(t(), Csilgen.Generated.UpdateTaskRequest.t()) ::
           Csilgen.Generated.UpdateTaskResponse.t()
   def update_task(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "UpdateTask",
         Csilgen.Generated.UpdateTaskRequest.to_cbor(req)
       )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply("CorndogsService", "UpdateTask", variant, payload)
 
     Csilgen.Generated.UpdateTaskResponse.from_cbor(resp)
   end
@@ -103,12 +141,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec complete_task(t(), Csilgen.Generated.CompleteTaskRequest.t()) ::
           Csilgen.Generated.CompleteTaskResponse.t()
   def complete_task(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "CompleteTask",
         Csilgen.Generated.CompleteTaskRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "CompleteTask",
+        variant,
+        payload
       )
 
     Csilgen.Generated.CompleteTaskResponse.from_cbor(resp)
@@ -117,13 +163,16 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec cancel_task(t(), Csilgen.Generated.CancelTaskRequest.t()) ::
           Csilgen.Generated.CancelTaskResponse.t()
   def cancel_task(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "CancelTask",
         Csilgen.Generated.CancelTaskRequest.to_cbor(req)
       )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply("CorndogsService", "CancelTask", variant, payload)
 
     Csilgen.Generated.CancelTaskResponse.from_cbor(resp)
   end
@@ -131,12 +180,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec clean_up_timed_out(t(), Csilgen.Generated.CleanUpTimedOutRequest.t()) ::
           Csilgen.Generated.CleanUpTimedOutResponse.t()
   def clean_up_timed_out(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "CleanUpTimedOut",
         Csilgen.Generated.CleanUpTimedOutRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "CleanUpTimedOut",
+        variant,
+        payload
       )
 
     Csilgen.Generated.CleanUpTimedOutResponse.from_cbor(resp)
@@ -145,13 +202,16 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec get_queues(t(), Csilgen.Generated.GetQueuesRequest.t()) ::
           Csilgen.Generated.GetQueuesResponse.t()
   def get_queues(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "GetQueues",
         Csilgen.Generated.GetQueuesRequest.to_cbor(req)
       )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply("CorndogsService", "GetQueues", variant, payload)
 
     Csilgen.Generated.GetQueuesResponse.from_cbor(resp)
   end
@@ -159,12 +219,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec get_queue_task_counts(t(), Csilgen.Generated.GetQueueTaskCountsRequest.t()) ::
           Csilgen.Generated.GetQueueTaskCountsResponse.t()
   def get_queue_task_counts(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "GetQueueTaskCounts",
         Csilgen.Generated.GetQueueTaskCountsRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "GetQueueTaskCounts",
+        variant,
+        payload
       )
 
     Csilgen.Generated.GetQueueTaskCountsResponse.from_cbor(resp)
@@ -173,12 +241,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec get_task_state_counts(t(), Csilgen.Generated.GetTaskStateCountsRequest.t()) ::
           Csilgen.Generated.GetTaskStateCountsResponse.t()
   def get_task_state_counts(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "GetTaskStateCounts",
         Csilgen.Generated.GetTaskStateCountsRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "GetTaskStateCounts",
+        variant,
+        payload
       )
 
     Csilgen.Generated.GetTaskStateCountsResponse.from_cbor(resp)
@@ -187,12 +263,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec get_queue_and_state_counts(t(), Csilgen.Generated.GetQueueAndStateCountsRequest.t()) ::
           Csilgen.Generated.GetQueueAndStateCountsResponse.t()
   def get_queue_and_state_counts(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "GetQueueAndStateCounts",
         Csilgen.Generated.GetQueueAndStateCountsRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "GetQueueAndStateCounts",
+        variant,
+        payload
       )
 
     Csilgen.Generated.GetQueueAndStateCountsResponse.from_cbor(resp)
@@ -201,12 +285,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec get_server_info(t(), Csilgen.Generated.GetServerInfoRequest.t()) ::
           Csilgen.Generated.GetServerInfoResponse.t()
   def get_server_info(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "GetServerInfo",
         Csilgen.Generated.GetServerInfoRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "GetServerInfo",
+        variant,
+        payload
       )
 
     Csilgen.Generated.GetServerInfoResponse.from_cbor(resp)
@@ -215,12 +307,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec submit_keyed_task(t(), Csilgen.Generated.SubmitKeyedTaskRequest.t()) ::
           Csilgen.Generated.SubmitKeyedTaskResponse.t()
   def submit_keyed_task(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "SubmitKeyedTask",
         Csilgen.Generated.SubmitKeyedTaskRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "SubmitKeyedTask",
+        variant,
+        payload
       )
 
     Csilgen.Generated.SubmitKeyedTaskResponse.from_cbor(resp)
@@ -229,12 +329,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec lookup_submission(t(), Csilgen.Generated.LookupSubmissionRequest.t()) ::
           Csilgen.Generated.LookupSubmissionResponse.t()
   def lookup_submission(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "LookupSubmission",
         Csilgen.Generated.LookupSubmissionRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "LookupSubmission",
+        variant,
+        payload
       )
 
     Csilgen.Generated.LookupSubmissionResponse.from_cbor(resp)
@@ -243,12 +351,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec claim_guarded_task(t(), Csilgen.Generated.ClaimGuardedTaskRequest.t()) ::
           Csilgen.Generated.ClaimGuardedTaskResponse.t()
   def claim_guarded_task(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "ClaimGuardedTask",
         Csilgen.Generated.ClaimGuardedTaskRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "ClaimGuardedTask",
+        variant,
+        payload
       )
 
     Csilgen.Generated.ClaimGuardedTaskResponse.from_cbor(resp)
@@ -257,12 +373,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec claim_guarded_task_group(t(), Csilgen.Generated.ClaimGuardedTaskGroupRequest.t()) ::
           Csilgen.Generated.ClaimGuardedTaskGroupResponse.t()
   def claim_guarded_task_group(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "ClaimGuardedTaskGroup",
         Csilgen.Generated.ClaimGuardedTaskGroupRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "ClaimGuardedTaskGroup",
+        variant,
+        payload
       )
 
     Csilgen.Generated.ClaimGuardedTaskGroupResponse.from_cbor(resp)
@@ -271,12 +395,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec update_guarded_task(t(), Csilgen.Generated.UpdateGuardedTaskRequest.t()) ::
           Csilgen.Generated.UpdateGuardedTaskResponse.t()
   def update_guarded_task(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "UpdateGuardedTask",
         Csilgen.Generated.UpdateGuardedTaskRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "UpdateGuardedTask",
+        variant,
+        payload
       )
 
     Csilgen.Generated.UpdateGuardedTaskResponse.from_cbor(resp)
@@ -285,12 +417,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec complete_guarded_task(t(), Csilgen.Generated.CompleteGuardedTaskRequest.t()) ::
           Csilgen.Generated.CompleteGuardedTaskResponse.t()
   def complete_guarded_task(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "CompleteGuardedTask",
         Csilgen.Generated.CompleteGuardedTaskRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "CompleteGuardedTask",
+        variant,
+        payload
       )
 
     Csilgen.Generated.CompleteGuardedTaskResponse.from_cbor(resp)
@@ -299,12 +439,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec cancel_guarded_task(t(), Csilgen.Generated.CancelGuardedTaskRequest.t()) ::
           Csilgen.Generated.CancelGuardedTaskResponse.t()
   def cancel_guarded_task(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "CancelGuardedTask",
         Csilgen.Generated.CancelGuardedTaskRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "CancelGuardedTask",
+        variant,
+        payload
       )
 
     Csilgen.Generated.CancelGuardedTaskResponse.from_cbor(resp)
@@ -313,12 +461,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec get_guarded_task(t(), Csilgen.Generated.GetGuardedTaskRequest.t()) ::
           Csilgen.Generated.GetGuardedTaskResponse.t()
   def get_guarded_task(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "GetGuardedTask",
         Csilgen.Generated.GetGuardedTaskRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "GetGuardedTask",
+        variant,
+        payload
       )
 
     Csilgen.Generated.GetGuardedTaskResponse.from_cbor(resp)
@@ -327,12 +483,20 @@ defmodule Csilgen.Generated.CorndogsClient do
   @spec lookup_operation(t(), Csilgen.Generated.LookupOperationRequest.t()) ::
           Csilgen.Generated.LookupOperationResponse.t()
   def lookup_operation(%__MODULE__{transport: transport}, req) do
-    resp =
-      Csilgen.Generated.Transport.call(
+    {variant, payload} =
+      Csilgen.Generated.Transport.call_reply(
         transport,
         "CorndogsService",
         "LookupOperation",
         Csilgen.Generated.LookupOperationRequest.to_cbor(req)
+      )
+
+    resp =
+      Csilgen.Generated.Cbor.resolve_rpc_reply(
+        "CorndogsService",
+        "LookupOperation",
+        variant,
+        payload
       )
 
     Csilgen.Generated.LookupOperationResponse.from_cbor(resp)

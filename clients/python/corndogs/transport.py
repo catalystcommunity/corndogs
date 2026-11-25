@@ -71,7 +71,7 @@ def _read_frame(sock: socket.socket) -> Optional[bytes]:
     return _read_exact(sock, length)
 
 
-def _parse_response(frame: bytes) -> bytes:
+def _parse_response(frame: bytes) -> tuple[Optional[str], bytes]:
     val = cbor_decode(frame)
     if not isinstance(val, dict):
         raise TransportError("malformed response envelope")
@@ -80,10 +80,14 @@ def _parse_response(frame: bytes) -> bytes:
         raise TransportError(f"transport status {status}: {val.get('error', '')}")
     payload = val.get("payload")
     if payload is None:
-        return b""  # control replies (e.g. $pong) carry no payload
+        return val.get("variant"), b""  # control replies (e.g. $pong) carry no payload
     if isinstance(payload, CborTag):
         payload = payload.value
-    if val.get("variant") == "ServiceError":
+    return val.get("variant"), payload
+
+
+def _reply_payload(variant: Optional[str], payload: bytes) -> bytes:
+    if variant == "ServiceError":
         inner = cbor_decode(payload)
         if isinstance(inner, dict):
             raise ServiceError(int(inner.get("code", 0)), str(inner.get("message", "")))
@@ -120,6 +124,9 @@ class TcpTransport:
             self._sock = None
 
     def call(self, service: str, method: str, req: bytes) -> bytes:
+        return _reply_payload(*self.call_reply(service, method, req))
+
+    def call_reply(self, service: str, method: str, req: bytes) -> tuple[Optional[str], bytes]:
         with self._lock:
             sock = self._ensure()
             self._next_id += 1

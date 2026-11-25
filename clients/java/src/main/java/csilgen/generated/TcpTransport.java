@@ -108,6 +108,16 @@ public final class TcpTransport implements Transport, AutoCloseable {
 
     @Override
     public byte[] call(String service, String op, byte[] req) throws ClientException {
+        WireReply reply = callReply(service, op, req);
+        if ("ServiceError".equals(reply.variant())) {
+            ServiceError se = CsilCbor.decodeServiceError(reply.payload());
+            throw new ClientException("corndogs: service error " + se.code() + ": " + se.message());
+        }
+        return reply.payload();
+    }
+
+    @Override
+    public WireReply callReply(String service, String op, byte[] req) throws ClientException {
         synchronized (lock) {
             if (closed) {
                 throw new ClientException("corndogs: transport closed");
@@ -168,10 +178,9 @@ public final class TcpTransport implements Transport, AutoCloseable {
     }
 
     /**
-     * Decodes a response envelope into the inner payload bytes. A non-zero transport
-     * status, or a "ServiceError" variant, becomes a thrown {@link ClientException}.
+     * Returns the reply variant and payload. A nonzero transport status throws an exception.
      */
-    private static byte[] parseResponse(byte[] frame) {
+    private static WireReply parseResponse(byte[] frame) {
         CborValue val;
         try {
             val = CsilCbor.decode(frame);
@@ -190,20 +199,17 @@ public final class TcpTransport implements Transport, AutoCloseable {
                 throw new ClientException("corndogs: transport status " + status + ": " + msg);
             }
         }
+        CborValue variantV = CsilCbor.mapGet(val, "variant");
+        String variant = variantV == null ? null : CsilCbor.asText(variantV);
         CborValue payloadV = CsilCbor.mapGet(val, "payload");
         if (payloadV == null) {
-            return new byte[0]; // control replies (e.g. $pong) may carry no payload
+            return new WireReply(variant, new byte[0]); // control replies (e.g. $pong) may carry no payload
         }
         if (payloadV instanceof CborTag tag) {
             payloadV = tag.inner();
         }
         byte[] inner = CsilCbor.asBytes(payloadV);
-        CborValue variantV = CsilCbor.mapGet(val, "variant");
-        if (variantV != null && "ServiceError".equals(CsilCbor.asText(variantV))) {
-            ServiceError se = CsilCbor.decodeServiceError(inner);
-            throw new ClientException("corndogs: service error " + se.code() + ": " + se.message());
-        }
-        return inner;
+        return new WireReply(variant, inner);
     }
 
     // --- heartbeat -------------------------------------------------------------

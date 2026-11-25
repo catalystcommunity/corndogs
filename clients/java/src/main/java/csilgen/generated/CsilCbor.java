@@ -33,7 +33,16 @@ public final class CsilCbor {
     public record CborBytes(byte[] value) implements CborValue {}
     public record CborArray(List<CborValue> items) implements CborValue {}
     public record CborEntry(CborValue key, CborValue val) {}
-    public record CborMap(List<CborEntry> entries) implements CborValue {}
+    /**
+     * A map. {@code canonical} is false when a decoded map's encoded keys were not in
+     * strictly ascending bytewise order (RFC 8949 section 4.2.1); a dynamic map decoder
+     * rejects such a map, while a record accepts its fields in any order.
+     */
+    public record CborMap(List<CborEntry> entries, boolean canonical) implements CborValue {
+        public CborMap(List<CborEntry> entries) {
+            this(entries, true);
+        }
+    }
     public record CborTag(long num, CborValue inner) implements CborValue {}
 
     /**
@@ -42,6 +51,8 @@ public final class CsilCbor {
      * not a recoverable application error (those ride inside the decoded payload).
      */
     public static final class CsilCborException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
         public CsilCborException(String message) {
             super(message);
         }
@@ -141,6 +152,21 @@ public final class CsilCbor {
         }
     }
 
+    // Float.float16ToFloat needs JDK 20; the generated code targets JDK 17.
+    private static double halfToDouble(int h) {
+        int exp = (h >> 10) & 0x1f;
+        int mant = h & 0x3ff;
+        double magnitude;
+        if (exp == 0) {
+            magnitude = Math.scalb((double) mant, -24);
+        } else if (exp == 31) {
+            magnitude = mant == 0 ? Double.POSITIVE_INFINITY : Double.NaN;
+        } else {
+            magnitude = Math.scalb((double) (mant | 0x400), exp - 25);
+        }
+        return (h & 0x8000) != 0 ? -magnitude : magnitude;
+    }
+
     private static long readArg(byte[] b, int[] pos, int low) {
         if (low < 24) {
             pos[0] += 1;
@@ -219,6 +245,10 @@ public final class CsilCbor {
                 case 23:
                     pos[0] += 1;
                     return new CborNull();
+                case 25: {
+                    long bits = readArg(b, pos, low);
+                    return new CborFloat(halfToDouble((int) bits));
+                }
                 case 26: {
                     long bits = readArg(b, pos, low);
                     return new CborFloat(Float.intBitsToFloat((int) bits));
@@ -277,18 +307,72 @@ public final class CsilCbor {
                 }
                 int n = (int) arg;
                 List<CborEntry> entries = new ArrayList<>(Math.min(n, PREALLOC_LIMIT));
+                // Each key is compared with the one before it as raw bytes, so the order
+                // check is O(n). Only a map out of order can repeat a key, so the set of
+                // seen keys is built only then.
+                boolean ascending = true;
+                java.util.Set<java.nio.ByteBuffer> seen = null;
+                List<int[]> keyRanges = new ArrayList<>(Math.min(n, PREALLOC_LIMIT));
                 for (int i = 0; i < n; i++) {
+                    int keyStart = pos[0];
                     CborValue k = dec(b, pos, depth + 1);
+                    int keyEnd = pos[0];
+                    if (!shortestHead(b, keyStart)) {
+                        throw new CsilCborException("csil cbor: map key is not in shortest form");
+                    }
+                    if (i > 0 && ascending) {
+                        int[] prev = keyRanges.get(i - 1);
+                        if (Arrays.compareUnsigned(b, prev[0], prev[1], b, keyStart, keyEnd) >= 0) {
+                            ascending = false;
+                            seen = new java.util.HashSet<>();
+                            for (int[] r : keyRanges) {
+                                seen.add(java.nio.ByteBuffer.wrap(b, r[0], r[1] - r[0]));
+                            }
+                        }
+                    }
+                    if (!ascending && !seen.add(java.nio.ByteBuffer.wrap(b, keyStart, keyEnd - keyStart))) {
+                        throw new CsilCborException("csil cbor: duplicate key " + describeKey(k));
+                    }
+                    keyRanges.add(new int[] {keyStart, keyEnd});
                     CborValue val = dec(b, pos, depth + 1);
                     entries.add(new CborEntry(k, val));
                 }
-                return new CborMap(entries);
+                return new CborMap(entries, ascending);
             }
             case 6:
                 return new CborTag(arg, dec(b, pos, depth + 1));
             default:
                 throw new CsilCborException("csil cbor: unexpected major type");
         }
+    }
+
+    /** Whether the head at {@code at} uses the shortest argument for its value. A float
+     * head (major 7) carries no length, so it is not checked. */
+    private static boolean shortestHead(byte[] b, int at) {
+        int major = (b[at] & 0xff) >> 5;
+        int low = b[at] & 0x1f;
+        if (major == 7 || low < 24) {
+            return true;
+        }
+        int width = 1 << (low - 24);
+        long arg = 0;
+        for (int i = 1; i <= width; i++) {
+            arg = (arg << 8) | (b[at + i] & 0xffL);
+        }
+        long floor = low == 24 ? 24L : 1L << (8 * (width / 2));
+        return Long.compareUnsigned(arg, floor) >= 0;
+    }
+
+    private static String describeKey(CborValue k) {
+        if (k instanceof CborText t) {
+            return "\"" + t.value() + "\"";
+        }
+        return java.util.HexFormat.of().formatHex(encode(k));
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T> T csilUnchecked(Object value) {
+        return (T) value;
     }
 
     public static long asI64(CborValue v) {
@@ -414,11 +498,25 @@ public final class CsilCbor {
     }
 
     public static <K, V> CborValue encMap(Map<K, V> m, Function<K, CborValue> kf, Function<V, CborValue> vf) {
+        // A dynamic map goes out in canonical key order: bytewise order of each key's
+        // encoding (RFC 8949 section 4.2.1), which is not the order of the Java keys.
+        List<byte[]> keys = new ArrayList<>(m.size());
         List<CborEntry> entries = new ArrayList<>(m.size());
         for (Map.Entry<K, V> e : m.entrySet()) {
-            entries.add(new CborEntry(kf.apply(e.getKey()), vf.apply(e.getValue())));
+            CborValue key = kf.apply(e.getKey());
+            keys.add(encode(key));
+            entries.add(new CborEntry(key, vf.apply(e.getValue())));
         }
-        return new CborMap(entries);
+        Integer[] order = new Integer[entries.size()];
+        for (int i = 0; i < order.length; i++) {
+            order[i] = i;
+        }
+        Arrays.sort(order, (x, y) -> Arrays.compareUnsigned(keys.get(x), keys.get(y)));
+        List<CborEntry> sorted = new ArrayList<>(entries.size());
+        for (int i : order) {
+            sorted.add(entries.get(i));
+        }
+        return new CborMap(sorted);
     }
 
     public static <E> List<E> decArray(CborValue v, Function<CborValue, E> f) {
@@ -431,6 +529,9 @@ public final class CsilCbor {
     }
 
     public static <K, V> Map<K, V> decMap(CborValue v, Function<CborValue, K> kf, Function<CborValue, V> vf) {
+        if (v instanceof CborMap x && !x.canonical()) {
+            throw new CsilCborException("csil cbor: map keys are not in canonical order");
+        }
         Map<K, V> out = new LinkedHashMap<>();
         for (CborEntry e : asMap(v)) {
             out.put(kf.apply(e.key()), vf.apply(e.val()));
@@ -1752,5 +1853,329 @@ public final class CsilCbor {
 
     public static ServiceError decodeServiceError(byte[] data) {
         return decServiceError(decode(data));
+    }
+
+    public record RpcReply(String variant, byte[] payload) {}
+
+    public static final class ServiceErrorRefusal extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        public final ServiceError value;
+
+        public ServiceErrorRefusal(ServiceError value) {
+            super("ServiceError");
+            this.value = value;
+        }
+    }
+
+    public static RpcReply encodeCorndogsSubmitTaskReply(java.util.function.Supplier<SubmitTaskResponse> handler) {
+        try {
+            SubmitTaskResponse value = handler.get();
+            return new RpcReply("SubmitTaskResponse", encode(encSubmitTaskResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsGetTaskStateByIdReply(java.util.function.Supplier<GetTaskStateByIdResponse> handler) {
+        try {
+            GetTaskStateByIdResponse value = handler.get();
+            return new RpcReply("GetTaskStateByIDResponse", encode(encGetTaskStateByIdResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsGetNextTaskReply(java.util.function.Supplier<GetNextTaskResponse> handler) {
+        try {
+            GetNextTaskResponse value = handler.get();
+            return new RpcReply("GetNextTaskResponse", encode(encGetNextTaskResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsGetNextTaskGroupReply(java.util.function.Supplier<GetNextTaskGroupResponse> handler) {
+        try {
+            GetNextTaskGroupResponse value = handler.get();
+            return new RpcReply("GetNextTaskGroupResponse", encode(encGetNextTaskGroupResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsUpdateTaskReply(java.util.function.Supplier<UpdateTaskResponse> handler) {
+        try {
+            UpdateTaskResponse value = handler.get();
+            return new RpcReply("UpdateTaskResponse", encode(encUpdateTaskResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsCompleteTaskReply(java.util.function.Supplier<CompleteTaskResponse> handler) {
+        try {
+            CompleteTaskResponse value = handler.get();
+            return new RpcReply("CompleteTaskResponse", encode(encCompleteTaskResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsCancelTaskReply(java.util.function.Supplier<CancelTaskResponse> handler) {
+        try {
+            CancelTaskResponse value = handler.get();
+            return new RpcReply("CancelTaskResponse", encode(encCancelTaskResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsCleanUpTimedOutReply(java.util.function.Supplier<CleanUpTimedOutResponse> handler) {
+        try {
+            CleanUpTimedOutResponse value = handler.get();
+            return new RpcReply("CleanUpTimedOutResponse", encode(encCleanUpTimedOutResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsGetQueuesReply(java.util.function.Supplier<GetQueuesResponse> handler) {
+        try {
+            GetQueuesResponse value = handler.get();
+            return new RpcReply("GetQueuesResponse", encode(encGetQueuesResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsGetQueueTaskCountsReply(java.util.function.Supplier<GetQueueTaskCountsResponse> handler) {
+        try {
+            GetQueueTaskCountsResponse value = handler.get();
+            return new RpcReply("GetQueueTaskCountsResponse", encode(encGetQueueTaskCountsResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsGetTaskStateCountsReply(java.util.function.Supplier<GetTaskStateCountsResponse> handler) {
+        try {
+            GetTaskStateCountsResponse value = handler.get();
+            return new RpcReply("GetTaskStateCountsResponse", encode(encGetTaskStateCountsResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsGetQueueAndStateCountsReply(java.util.function.Supplier<GetQueueAndStateCountsResponse> handler) {
+        try {
+            GetQueueAndStateCountsResponse value = handler.get();
+            return new RpcReply("GetQueueAndStateCountsResponse", encode(encGetQueueAndStateCountsResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsGetServerInfoReply(java.util.function.Supplier<GetServerInfoResponse> handler) {
+        try {
+            GetServerInfoResponse value = handler.get();
+            return new RpcReply("GetServerInfoResponse", encode(encGetServerInfoResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsSubmitKeyedTaskReply(java.util.function.Supplier<SubmitKeyedTaskResponse> handler) {
+        try {
+            SubmitKeyedTaskResponse value = handler.get();
+            return new RpcReply("SubmitKeyedTaskResponse", encode(encSubmitKeyedTaskResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsLookupSubmissionReply(java.util.function.Supplier<LookupSubmissionResponse> handler) {
+        try {
+            LookupSubmissionResponse value = handler.get();
+            return new RpcReply("LookupSubmissionResponse", encode(encLookupSubmissionResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsClaimGuardedTaskReply(java.util.function.Supplier<ClaimGuardedTaskResponse> handler) {
+        try {
+            ClaimGuardedTaskResponse value = handler.get();
+            return new RpcReply("ClaimGuardedTaskResponse", encode(encClaimGuardedTaskResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsClaimGuardedTaskGroupReply(java.util.function.Supplier<ClaimGuardedTaskGroupResponse> handler) {
+        try {
+            ClaimGuardedTaskGroupResponse value = handler.get();
+            return new RpcReply("ClaimGuardedTaskGroupResponse", encode(encClaimGuardedTaskGroupResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsUpdateGuardedTaskReply(java.util.function.Supplier<UpdateGuardedTaskResponse> handler) {
+        try {
+            UpdateGuardedTaskResponse value = handler.get();
+            return new RpcReply("UpdateGuardedTaskResponse", encode(encUpdateGuardedTaskResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsCompleteGuardedTaskReply(java.util.function.Supplier<CompleteGuardedTaskResponse> handler) {
+        try {
+            CompleteGuardedTaskResponse value = handler.get();
+            return new RpcReply("CompleteGuardedTaskResponse", encode(encCompleteGuardedTaskResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsCancelGuardedTaskReply(java.util.function.Supplier<CancelGuardedTaskResponse> handler) {
+        try {
+            CancelGuardedTaskResponse value = handler.get();
+            return new RpcReply("CancelGuardedTaskResponse", encode(encCancelGuardedTaskResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsGetGuardedTaskReply(java.util.function.Supplier<GetGuardedTaskResponse> handler) {
+        try {
+            GetGuardedTaskResponse value = handler.get();
+            return new RpcReply("GetGuardedTaskResponse", encode(encGetGuardedTaskResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static RpcReply encodeCorndogsLookupOperationReply(java.util.function.Supplier<LookupOperationResponse> handler) {
+        try {
+            LookupOperationResponse value = handler.get();
+            return new RpcReply("LookupOperationResponse", encode(encLookupOperationResponse(value)));
+        } catch (ServiceErrorRefusal refusal) {
+            return new RpcReply("ServiceError", encode(encServiceError(refusal.value)));
+        }
+    }
+
+    public static byte[] resolveRpcReply(String service, String op, String variant, byte[] payload) {
+        if ("CorndogsService".equals(service) && "SubmitTask".equals(op)) {
+            if ("SubmitTaskResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "GetTaskStateByID".equals(op)) {
+            if ("GetTaskStateByIDResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "GetNextTask".equals(op)) {
+            if ("GetNextTaskResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "GetNextTaskGroup".equals(op)) {
+            if ("GetNextTaskGroupResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "UpdateTask".equals(op)) {
+            if ("UpdateTaskResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "CompleteTask".equals(op)) {
+            if ("CompleteTaskResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "CancelTask".equals(op)) {
+            if ("CancelTaskResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "CleanUpTimedOut".equals(op)) {
+            if ("CleanUpTimedOutResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "GetQueues".equals(op)) {
+            if ("GetQueuesResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "GetQueueTaskCounts".equals(op)) {
+            if ("GetQueueTaskCountsResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "GetTaskStateCounts".equals(op)) {
+            if ("GetTaskStateCountsResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "GetQueueAndStateCounts".equals(op)) {
+            if ("GetQueueAndStateCountsResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "GetServerInfo".equals(op)) {
+            if ("GetServerInfoResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "SubmitKeyedTask".equals(op)) {
+            if ("SubmitKeyedTaskResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "LookupSubmission".equals(op)) {
+            if ("LookupSubmissionResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "ClaimGuardedTask".equals(op)) {
+            if ("ClaimGuardedTaskResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "ClaimGuardedTaskGroup".equals(op)) {
+            if ("ClaimGuardedTaskGroupResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "UpdateGuardedTask".equals(op)) {
+            if ("UpdateGuardedTaskResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "CompleteGuardedTask".equals(op)) {
+            if ("CompleteGuardedTaskResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "CancelGuardedTask".equals(op)) {
+            if ("CancelGuardedTaskResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "GetGuardedTask".equals(op)) {
+            if ("GetGuardedTaskResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        if ("CorndogsService".equals(service) && "LookupOperation".equals(op)) {
+            if ("LookupOperationResponse".equals(variant)) return payload;
+            if ("ServiceError".equals(variant)) throw new ServiceErrorRefusal(decServiceError(decode(payload)));
+            throw new CsilCborException("invalid RPC reply variant: " + variant);
+        }
+        return payload;
     }
 }

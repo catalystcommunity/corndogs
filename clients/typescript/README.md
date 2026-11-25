@@ -124,8 +124,8 @@ Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md
   only for health and Prometheus).
 - **Clustered deployments:** point the transport at any node; a write that
   lands on a follower is transparently redirected to the leader.
-- Errors: a service error rejects with `corndogs/transport`'s `ServiceError`
-  (`code`/`message`); a transport failure rejects with `TransportError`.
+- A service error raises `ServiceErrorRefusal`. Read the error code and message
+  from `value`. A transport failure raises `TransportError`.
 - Only the async client (`AsyncApiClient` / `CorndogsAsyncClient`) is
   supported — Node's `net.Socket` is non-blocking by nature, so there is no
   synchronous transport.

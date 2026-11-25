@@ -63,8 +63,8 @@ type StreamTransport struct {
 }
 
 type rpcResult struct {
-	payload []byte
-	err     error
+	reply WireReply
+	err   error
 }
 
 // New returns a CorndogsClient wired to a StreamTransport at addr (host:port).
@@ -153,7 +153,7 @@ func (t *StreamTransport) readLoop(conn net.Conn) {
 			t.teardown(conn, fmt.Errorf("corndogs: connection closed: %w", errOrEOF(err)))
 			return
 		}
-		id, payload, rerr := parseResponse(frame)
+		id, reply, rerr := parseResponse(frame)
 		t.mu.Lock()
 		ch := t.pending[id]
 		if ch != nil {
@@ -161,7 +161,7 @@ func (t *StreamTransport) readLoop(conn net.Conn) {
 		}
 		t.mu.Unlock()
 		if ch != nil {
-			ch <- rpcResult{payload: payload, err: rerr}
+			ch <- rpcResult{reply: reply, err: rerr}
 		}
 	}
 }
@@ -175,18 +175,23 @@ func (t *StreamTransport) readLoop(conn net.Conn) {
 // ErrOutcomeUncertain for the operations in ReplaySafe, with the same bytes.
 // It never replays a legacy mutation after an uncertain outcome.
 func (t *StreamTransport) Call(ctx context.Context, service, op string, req []byte) ([]byte, error) {
+	return replyPayload(t.CallReply(ctx, service, op, req))
+}
+
+// CallReply returns the variant and payload from the same response.
+func (t *StreamTransport) CallReply(ctx context.Context, service, op string, req []byte) (WireReply, error) {
 	var err error
 	for attempt := 0; attempt < t.maxAttempts(); attempt++ {
 		if attempt > 0 && !sleepBackoff(ctx, attempt-1) {
 			break
 		}
-		var resp []byte
+		var resp WireReply
 		resp, err = t.callOnce(ctx, service, op, req)
 		if err == nil || !retryable(op, err) {
 			return resp, err
 		}
 	}
-	return nil, err
+	return WireReply{}, err
 }
 
 // maxAttempts bounds the retries of one Call. A retry happens only for a
@@ -214,10 +219,10 @@ func retryable(op string, err error) bool {
 	return errors.Is(err, ErrOutcomeUncertain) && ReplaySafe(op)
 }
 
-func (t *StreamTransport) callOnce(ctx context.Context, service, op string, req []byte) ([]byte, error) {
+func (t *StreamTransport) callOnce(ctx context.Context, service, op string, req []byte) (WireReply, error) {
 	conn, err := t.ensureConn()
 	if err != nil {
-		return nil, notApplied(err)
+		return WireReply{}, notApplied(err)
 	}
 
 	t.mu.Lock()
@@ -226,7 +231,7 @@ func (t *StreamTransport) callOnce(ctx context.Context, service, op string, req 
 	ch := make(chan rpcResult, 1)
 	if t.pending == nil { // torn down between ensureConn and here
 		t.mu.Unlock()
-		return nil, notApplied(fmt.Errorf("corndogs: connection lost"))
+		return WireReply{}, notApplied(fmt.Errorf("corndogs: connection lost"))
 	}
 	t.pending[id] = ch
 	t.mu.Unlock()
@@ -245,7 +250,7 @@ func (t *StreamTransport) callOnce(ctx context.Context, service, op string, req 
 	if werr != nil {
 		t.teardown(conn, werr)
 		// Part of the frame may have reached the server.
-		return nil, uncertain(werr)
+		return WireReply{}, uncertain(werr)
 	}
 
 	select {
@@ -253,9 +258,9 @@ func (t *StreamTransport) callOnce(ctx context.Context, service, op string, req 
 		t.mu.Lock()
 		delete(t.pending, id)
 		t.mu.Unlock()
-		return nil, uncertain(ctx.Err())
+		return WireReply{}, uncertain(ctx.Err())
 	case res := <-ch:
-		return res.payload, res.err
+		return res.reply, res.err
 	}
 }
 
@@ -339,12 +344,10 @@ func (t *StreamTransport) Close() error {
 
 // --- envelope + framing helpers --------------------------------------------
 
-// parseResponse decodes a CsilRpcResponse frame into (id, inner-payload, err). A
-// non-zero transport status or a "ServiceError" arm becomes a *ClientError.
-func parseResponse(frame []byte) (uint64, []byte, error) {
+func parseResponse(frame []byte) (uint64, WireReply, error) {
 	val, err := cborDecode(frame)
 	if err != nil {
-		return 0, nil, &ClientError{Err: fmt.Errorf("decode response envelope: %w", err)}
+		return 0, WireReply{}, &ClientError{Err: fmt.Errorf("decode response envelope: %w", err)}
 	}
 	var id uint64
 	if idv, ok := cborMapGet(val, "id"); ok {
@@ -358,29 +361,44 @@ func parseResponse(frame []byte) (uint64, []byte, error) {
 			if ev, ok := cborMapGet(val, "error"); ok {
 				msg, _ = cborAsText(ev)
 			}
-			return id, nil, &ClientError{Err: &TransportStatusError{Status: status, Message: msg}}
+			return id, WireReply{}, &ClientError{Err: &TransportStatusError{Status: status, Message: msg}}
 		}
+	}
+	var reply WireReply
+	if vv, ok := cborMapGet(val, "variant"); ok {
+		variant, err := cborAsText(vv)
+		if err != nil {
+			return id, WireReply{}, err
+		}
+		reply.Variant = &variant
 	}
 	pv, ok := cborMapGet(val, "payload")
 	if !ok {
-		return id, nil, nil // control replies (e.g. $pong) may carry no payload
+		return id, reply, nil // control replies (e.g. $pong) may carry no payload
 	}
 	if tag, ok := pv.(cborTag); ok {
 		pv = tag.inner
 	}
 	inner, err := cborAsBytes(pv)
 	if err != nil {
-		return id, nil, &ClientError{Err: fmt.Errorf("response payload is not a tag-24 byte string: %w", err)}
+		return id, WireReply{}, &ClientError{Err: fmt.Errorf("response payload is not a tag-24 byte string: %w", err)}
 	}
-	if vv, ok := cborMapGet(val, "variant"); ok {
-		if variant, _ := cborAsText(vv); variant == "ServiceError" {
-			if se, derr := DecodeServiceError(inner); derr == nil {
-				return id, nil, &ClientError{Code: int64(se.Code), Message: se.Message}
-			}
-			return id, nil, &ClientError{Err: fmt.Errorf("undecodable ServiceError payload")}
+	reply.Payload = inner
+	return id, reply, nil
+}
+
+func replyPayload(reply WireReply, err error) ([]byte, error) {
+	if err != nil {
+		return nil, err
+	}
+	if reply.Variant != nil && *reply.Variant == "ServiceError" {
+		se, err := DecodeServiceError(reply.Payload)
+		if err != nil {
+			return nil, &ClientError{Err: err}
 		}
+		return nil, &ClientError{Code: int64(se.Code), Message: se.Message}
 	}
-	return id, inner, nil
+	return reply.Payload, nil
 }
 
 func writeFrame(w io.Writer, b []byte, max int) error {

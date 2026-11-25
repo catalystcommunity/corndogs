@@ -75,6 +75,16 @@ class TcpTransport
 
   # The seam the generated client calls with the already-encoded request bytes.
   def call(service, op, req_bytes)
+    variant, payload = call_reply(service, op, req_bytes)
+    if variant == "ServiceError"
+      inner = ServiceError.from_cbor(payload)
+      raise CorndogsServiceError.new(inner.code, inner.message)
+    end
+
+    payload
+  end
+
+  def call_reply(service, op, req_bytes)
     @mutex.synchronize do
       sock = ensure_socket
       @next_id += 1
@@ -213,16 +223,11 @@ class TcpTransport
     raise TransportError, "transport status #{status}: #{val["error"]}" unless status.zero?
 
     payload = val["payload"]
-    return "".b if payload.nil? # control replies (e.g. $pong) carry no payload
+    return [val["variant"], "".b] if payload.nil? # control replies (e.g. $pong) carry no payload
 
     payload = payload.value if payload.is_a?(CsilCbor::Tag)
 
-    if val["variant"] == "ServiceError"
-      inner = ServiceError.from_cbor(payload)
-      raise CorndogsServiceError.new(inner.code, inner.message)
-    end
-
-    payload
+    [val["variant"], payload]
   end
 end
 

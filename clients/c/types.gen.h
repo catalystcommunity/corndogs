@@ -447,4 +447,246 @@ typedef struct ServiceError {
     char *message;
 } ServiceError;
 
+typedef struct CorndogsServiceSubmitTaskReply {
+    enum {
+        CorndogsServiceSubmitTaskReply_as_submit_task_response,
+        CorndogsServiceSubmitTaskReply_as_service_error,
+    } kind;
+    union {
+        SubmitTaskResponse as_submit_task_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceSubmitTaskReply;
+
+typedef struct CorndogsServiceGetTaskStateByIDReply {
+    enum {
+        CorndogsServiceGetTaskStateByIDReply_as_get_task_state_by_i_d_response,
+        CorndogsServiceGetTaskStateByIDReply_as_service_error,
+    } kind;
+    union {
+        GetTaskStateByIDResponse as_get_task_state_by_i_d_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceGetTaskStateByIDReply;
+
+typedef struct CorndogsServiceGetNextTaskReply {
+    enum {
+        CorndogsServiceGetNextTaskReply_as_get_next_task_response,
+        CorndogsServiceGetNextTaskReply_as_service_error,
+    } kind;
+    union {
+        GetNextTaskResponse as_get_next_task_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceGetNextTaskReply;
+
+typedef struct CorndogsServiceGetNextTaskGroupReply {
+    enum {
+        CorndogsServiceGetNextTaskGroupReply_as_get_next_task_group_response,
+        CorndogsServiceGetNextTaskGroupReply_as_service_error,
+    } kind;
+    union {
+        GetNextTaskGroupResponse as_get_next_task_group_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceGetNextTaskGroupReply;
+
+typedef struct CorndogsServiceUpdateTaskReply {
+    enum {
+        CorndogsServiceUpdateTaskReply_as_update_task_response,
+        CorndogsServiceUpdateTaskReply_as_service_error,
+    } kind;
+    union {
+        UpdateTaskResponse as_update_task_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceUpdateTaskReply;
+
+typedef struct CorndogsServiceCompleteTaskReply {
+    enum {
+        CorndogsServiceCompleteTaskReply_as_complete_task_response,
+        CorndogsServiceCompleteTaskReply_as_service_error,
+    } kind;
+    union {
+        CompleteTaskResponse as_complete_task_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceCompleteTaskReply;
+
+typedef struct CorndogsServiceCancelTaskReply {
+    enum {
+        CorndogsServiceCancelTaskReply_as_cancel_task_response,
+        CorndogsServiceCancelTaskReply_as_service_error,
+    } kind;
+    union {
+        CancelTaskResponse as_cancel_task_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceCancelTaskReply;
+
+typedef struct CorndogsServiceCleanUpTimedOutReply {
+    enum {
+        CorndogsServiceCleanUpTimedOutReply_as_clean_up_timed_out_response,
+        CorndogsServiceCleanUpTimedOutReply_as_service_error,
+    } kind;
+    union {
+        CleanUpTimedOutResponse as_clean_up_timed_out_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceCleanUpTimedOutReply;
+
+typedef struct CorndogsServiceGetQueuesReply {
+    enum {
+        CorndogsServiceGetQueuesReply_as_get_queues_response,
+        CorndogsServiceGetQueuesReply_as_service_error,
+    } kind;
+    union {
+        GetQueuesResponse as_get_queues_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceGetQueuesReply;
+
+typedef struct CorndogsServiceGetQueueTaskCountsReply {
+    enum {
+        CorndogsServiceGetQueueTaskCountsReply_as_get_queue_task_counts_response,
+        CorndogsServiceGetQueueTaskCountsReply_as_service_error,
+    } kind;
+    union {
+        GetQueueTaskCountsResponse as_get_queue_task_counts_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceGetQueueTaskCountsReply;
+
+typedef struct CorndogsServiceGetTaskStateCountsReply {
+    enum {
+        CorndogsServiceGetTaskStateCountsReply_as_get_task_state_counts_response,
+        CorndogsServiceGetTaskStateCountsReply_as_service_error,
+    } kind;
+    union {
+        GetTaskStateCountsResponse as_get_task_state_counts_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceGetTaskStateCountsReply;
+
+typedef struct CorndogsServiceGetQueueAndStateCountsReply {
+    enum {
+        CorndogsServiceGetQueueAndStateCountsReply_as_get_queue_and_state_counts_response,
+        CorndogsServiceGetQueueAndStateCountsReply_as_service_error,
+    } kind;
+    union {
+        GetQueueAndStateCountsResponse as_get_queue_and_state_counts_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceGetQueueAndStateCountsReply;
+
+typedef struct CorndogsServiceGetServerInfoReply {
+    enum {
+        CorndogsServiceGetServerInfoReply_as_get_server_info_response,
+        CorndogsServiceGetServerInfoReply_as_service_error,
+    } kind;
+    union {
+        GetServerInfoResponse as_get_server_info_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceGetServerInfoReply;
+
+typedef struct CorndogsServiceSubmitKeyedTaskReply {
+    enum {
+        CorndogsServiceSubmitKeyedTaskReply_as_submit_keyed_task_response,
+        CorndogsServiceSubmitKeyedTaskReply_as_service_error,
+    } kind;
+    union {
+        SubmitKeyedTaskResponse as_submit_keyed_task_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceSubmitKeyedTaskReply;
+
+typedef struct CorndogsServiceLookupSubmissionReply {
+    enum {
+        CorndogsServiceLookupSubmissionReply_as_lookup_submission_response,
+        CorndogsServiceLookupSubmissionReply_as_service_error,
+    } kind;
+    union {
+        LookupSubmissionResponse as_lookup_submission_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceLookupSubmissionReply;
+
+typedef struct CorndogsServiceClaimGuardedTaskReply {
+    enum {
+        CorndogsServiceClaimGuardedTaskReply_as_claim_guarded_task_response,
+        CorndogsServiceClaimGuardedTaskReply_as_service_error,
+    } kind;
+    union {
+        ClaimGuardedTaskResponse as_claim_guarded_task_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceClaimGuardedTaskReply;
+
+typedef struct CorndogsServiceClaimGuardedTaskGroupReply {
+    enum {
+        CorndogsServiceClaimGuardedTaskGroupReply_as_claim_guarded_task_group_response,
+        CorndogsServiceClaimGuardedTaskGroupReply_as_service_error,
+    } kind;
+    union {
+        ClaimGuardedTaskGroupResponse as_claim_guarded_task_group_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceClaimGuardedTaskGroupReply;
+
+typedef struct CorndogsServiceUpdateGuardedTaskReply {
+    enum {
+        CorndogsServiceUpdateGuardedTaskReply_as_update_guarded_task_response,
+        CorndogsServiceUpdateGuardedTaskReply_as_service_error,
+    } kind;
+    union {
+        UpdateGuardedTaskResponse as_update_guarded_task_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceUpdateGuardedTaskReply;
+
+typedef struct CorndogsServiceCompleteGuardedTaskReply {
+    enum {
+        CorndogsServiceCompleteGuardedTaskReply_as_complete_guarded_task_response,
+        CorndogsServiceCompleteGuardedTaskReply_as_service_error,
+    } kind;
+    union {
+        CompleteGuardedTaskResponse as_complete_guarded_task_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceCompleteGuardedTaskReply;
+
+typedef struct CorndogsServiceCancelGuardedTaskReply {
+    enum {
+        CorndogsServiceCancelGuardedTaskReply_as_cancel_guarded_task_response,
+        CorndogsServiceCancelGuardedTaskReply_as_service_error,
+    } kind;
+    union {
+        CancelGuardedTaskResponse as_cancel_guarded_task_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceCancelGuardedTaskReply;
+
+typedef struct CorndogsServiceGetGuardedTaskReply {
+    enum {
+        CorndogsServiceGetGuardedTaskReply_as_get_guarded_task_response,
+        CorndogsServiceGetGuardedTaskReply_as_service_error,
+    } kind;
+    union {
+        GetGuardedTaskResponse as_get_guarded_task_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceGetGuardedTaskReply;
+
+typedef struct CorndogsServiceLookupOperationReply {
+    enum {
+        CorndogsServiceLookupOperationReply_as_lookup_operation_response,
+        CorndogsServiceLookupOperationReply_as_service_error,
+    } kind;
+    union {
+        LookupOperationResponse as_lookup_operation_response;
+        ServiceError as_service_error;
+    } value;
+} CorndogsServiceLookupOperationReply;
+
 #endif /* CSILGEN_TYPES_GEN_H */

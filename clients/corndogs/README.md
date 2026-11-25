@@ -152,6 +152,8 @@ with the same bytes. They never send a legacy mutation (`SubmitTask`,
 
 - **Transport:** CSIL-RPC over TCP (4-byte length-prefix framing). HTTP is not used
   for RPC — the server serves RPC on its TCP port; HTTP is only for health/metrics.
-- Errors: a service error is a `*corndogs.ClientError` with `Code`/`Message`; a
-  transport failure is a `*corndogs.ClientError` wrapping the underlying error.
-  Use the checks in "Safe retries" to classify them.
+- A typed method returns `*corndogs.RPCEncodeError` if it cannot encode the request.
+  It returns `*corndogs.RPCDecodeError` if it cannot decode the reply.
+- A service refusal returns `*corndogs.RPCApplicationError[corndogs.ServiceError]`.
+  Use `corndogs.ServiceErrorCode(err)` to read its code. See "Safe retries"
+  for transport errors.

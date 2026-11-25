@@ -17,7 +17,7 @@ open Corndogs
 let () =
   let tr = Transport.connect "localhost:5080" in  (* your corndogs server's TCP address *)
   let stop = Transport.start_heartbeat tr in       (* keep the connection alive (background) *)
-  let client = Client.make_client ~call:(Transport.call tr) in
+  let client = Transport.client tr in
 
   (* Submit a task, then claim the next one from the queue. *)
   let submitted =
@@ -38,8 +38,8 @@ let () =
   Transport.close tr
 ```
 
-Every generated call returns `('resp, string) result` — `Ok resp` on success, `Error msg`
-on either a transport failure or a decoded `ServiceError` from the server.
+A generated method returns `Ok response` on success. Match the error tag to
+handle a service refusal, a transport failure, or a decode failure.
 
 ## Heartbeat
 
@@ -86,7 +86,8 @@ match Client.Corndogs_service.claim_guarded_task client claim_req with
   in
   ignore (Client.Corndogs_service.complete_guarded_task client done_req)
 | Ok _ -> ()
-| Error e -> prerr_endline e
+| Error (`Service_error e) -> prerr_endline e.message
+| Error (`Transport msg | `Decode msg) -> prerr_endline msg
 ```
 
 The server returns a `ServiceError` with one of these codes:
@@ -114,6 +115,3 @@ Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md
   connection is dialed lazily and re-dialed automatically after a failure.
 - **Clustered deployments:** point the transport at any node; a write that lands on a
   follower is transparently redirected to the leader.
-- Errors: both a decoded `ServiceError` from the server and a transport-level failure
-  (connection dropped, non-zero transport status) surface as `Error <message>` — there is
-  no separate exception type to catch.

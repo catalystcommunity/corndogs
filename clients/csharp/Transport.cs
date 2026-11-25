@@ -87,11 +87,8 @@ internal static class CsilRpcWire
         return idv is not null ? Cbor.AsU64(idv) : 0;
     }
 
-    /// <summary>Decodes a response envelope into the inner payload bytes. A non-zero
-    /// transport status throws <see cref="CorndogsTransportException"/>; a
-    /// "ServiceError" variant throws the generated <see cref="CsilClientException"/>.
-    /// Empty (not null) for control replies (e.g. "$pong") that carry no payload.</summary>
-    internal static byte[] ParseResponse(byte[] frame)
+    /// <summary>Returns the reply variant and payload. A nonzero transport status throws an error.</summary>
+    internal static CsilWireReply ParseResponse(byte[] frame)
     {
         CborValue val;
         try
@@ -111,9 +108,11 @@ internal static class CsilRpcWire
             throw new CorndogsTransportException($"corndogs: transport status {Cbor.AsI64(statusV)}: {msg}");
         }
 
+        var variantV = Cbor.MapGet(val, "variant");
+        var variant = variantV is null ? null : Cbor.AsText(variantV);
         var payloadV = Cbor.MapGet(val, "payload");
         if (payloadV is null)
-            return Array.Empty<byte>(); // control replies (e.g. $pong) carry no payload
+            return new CsilWireReply(variant, Array.Empty<byte>()); // control replies (e.g. $pong) carry no payload
 
         var inner = payloadV is CborValue.Tag tag ? tag.Inner : payloadV;
         byte[] innerBytes;
@@ -126,13 +125,17 @@ internal static class CsilRpcWire
             throw new CorndogsTransportException($"corndogs: response payload is not tag-24 bytes: {ex.Message}", ex);
         }
 
-        var variantV = Cbor.MapGet(val, "variant");
-        if (variantV is not null && Cbor.AsText(variantV) == "ServiceError")
+        return new CsilWireReply(variant, innerBytes);
+    }
+
+    internal static byte[] ReplyPayload(CsilWireReply reply)
+    {
+        if (reply.Variant == "ServiceError")
         {
-            var se = Codec.Decode<ServiceError>(innerBytes);
+            var se = Codec.Decode<ServiceError>(reply.Payload);
             throw new CsilClientException((long)se.Code, se.Message);
         }
-        return innerBytes;
+        return reply.Payload;
     }
 
     internal static void WriteFrame(Stream s, byte[] payload)
@@ -283,6 +286,9 @@ public sealed class TcpTransport : ICsilTransport, IDisposable
     /// <summary>Sends one request and waits for its response. Implements
     /// <see cref="ICsilTransport.Call"/> for <see cref="CorndogsClient"/>.</summary>
     public byte[] Call(string service, string op, byte[] request)
+        => CsilRpcWire.ReplyPayload(CallReply(service, op, request));
+
+    public CsilWireReply CallReply(string service, string op, byte[] request)
     {
         lock (_lock)
         {

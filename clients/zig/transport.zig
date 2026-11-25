@@ -99,7 +99,7 @@ pub const Transport = struct {
     /// Returns the `CsilgenTransport` seam the generated `CorndogsClient` expects.
     /// `self` must outlive the client (or any in-flight call through it).
     pub fn asCsilgenTransport(self: *Transport) client.CsilgenTransport {
-        return .{ .ptr = self, .call = callThunk };
+        return .{ .ptr = self, .call = callThunk, .call_reply = callReplyThunk };
     }
 
     fn ensureConn(self: *Transport) !std.net.Stream {
@@ -131,6 +131,13 @@ pub const Transport = struct {
         return self.call(alloc, service, op, req);
     }
 
+    fn callReplyThunk(ptr: *anyopaque, alloc: std.mem.Allocator, service: []const u8, op: []const u8, req: []const u8) anyerror!client.WireReply {
+        const self: *Transport = @ptrCast(@alignCast(ptr));
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.callReplyLocked(alloc, service, op, req);
+    }
+
     /// Same as the `CsilgenTransport` seam, callable directly (e.g. for the
     /// heartbeat, or if you want to drive calls without going through the generated
     /// client). Serialized under `mutex`: only one call is in flight at a time.
@@ -138,6 +145,21 @@ pub const Transport = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
 
+        const reply = try self.callReplyLocked(alloc, service, op, req);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        errdefer alloc.free(reply.payload);
+        if (reply.variant) |variant| {
+            if (std.mem.eql(u8, variant, "ServiceError")) {
+                var se: ServiceError = undefined;
+                codec.decode_ServiceError(alloc, reply.payload, &se) catch return TransportError.MalformedEnvelope;
+                self.last_service_error = se;
+                return TransportError.ServiceErrorOccurred;
+            }
+        }
+        return reply.payload;
+    }
+
+    fn callReplyLocked(self: *Transport, alloc: std.mem.Allocator, service: []const u8, op: []const u8, req: []const u8) TransportError!client.WireReply {
         self.last_service_error = null;
         if (self.last_transport_error) |old| self.alloc.free(old);
         self.last_transport_error = null;
@@ -170,10 +192,8 @@ pub const Transport = struct {
         return self.parseResponse(alloc, frame);
     }
 
-    /// Decodes one response envelope into the caller-owned inner payload bytes. A
-    /// non-zero transport `status`, or a "ServiceError" variant, becomes an error
-    /// (see `last_service_error` for the structured service error).
-    fn parseResponse(self: *Transport, alloc: std.mem.Allocator, frame: []const u8) TransportError![]u8 {
+    /// Copies the reply variant and payload into the caller's allocator.
+    fn parseResponse(self: *Transport, alloc: std.mem.Allocator, frame: []const u8) TransportError!client.WireReply {
         var r = EnvReader{ .buf = frame };
         const resp = r.readEnvelope() catch return TransportError.MalformedEnvelope;
 
@@ -181,18 +201,12 @@ pub const Transport = struct {
             self.last_transport_error = self.alloc.dupe(u8, resp.error_msg) catch null;
             return TransportError.TransportStatus;
         }
-        if (!resp.has_payload) {
-            return try alloc.alloc(u8, 0); // control replies (e.g. $pong) may carry no payload
-        }
-        if (resp.is_service_error) {
-            var se: ServiceError = undefined;
-            codec.decode_ServiceError(alloc, resp.payload, &se) catch {
-                return TransportError.MalformedEnvelope;
-            };
-            self.last_service_error = se;
-            return TransportError.ServiceErrorOccurred;
-        }
-        return alloc.dupe(u8, resp.payload);
+        const payload = try alloc.dupe(u8, resp.payload);
+        errdefer alloc.free(payload);
+        return .{
+            .variant = if (resp.variant) |name| try alloc.dupe(u8, name) else null,
+            .payload = payload,
+        };
     }
 
     // --- heartbeat -----------------------------------------------------------
@@ -487,7 +501,7 @@ const EnvReader = struct {
         error_msg: []const u8 = &.{},
         has_payload: bool = false,
         payload: []const u8 = &.{},
-        is_service_error: bool = false,
+        variant: ?[]const u8 = null,
     };
 
     /// Decodes the top-level response map: { id, status, error, variant, payload }.
@@ -518,8 +532,7 @@ const EnvReader = struct {
             } else if (std.mem.eql(u8, key, "variant")) {
                 const h = try self.readHeader();
                 if (h.major == 3) {
-                    const v = try self.take(h.arg);
-                    out.is_service_error = std.mem.eql(u8, v, "ServiceError");
+                    out.variant = try self.take(h.arg);
                 } else if (h.major == 7) {
                     // null/undefined variant: nothing further to read
                 } else {
@@ -580,7 +593,7 @@ test "encodeEnvelope / EnvReader round-trip a tag-24 payload" {
     try testing.expectEqual(@as(i64, 0), parsed.status);
     try testing.expect(parsed.has_payload);
     try testing.expectEqualStrings("hello", parsed.payload);
-    try testing.expect(!parsed.is_service_error);
+    try testing.expect(parsed.variant == null);
 }
 
 test "EnvReader: non-zero status carries the error text" {
@@ -618,7 +631,7 @@ test "EnvReader: ServiceError variant" {
     var r = EnvReader{ .buf = out.items };
     const parsed = try r.readEnvelope();
     try testing.expectEqual(@as(i64, 0), parsed.status);
-    try testing.expect(parsed.is_service_error);
+    try testing.expectEqualStrings("ServiceError", parsed.variant.?);
     try testing.expect(parsed.has_payload);
 
     // decode_ServiceError (like every generated decode_* function) allocates its
@@ -645,7 +658,7 @@ test "EnvReader: absent payload (control reply, e.g. $pong)" {
     const parsed = try r.readEnvelope();
     try testing.expectEqual(@as(i64, 0), parsed.status);
     try testing.expect(!parsed.has_payload);
-    try testing.expect(!parsed.is_service_error);
+    try testing.expectEqualStrings("$pong", parsed.variant.?);
 }
 
 /// A tiny fake corndogs server for the live loopback test below: replies to every
@@ -749,7 +762,7 @@ test "Transport: connect, call, ping, ServiceError, TransportStatus, and close o
     }
 
     // ServiceError variant. Like every generated decode_* function,
-    // codec.decode_ServiceError (used internally by parseResponse) allocates its
+    // codec.decode_ServiceError (used by the raw call) allocates its
     // scratch CBOR tree from the `alloc` passed to call() and never frees it
     // individually — pass an arena and free it all at once (same contract the
     // generated typed responses use).

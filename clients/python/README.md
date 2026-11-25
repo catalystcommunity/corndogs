@@ -126,5 +126,6 @@ Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md
   health and Prometheus).
 - **Clustered deployments:** point the transport at any node; a write that lands on
   a follower is transparently redirected to the leader.
-- Errors: a service error raises `corndogs.client.ServiceError`; a transport failure
-  raises `corndogs.transport.TransportError`.
+- A reply that fails to decode raises `corndogs.CsilDecodeError`, a subclass of `ValueError`.
+- A service error raises `corndogs.ServiceErrorRefusal`. Read the error code and message
+  from `value`. A transport failure raises `corndogs.transport.TransportError`.

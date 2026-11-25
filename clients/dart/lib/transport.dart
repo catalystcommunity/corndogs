@@ -193,6 +193,15 @@ class TcpTransport implements AsyncCsilTransport {
 
   @override
   Future<Uint8List> call(String service, String op, List<int> request) async {
+    final (variant, payload) = await callReply(service, op, request);
+    if (variant == 'ServiceError') {
+      throw CorndogsServiceException(ServiceError.fromCborValue(CsilCbor.decode(payload)));
+    }
+    return payload;
+  }
+
+  @override
+  Future<(String?, Uint8List)> callReply(String service, String op, List<int> request) async {
     await _ensureConnected();
     final socket = _socket;
     if (socket == null) {
@@ -214,7 +223,7 @@ class TcpTransport implements AsyncCsilTransport {
     }
 
     final val = await completer.future;
-    return _extractPayload(val);
+    return _extractReply(val);
   }
 
   // Serializes frame writes on the shared connection: concurrent calls each add
@@ -235,7 +244,7 @@ class TcpTransport implements AsyncCsilTransport {
     return next;
   }
 
-  Uint8List _extractPayload(Object? val) {
+  (String?, Uint8List) _extractReply(Object? val) {
     if (val is! Map) {
       throw const CorndogsTransportException('malformed response envelope');
     }
@@ -244,15 +253,13 @@ class TcpTransport implements AsyncCsilTransport {
       final err = val['error'];
       throw CorndogsTransportException('transport status $status: ${err ?? ''}');
     }
+    final variant = val['variant'] as String?;
     final payload = val['payload'];
     if (payload == null) {
-      return Uint8List(0); // control replies (e.g. $pong) carry no payload
+      return (variant, Uint8List(0)); // control replies (e.g. $pong) carry no payload
     }
     final bytes = payload is Uint8List ? payload : Uint8List.fromList((payload as List).cast<int>());
-    if (val['variant'] == 'ServiceError') {
-      throw CorndogsServiceException(ServiceError.fromCborValue(CsilCbor.decode(bytes)));
-    }
-    return bytes;
+    return (variant, bytes);
   }
 
   // --- heartbeat -------------------------------------------------------------

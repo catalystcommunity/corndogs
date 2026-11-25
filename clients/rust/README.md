@@ -219,7 +219,9 @@ Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md
   caller that waits behind a stuck call can wait up to the deadline of the stuck
   call, plus its own deadline. Give each role or thread its own `Transport`, or use a
   small pool of them.
-- **Errors:** a service error is `corndogs::ClientError::Service { code, message }`.
+- A service refusal returns `ClientError::ApplicationServiceError`. Its boxed
+  `ServiceError` contains the code and message. A request encoding failure
+  returns `ClientError::Encode` before the transport sends the request.
   A transport failure (and a timeout) is `corndogs::ClientError::Transport(String)`.
 - **Async:** the crate has no async transport. The generated async client
   (`CorndogsAsyncClient` / `AsyncTransport`) is present, but the crate has no async

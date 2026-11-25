@@ -5,121 +5,240 @@ open Types
 (* The transport seam is supplied by the consumer: [call] performs the RPC named
    by (service, op) over its carrier and returns the raw reply payload, or an
    error string. The generated client owns serialization (it encodes the typed
-   request and decodes the typed reply via [Codec]); the carrier only moves bytes. *)
+   request and decodes the typed reply via [Codec]); the carrier only moves bytes.
+
+   This spec has operations with more than one reply arm, so the seam also needs
+   [call_reply]: it performs the same RPC and returns the CSIL-RPC response
+   envelope's [variant] (None when absent) with the reply payload. The client
+   picks the arm from the variant: the success arm returns [Ok], a declared error
+   arm returns its [Error] tag, and a missing or unknown variant returns
+   [Error (`Decode _)]. *)
 type client = {
   call : service:string -> op:string -> payload:bytes -> (bytes, string) result;
+  call_reply :
+    service:string -> op:string -> payload:bytes -> (string option * bytes, string) result;
 }
 
-let make_client ~call = { call }
+let make_client ~call ~call_reply = { call; call_reply }
 
 module Corndogs_service = struct
-  let submit_task (c : client) (req : submit_task_request) : (submit_task_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"SubmitTask" ~payload:(Codec.encode_submit_task_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_submit_task_response_bytes payload)
-    | Error _ as e -> e
+  let submit_task (c : client) (req : submit_task_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"SubmitTask" ~payload:(Codec.encode_corndogs_service_submit_task_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_submit_task_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"SubmitTask" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let get_task_state_by_id (c : client) (req : get_task_state_by_id_request) : (get_task_state_by_id_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"GetTaskStateByID" ~payload:(Codec.encode_get_task_state_by_id_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_get_task_state_by_id_response_bytes payload)
-    | Error _ as e -> e
+  let get_task_state_by_id (c : client) (req : get_task_state_by_id_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"GetTaskStateByID" ~payload:(Codec.encode_corndogs_service_get_task_state_by_id_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_get_task_state_by_id_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"GetTaskStateByID" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let get_next_task (c : client) (req : get_next_task_request) : (get_next_task_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"GetNextTask" ~payload:(Codec.encode_get_next_task_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_get_next_task_response_bytes payload)
-    | Error _ as e -> e
+  let get_next_task (c : client) (req : get_next_task_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"GetNextTask" ~payload:(Codec.encode_corndogs_service_get_next_task_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_get_next_task_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"GetNextTask" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let get_next_task_group (c : client) (req : get_next_task_group_request) : (get_next_task_group_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"GetNextTaskGroup" ~payload:(Codec.encode_get_next_task_group_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_get_next_task_group_response_bytes payload)
-    | Error _ as e -> e
+  let get_next_task_group (c : client) (req : get_next_task_group_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"GetNextTaskGroup" ~payload:(Codec.encode_corndogs_service_get_next_task_group_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_get_next_task_group_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"GetNextTaskGroup" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let update_task (c : client) (req : update_task_request) : (update_task_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"UpdateTask" ~payload:(Codec.encode_update_task_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_update_task_response_bytes payload)
-    | Error _ as e -> e
+  let update_task (c : client) (req : update_task_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"UpdateTask" ~payload:(Codec.encode_corndogs_service_update_task_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_update_task_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"UpdateTask" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let complete_task (c : client) (req : complete_task_request) : (complete_task_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"CompleteTask" ~payload:(Codec.encode_complete_task_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_complete_task_response_bytes payload)
-    | Error _ as e -> e
+  let complete_task (c : client) (req : complete_task_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"CompleteTask" ~payload:(Codec.encode_corndogs_service_complete_task_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_complete_task_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"CompleteTask" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let cancel_task (c : client) (req : cancel_task_request) : (cancel_task_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"CancelTask" ~payload:(Codec.encode_cancel_task_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_cancel_task_response_bytes payload)
-    | Error _ as e -> e
+  let cancel_task (c : client) (req : cancel_task_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"CancelTask" ~payload:(Codec.encode_corndogs_service_cancel_task_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_cancel_task_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"CancelTask" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let clean_up_timed_out (c : client) (req : clean_up_timed_out_request) : (clean_up_timed_out_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"CleanUpTimedOut" ~payload:(Codec.encode_clean_up_timed_out_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_clean_up_timed_out_response_bytes payload)
-    | Error _ as e -> e
+  let clean_up_timed_out (c : client) (req : clean_up_timed_out_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"CleanUpTimedOut" ~payload:(Codec.encode_corndogs_service_clean_up_timed_out_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_clean_up_timed_out_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"CleanUpTimedOut" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let get_queues (c : client) (req : get_queues_request) : (get_queues_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"GetQueues" ~payload:(Codec.encode_get_queues_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_get_queues_response_bytes payload)
-    | Error _ as e -> e
+  let get_queues (c : client) (req : get_queues_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"GetQueues" ~payload:(Codec.encode_corndogs_service_get_queues_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_get_queues_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"GetQueues" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let get_queue_task_counts (c : client) (req : get_queue_task_counts_request) : (get_queue_task_counts_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"GetQueueTaskCounts" ~payload:(Codec.encode_get_queue_task_counts_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_get_queue_task_counts_response_bytes payload)
-    | Error _ as e -> e
+  let get_queue_task_counts (c : client) (req : get_queue_task_counts_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"GetQueueTaskCounts" ~payload:(Codec.encode_corndogs_service_get_queue_task_counts_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_get_queue_task_counts_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"GetQueueTaskCounts" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let get_task_state_counts (c : client) (req : get_task_state_counts_request) : (get_task_state_counts_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"GetTaskStateCounts" ~payload:(Codec.encode_get_task_state_counts_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_get_task_state_counts_response_bytes payload)
-    | Error _ as e -> e
+  let get_task_state_counts (c : client) (req : get_task_state_counts_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"GetTaskStateCounts" ~payload:(Codec.encode_corndogs_service_get_task_state_counts_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_get_task_state_counts_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"GetTaskStateCounts" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let get_queue_and_state_counts (c : client) (req : get_queue_and_state_counts_request) : (get_queue_and_state_counts_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"GetQueueAndStateCounts" ~payload:(Codec.encode_get_queue_and_state_counts_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_get_queue_and_state_counts_response_bytes payload)
-    | Error _ as e -> e
+  let get_queue_and_state_counts (c : client) (req : get_queue_and_state_counts_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"GetQueueAndStateCounts" ~payload:(Codec.encode_corndogs_service_get_queue_and_state_counts_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_get_queue_and_state_counts_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"GetQueueAndStateCounts" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let get_server_info (c : client) (req : get_server_info_request) : (get_server_info_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"GetServerInfo" ~payload:(Codec.encode_get_server_info_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_get_server_info_response_bytes payload)
-    | Error _ as e -> e
+  let get_server_info (c : client) (req : get_server_info_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"GetServerInfo" ~payload:(Codec.encode_corndogs_service_get_server_info_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_get_server_info_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"GetServerInfo" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let submit_keyed_task (c : client) (req : submit_keyed_task_request) : (submit_keyed_task_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"SubmitKeyedTask" ~payload:(Codec.encode_submit_keyed_task_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_submit_keyed_task_response_bytes payload)
-    | Error _ as e -> e
+  let submit_keyed_task (c : client) (req : submit_keyed_task_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"SubmitKeyedTask" ~payload:(Codec.encode_corndogs_service_submit_keyed_task_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_submit_keyed_task_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"SubmitKeyedTask" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let lookup_submission (c : client) (req : lookup_submission_request) : (lookup_submission_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"LookupSubmission" ~payload:(Codec.encode_lookup_submission_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_lookup_submission_response_bytes payload)
-    | Error _ as e -> e
+  let lookup_submission (c : client) (req : lookup_submission_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"LookupSubmission" ~payload:(Codec.encode_corndogs_service_lookup_submission_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_lookup_submission_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"LookupSubmission" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let claim_guarded_task (c : client) (req : claim_guarded_task_request) : (claim_guarded_task_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"ClaimGuardedTask" ~payload:(Codec.encode_claim_guarded_task_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_claim_guarded_task_response_bytes payload)
-    | Error _ as e -> e
+  let claim_guarded_task (c : client) (req : claim_guarded_task_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"ClaimGuardedTask" ~payload:(Codec.encode_corndogs_service_claim_guarded_task_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_claim_guarded_task_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"ClaimGuardedTask" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let claim_guarded_task_group (c : client) (req : claim_guarded_task_group_request) : (claim_guarded_task_group_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"ClaimGuardedTaskGroup" ~payload:(Codec.encode_claim_guarded_task_group_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_claim_guarded_task_group_response_bytes payload)
-    | Error _ as e -> e
+  let claim_guarded_task_group (c : client) (req : claim_guarded_task_group_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"ClaimGuardedTaskGroup" ~payload:(Codec.encode_corndogs_service_claim_guarded_task_group_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_claim_guarded_task_group_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"ClaimGuardedTaskGroup" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let update_guarded_task (c : client) (req : update_guarded_task_request) : (update_guarded_task_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"UpdateGuardedTask" ~payload:(Codec.encode_update_guarded_task_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_update_guarded_task_response_bytes payload)
-    | Error _ as e -> e
+  let update_guarded_task (c : client) (req : update_guarded_task_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"UpdateGuardedTask" ~payload:(Codec.encode_corndogs_service_update_guarded_task_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_update_guarded_task_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"UpdateGuardedTask" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let complete_guarded_task (c : client) (req : complete_guarded_task_request) : (complete_guarded_task_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"CompleteGuardedTask" ~payload:(Codec.encode_complete_guarded_task_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_complete_guarded_task_response_bytes payload)
-    | Error _ as e -> e
+  let complete_guarded_task (c : client) (req : complete_guarded_task_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"CompleteGuardedTask" ~payload:(Codec.encode_corndogs_service_complete_guarded_task_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_complete_guarded_task_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"CompleteGuardedTask" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let cancel_guarded_task (c : client) (req : cancel_guarded_task_request) : (cancel_guarded_task_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"CancelGuardedTask" ~payload:(Codec.encode_cancel_guarded_task_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_cancel_guarded_task_response_bytes payload)
-    | Error _ as e -> e
+  let cancel_guarded_task (c : client) (req : cancel_guarded_task_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"CancelGuardedTask" ~payload:(Codec.encode_corndogs_service_cancel_guarded_task_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_cancel_guarded_task_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"CancelGuardedTask" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let get_guarded_task (c : client) (req : get_guarded_task_request) : (get_guarded_task_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"GetGuardedTask" ~payload:(Codec.encode_get_guarded_task_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_get_guarded_task_response_bytes payload)
-    | Error _ as e -> e
+  let get_guarded_task (c : client) (req : get_guarded_task_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"GetGuardedTask" ~payload:(Codec.encode_corndogs_service_get_guarded_task_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_get_guarded_task_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"GetGuardedTask" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 
-  let lookup_operation (c : client) (req : lookup_operation_request) : (lookup_operation_response, string) result =
-    match c.call ~service:"CorndogsService" ~op:"LookupOperation" ~payload:(Codec.encode_lookup_operation_request_bytes req) with
-    | Ok payload -> Ok (Codec.decode_lookup_operation_response_bytes payload)
-    | Error _ as e -> e
+  let lookup_operation (c : client) (req : lookup_operation_request) =
+    try
+      match c.call_reply ~service:"CorndogsService" ~op:"LookupOperation" ~payload:(Codec.encode_corndogs_service_lookup_operation_request req) with
+      | Ok (variant, bytes) ->
+        Ok (Codec.decode_corndogs_service_lookup_operation_success (Codec.resolve_rpc_reply ~service:"CorndogsService" ~op:"LookupOperation" ~variant bytes))
+      | Error e -> Error (`Transport e)
+    with
+    | Codec.Service_error_refusal value -> Error (`Service_error value)
+    | Failure e | Invalid_argument e -> Error (`Decode e)
 end

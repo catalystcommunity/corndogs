@@ -12,55 +12,126 @@ namespace corndogs;
 public interface ICsilAsyncTransport
 {
     System.Threading.Tasks.Task<byte[]> Call(string service, string op, byte[] request);
+
+    /// <summary>Performs a call to an op with several reply arms and returns the reply
+    /// variant with the payload bytes. The client selects the arm from the variant, so
+    /// the carrier must not drop it.</summary>
+    System.Threading.Tasks.Task<CsilWireReply> CallReply(string service, string op, byte[] request);
 }
 
 /// <summary>Typed RPC client for the CorndogsService service. The client owns
 /// (de)serialization via the generated codec; the transport only moves bytes.</summary>
 public sealed class CorndogsAsyncClient(ICsilAsyncTransport transport)
 {
-    public async System.Threading.Tasks.Task<SubmitTaskResponse> SubmitTaskAsync(SubmitTaskRequest submitTaskRequest) =>
-        Codec.Decode<SubmitTaskResponse>(await transport.Call("CorndogsService", "SubmitTask", Codec.Encode(submitTaskRequest)));
-    public async System.Threading.Tasks.Task<GetTaskStateByIDResponse> GetTaskStateByIDAsync(GetTaskStateByIDRequest getTaskStateByIDRequest) =>
-        Codec.Decode<GetTaskStateByIDResponse>(await transport.Call("CorndogsService", "GetTaskStateByID", Codec.Encode(getTaskStateByIDRequest)));
-    public async System.Threading.Tasks.Task<GetNextTaskResponse> GetNextTaskAsync(GetNextTaskRequest getNextTaskRequest) =>
-        Codec.Decode<GetNextTaskResponse>(await transport.Call("CorndogsService", "GetNextTask", Codec.Encode(getNextTaskRequest)));
-    public async System.Threading.Tasks.Task<GetNextTaskGroupResponse> GetNextTaskGroupAsync(GetNextTaskGroupRequest getNextTaskGroupRequest) =>
-        Codec.Decode<GetNextTaskGroupResponse>(await transport.Call("CorndogsService", "GetNextTaskGroup", Codec.Encode(getNextTaskGroupRequest)));
-    public async System.Threading.Tasks.Task<UpdateTaskResponse> UpdateTaskAsync(UpdateTaskRequest updateTaskRequest) =>
-        Codec.Decode<UpdateTaskResponse>(await transport.Call("CorndogsService", "UpdateTask", Codec.Encode(updateTaskRequest)));
-    public async System.Threading.Tasks.Task<CompleteTaskResponse> CompleteTaskAsync(CompleteTaskRequest completeTaskRequest) =>
-        Codec.Decode<CompleteTaskResponse>(await transport.Call("CorndogsService", "CompleteTask", Codec.Encode(completeTaskRequest)));
-    public async System.Threading.Tasks.Task<CancelTaskResponse> CancelTaskAsync(CancelTaskRequest cancelTaskRequest) =>
-        Codec.Decode<CancelTaskResponse>(await transport.Call("CorndogsService", "CancelTask", Codec.Encode(cancelTaskRequest)));
-    public async System.Threading.Tasks.Task<CleanUpTimedOutResponse> CleanUpTimedOutAsync(CleanUpTimedOutRequest cleanUpTimedOutRequest) =>
-        Codec.Decode<CleanUpTimedOutResponse>(await transport.Call("CorndogsService", "CleanUpTimedOut", Codec.Encode(cleanUpTimedOutRequest)));
-    public async System.Threading.Tasks.Task<GetQueuesResponse> GetQueuesAsync(GetQueuesRequest getQueuesRequest) =>
-        Codec.Decode<GetQueuesResponse>(await transport.Call("CorndogsService", "GetQueues", Codec.Encode(getQueuesRequest)));
-    public async System.Threading.Tasks.Task<GetQueueTaskCountsResponse> GetQueueTaskCountsAsync(GetQueueTaskCountsRequest getQueueTaskCountsRequest) =>
-        Codec.Decode<GetQueueTaskCountsResponse>(await transport.Call("CorndogsService", "GetQueueTaskCounts", Codec.Encode(getQueueTaskCountsRequest)));
-    public async System.Threading.Tasks.Task<GetTaskStateCountsResponse> GetTaskStateCountsAsync(GetTaskStateCountsRequest getTaskStateCountsRequest) =>
-        Codec.Decode<GetTaskStateCountsResponse>(await transport.Call("CorndogsService", "GetTaskStateCounts", Codec.Encode(getTaskStateCountsRequest)));
-    public async System.Threading.Tasks.Task<GetQueueAndStateCountsResponse> GetQueueAndStateCountsAsync(GetQueueAndStateCountsRequest getQueueAndStateCountsRequest) =>
-        Codec.Decode<GetQueueAndStateCountsResponse>(await transport.Call("CorndogsService", "GetQueueAndStateCounts", Codec.Encode(getQueueAndStateCountsRequest)));
-    public async System.Threading.Tasks.Task<GetServerInfoResponse> GetServerInfoAsync(GetServerInfoRequest getServerInfoRequest) =>
-        Codec.Decode<GetServerInfoResponse>(await transport.Call("CorndogsService", "GetServerInfo", Codec.Encode(getServerInfoRequest)));
-    public async System.Threading.Tasks.Task<SubmitKeyedTaskResponse> SubmitKeyedTaskAsync(SubmitKeyedTaskRequest submitKeyedTaskRequest) =>
-        Codec.Decode<SubmitKeyedTaskResponse>(await transport.Call("CorndogsService", "SubmitKeyedTask", Codec.Encode(submitKeyedTaskRequest)));
-    public async System.Threading.Tasks.Task<LookupSubmissionResponse> LookupSubmissionAsync(LookupSubmissionRequest lookupSubmissionRequest) =>
-        Codec.Decode<LookupSubmissionResponse>(await transport.Call("CorndogsService", "LookupSubmission", Codec.Encode(lookupSubmissionRequest)));
-    public async System.Threading.Tasks.Task<ClaimGuardedTaskResponse> ClaimGuardedTaskAsync(ClaimGuardedTaskRequest claimGuardedTaskRequest) =>
-        Codec.Decode<ClaimGuardedTaskResponse>(await transport.Call("CorndogsService", "ClaimGuardedTask", Codec.Encode(claimGuardedTaskRequest)));
-    public async System.Threading.Tasks.Task<ClaimGuardedTaskGroupResponse> ClaimGuardedTaskGroupAsync(ClaimGuardedTaskGroupRequest claimGuardedTaskGroupRequest) =>
-        Codec.Decode<ClaimGuardedTaskGroupResponse>(await transport.Call("CorndogsService", "ClaimGuardedTaskGroup", Codec.Encode(claimGuardedTaskGroupRequest)));
-    public async System.Threading.Tasks.Task<UpdateGuardedTaskResponse> UpdateGuardedTaskAsync(UpdateGuardedTaskRequest updateGuardedTaskRequest) =>
-        Codec.Decode<UpdateGuardedTaskResponse>(await transport.Call("CorndogsService", "UpdateGuardedTask", Codec.Encode(updateGuardedTaskRequest)));
-    public async System.Threading.Tasks.Task<CompleteGuardedTaskResponse> CompleteGuardedTaskAsync(CompleteGuardedTaskRequest completeGuardedTaskRequest) =>
-        Codec.Decode<CompleteGuardedTaskResponse>(await transport.Call("CorndogsService", "CompleteGuardedTask", Codec.Encode(completeGuardedTaskRequest)));
-    public async System.Threading.Tasks.Task<CancelGuardedTaskResponse> CancelGuardedTaskAsync(CancelGuardedTaskRequest cancelGuardedTaskRequest) =>
-        Codec.Decode<CancelGuardedTaskResponse>(await transport.Call("CorndogsService", "CancelGuardedTask", Codec.Encode(cancelGuardedTaskRequest)));
-    public async System.Threading.Tasks.Task<GetGuardedTaskResponse> GetGuardedTaskAsync(GetGuardedTaskRequest getGuardedTaskRequest) =>
-        Codec.Decode<GetGuardedTaskResponse>(await transport.Call("CorndogsService", "GetGuardedTask", Codec.Encode(getGuardedTaskRequest)));
-    public async System.Threading.Tasks.Task<LookupOperationResponse> LookupOperationAsync(LookupOperationRequest lookupOperationRequest) =>
-        Codec.Decode<LookupOperationResponse>(await transport.Call("CorndogsService", "LookupOperation", Codec.Encode(lookupOperationRequest)));
+    public async System.Threading.Tasks.Task<SubmitTaskResponse> SubmitTaskAsync(SubmitTaskRequest submitTaskRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "SubmitTask", Codec.Encode(submitTaskRequest));
+        return Codec.Decode<SubmitTaskResponse>(Codec.ResolveRpcReply("CorndogsService", "SubmitTask", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<GetTaskStateByIDResponse> GetTaskStateByIDAsync(GetTaskStateByIDRequest getTaskStateByIDRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "GetTaskStateByID", Codec.Encode(getTaskStateByIDRequest));
+        return Codec.Decode<GetTaskStateByIDResponse>(Codec.ResolveRpcReply("CorndogsService", "GetTaskStateByID", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<GetNextTaskResponse> GetNextTaskAsync(GetNextTaskRequest getNextTaskRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "GetNextTask", Codec.Encode(getNextTaskRequest));
+        return Codec.Decode<GetNextTaskResponse>(Codec.ResolveRpcReply("CorndogsService", "GetNextTask", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<GetNextTaskGroupResponse> GetNextTaskGroupAsync(GetNextTaskGroupRequest getNextTaskGroupRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "GetNextTaskGroup", Codec.Encode(getNextTaskGroupRequest));
+        return Codec.Decode<GetNextTaskGroupResponse>(Codec.ResolveRpcReply("CorndogsService", "GetNextTaskGroup", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<UpdateTaskResponse> UpdateTaskAsync(UpdateTaskRequest updateTaskRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "UpdateTask", Codec.Encode(updateTaskRequest));
+        return Codec.Decode<UpdateTaskResponse>(Codec.ResolveRpcReply("CorndogsService", "UpdateTask", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<CompleteTaskResponse> CompleteTaskAsync(CompleteTaskRequest completeTaskRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "CompleteTask", Codec.Encode(completeTaskRequest));
+        return Codec.Decode<CompleteTaskResponse>(Codec.ResolveRpcReply("CorndogsService", "CompleteTask", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<CancelTaskResponse> CancelTaskAsync(CancelTaskRequest cancelTaskRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "CancelTask", Codec.Encode(cancelTaskRequest));
+        return Codec.Decode<CancelTaskResponse>(Codec.ResolveRpcReply("CorndogsService", "CancelTask", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<CleanUpTimedOutResponse> CleanUpTimedOutAsync(CleanUpTimedOutRequest cleanUpTimedOutRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "CleanUpTimedOut", Codec.Encode(cleanUpTimedOutRequest));
+        return Codec.Decode<CleanUpTimedOutResponse>(Codec.ResolveRpcReply("CorndogsService", "CleanUpTimedOut", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<GetQueuesResponse> GetQueuesAsync(GetQueuesRequest getQueuesRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "GetQueues", Codec.Encode(getQueuesRequest));
+        return Codec.Decode<GetQueuesResponse>(Codec.ResolveRpcReply("CorndogsService", "GetQueues", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<GetQueueTaskCountsResponse> GetQueueTaskCountsAsync(GetQueueTaskCountsRequest getQueueTaskCountsRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "GetQueueTaskCounts", Codec.Encode(getQueueTaskCountsRequest));
+        return Codec.Decode<GetQueueTaskCountsResponse>(Codec.ResolveRpcReply("CorndogsService", "GetQueueTaskCounts", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<GetTaskStateCountsResponse> GetTaskStateCountsAsync(GetTaskStateCountsRequest getTaskStateCountsRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "GetTaskStateCounts", Codec.Encode(getTaskStateCountsRequest));
+        return Codec.Decode<GetTaskStateCountsResponse>(Codec.ResolveRpcReply("CorndogsService", "GetTaskStateCounts", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<GetQueueAndStateCountsResponse> GetQueueAndStateCountsAsync(GetQueueAndStateCountsRequest getQueueAndStateCountsRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "GetQueueAndStateCounts", Codec.Encode(getQueueAndStateCountsRequest));
+        return Codec.Decode<GetQueueAndStateCountsResponse>(Codec.ResolveRpcReply("CorndogsService", "GetQueueAndStateCounts", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<GetServerInfoResponse> GetServerInfoAsync(GetServerInfoRequest getServerInfoRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "GetServerInfo", Codec.Encode(getServerInfoRequest));
+        return Codec.Decode<GetServerInfoResponse>(Codec.ResolveRpcReply("CorndogsService", "GetServerInfo", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<SubmitKeyedTaskResponse> SubmitKeyedTaskAsync(SubmitKeyedTaskRequest submitKeyedTaskRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "SubmitKeyedTask", Codec.Encode(submitKeyedTaskRequest));
+        return Codec.Decode<SubmitKeyedTaskResponse>(Codec.ResolveRpcReply("CorndogsService", "SubmitKeyedTask", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<LookupSubmissionResponse> LookupSubmissionAsync(LookupSubmissionRequest lookupSubmissionRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "LookupSubmission", Codec.Encode(lookupSubmissionRequest));
+        return Codec.Decode<LookupSubmissionResponse>(Codec.ResolveRpcReply("CorndogsService", "LookupSubmission", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<ClaimGuardedTaskResponse> ClaimGuardedTaskAsync(ClaimGuardedTaskRequest claimGuardedTaskRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "ClaimGuardedTask", Codec.Encode(claimGuardedTaskRequest));
+        return Codec.Decode<ClaimGuardedTaskResponse>(Codec.ResolveRpcReply("CorndogsService", "ClaimGuardedTask", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<ClaimGuardedTaskGroupResponse> ClaimGuardedTaskGroupAsync(ClaimGuardedTaskGroupRequest claimGuardedTaskGroupRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "ClaimGuardedTaskGroup", Codec.Encode(claimGuardedTaskGroupRequest));
+        return Codec.Decode<ClaimGuardedTaskGroupResponse>(Codec.ResolveRpcReply("CorndogsService", "ClaimGuardedTaskGroup", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<UpdateGuardedTaskResponse> UpdateGuardedTaskAsync(UpdateGuardedTaskRequest updateGuardedTaskRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "UpdateGuardedTask", Codec.Encode(updateGuardedTaskRequest));
+        return Codec.Decode<UpdateGuardedTaskResponse>(Codec.ResolveRpcReply("CorndogsService", "UpdateGuardedTask", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<CompleteGuardedTaskResponse> CompleteGuardedTaskAsync(CompleteGuardedTaskRequest completeGuardedTaskRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "CompleteGuardedTask", Codec.Encode(completeGuardedTaskRequest));
+        return Codec.Decode<CompleteGuardedTaskResponse>(Codec.ResolveRpcReply("CorndogsService", "CompleteGuardedTask", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<CancelGuardedTaskResponse> CancelGuardedTaskAsync(CancelGuardedTaskRequest cancelGuardedTaskRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "CancelGuardedTask", Codec.Encode(cancelGuardedTaskRequest));
+        return Codec.Decode<CancelGuardedTaskResponse>(Codec.ResolveRpcReply("CorndogsService", "CancelGuardedTask", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<GetGuardedTaskResponse> GetGuardedTaskAsync(GetGuardedTaskRequest getGuardedTaskRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "GetGuardedTask", Codec.Encode(getGuardedTaskRequest));
+        return Codec.Decode<GetGuardedTaskResponse>(Codec.ResolveRpcReply("CorndogsService", "GetGuardedTask", reply.Variant, reply.Payload));
+    }
+    public async System.Threading.Tasks.Task<LookupOperationResponse> LookupOperationAsync(LookupOperationRequest lookupOperationRequest)
+    {
+        var reply = await transport.CallReply("CorndogsService", "LookupOperation", Codec.Encode(lookupOperationRequest));
+        return Codec.Decode<LookupOperationResponse>(Codec.ResolveRpcReply("CorndogsService", "LookupOperation", reply.Variant, reply.Payload));
+    }
 }
 

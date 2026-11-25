@@ -142,6 +142,9 @@ public sealed class AsyncTcpTransport : ICsilAsyncTransport, IAsyncDisposable
     /// Concurrent callers are multiplexed over the one connection by correlation
     /// id.</summary>
     public async System.Threading.Tasks.Task<byte[]> Call(string service, string op, byte[] request)
+        => CsilRpcWire.ReplyPayload(await CallReply(service, op, request).ConfigureAwait(false));
+
+    public async System.Threading.Tasks.Task<CsilWireReply> CallReply(string service, string op, byte[] request)
     {
         var stream = await EnsureAsync().ConfigureAwait(false);
         var id = (ulong)Interlocked.Increment(ref _nextId);

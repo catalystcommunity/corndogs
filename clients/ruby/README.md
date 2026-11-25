@@ -96,6 +96,5 @@ Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md
   `Mutex` and re-dials automatically on a dropped connection.
 - **Clustered deployments:** point the transport at any node; a write that lands on
   a follower is transparently redirected to the leader.
-- Errors: a service error raises `CorndogsServiceError` (`#code` / `#message`); a
-  transport failure (dropped connection, non-zero transport status) raises
-  `TransportError`.
+- A service error raises `CsilCbor::ServiceErrorRefusal`. Read the error code and message
+  from `value`. A transport failure raises `TransportError`.

@@ -12,6 +12,21 @@ module CsilCbor
 
   module_function
 
+  def enc_date(value)
+    raise ArgumentError, "expected a calendar date" unless value.instance_of?(Date)
+    tag = Tag.new(1004, value.iso8601.encode(Encoding::UTF_8))
+    as_date(tag)
+    tag
+  end
+
+  def as_date(node)
+    unless node.is_a?(Tag) && node.tag == 1004 && node.value.is_a?(String) &&
+           node.value.encoding == Encoding::UTF_8 && /\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/.match?(node.value)
+      raise ArgumentError, "expected tag 1004 with YYYY-MM-DD text"
+    end
+    Date.iso8601(node.value, Date::GREGORIAN)
+  end
+
   # Canonical-CBOR encode of a Ruby value tree to a binary String.
   def encode(value)
     buf = "".b
@@ -63,9 +78,17 @@ module CsilCbor
       put_head(buf, 4, value.length)
       value.each { |item| put(buf, item) }
     when Hash
-      put_head(buf, 5, value.length)
-      value.each do |k, v|
-        put(buf, k)
+      # RFC 8949 section 4.2.1: entries sorted by the bytes of each encoded key, which
+      # is not the order of the Ruby keys ("b" sorts before "aa", 10 before -1).
+      entries = value.map do |k, v|
+        key = "".b
+        put(key, k)
+        [key, v]
+      end
+      entries.sort_by!(&:first)
+      put_head(buf, 5, entries.length)
+      entries.each do |key, v|
+        buf << key
         put(buf, v)
       end
     when Tag
@@ -74,6 +97,80 @@ module CsilCbor
     else
       raise ArgumentError, "csilgen: cannot encode #{value.class}"
     end
+  end
+
+  # A decoded dynamic map (`{ * K => V }`): its keys must arrive in canonical order.
+  def dyn_map(node)
+    raise ArgumentError, "csil cbor: expected a map" unless node.is_a?(Hash)
+    unless node.instance_variable_get(:@csil_canonical)
+      raise ArgumentError, "csil cbor: map keys are not in canonical order"
+    end
+
+    node
+  end
+
+  # A decoded record: a map in any key order (`decode` already refused a repeated key).
+  def record_map(node, name)
+    raise ArgumentError, "csil cbor: #{name} is not a map" unless node.is_a?(Hash)
+
+    node
+  end
+
+  def required(node, key)
+    node.fetch(key) { raise ArgumentError, "csil cbor: missing key #{key.inspect}" }
+  end
+
+  def dec_int(value)
+    raise ArgumentError, "csil cbor: expected an integer" unless value.is_a?(Integer)
+
+    value
+  end
+
+  def dec_uint(value)
+    raise ArgumentError, "csil cbor: expected an unsigned integer" unless value.is_a?(Integer) && value >= 0
+
+    value
+  end
+
+  def dec_float(value)
+    raise ArgumentError, "csil cbor: expected a float" unless value.is_a?(Float)
+
+    value
+  end
+
+  def dec_bool(value)
+    raise ArgumentError, "csil cbor: expected a bool" unless [true, false].include?(value)
+
+    value
+  end
+
+  def dec_text(value)
+    unless value.is_a?(String) && value.encoding == Encoding::UTF_8
+      raise ArgumentError, "csil cbor: expected a text string"
+    end
+
+    value
+  end
+
+  def dec_bytes(value)
+    unless value.is_a?(String) && value.encoding == Encoding::BINARY
+      raise ArgumentError, "csil cbor: expected a byte string"
+    end
+
+    value
+  end
+
+  # Two encodings of one key would pass the key-order check as different keys, so a
+  # map key must use the shortest head for its value or length.
+  def shortest_head?(bin, pos)
+    return true if pos >= bin.bytesize
+
+    ib = bin.getbyte(pos)
+    low = ib & 0x1f
+    return true if (ib >> 5) == 7 || low < 24 || low > 27
+
+    arg, = read_arg(bin, pos, low)
+    arg >= { 24 => 24, 25 => 0x100, 26 => 0x10000, 27 => 0x100000000 }[low]
   end
 
   # Decode a binary String to a Ruby value tree.
@@ -106,6 +203,18 @@ module CsilCbor
     end
   end
 
+  # `unpack` has no half-precision code. Every half value is exact in binary64.
+  def half_to_float(half)
+    exponent = (half >> 10) & 0x1f
+    mantissa = half & 0x3ff
+    value =
+      if exponent.zero? then Math.ldexp(mantissa, -24)
+      elsif exponent == 31 then mantissa.zero? ? Float::INFINITY : Float::NAN
+      else Math.ldexp(mantissa + 1024, exponent - 25)
+      end
+    (half & 0x8000).zero? ? value : -value
+  end
+
   def take(bin, pos, depth)
     raise ArgumentError, "csilgen: nesting limit exceeded" if depth > 64
     raise ArgumentError, "csilgen: unexpected end of input" if pos >= bin.bytesize
@@ -117,8 +226,14 @@ module CsilCbor
       when 20 then [false, pos + 1]
       when 21 then [true, pos + 1]
       when 22, 23 then [nil, pos + 1]
-      when 26 then [[bin[pos + 1, 4].unpack1("N")].pack("N").unpack1("g"), pos + 5]
-      when 27 then [bin[pos + 1, 8].unpack1("G"), pos + 9]
+      when 25, 26, 27
+        width = { 25 => 2, 26 => 4, 27 => 8 }[low]
+        raise ArgumentError, "csilgen: truncated float" if bin.bytesize - pos - 1 < width
+        case low
+        when 25 then [half_to_float(bin[pos + 1, 2].unpack1("n")), pos + 3]
+        when 26 then [[bin[pos + 1, 4].unpack1("N")].pack("N").unpack1("g"), pos + 5]
+        else [bin[pos + 1, 8].unpack1("G"), pos + 9]
+        end
       else raise ArgumentError, "csilgen: unsupported simple value"
       end
     else
@@ -147,11 +262,24 @@ module CsilCbor
       when 5
         raise ArgumentError, "csilgen: map length exceeds remaining input" if arg > bin.bytesize - p
         hash = {}
+        previous = nil
+        canonical = true
         arg.times do
+          start = p
+          raise ArgumentError, "csil cbor: map key is not in shortest form" unless shortest_head?(bin, start)
+
           k, p = take(bin, p, depth + 1)
+          raise ArgumentError, "csil cbor: duplicate key #{k.inspect}" if hash.key?(k)
+
+          # Each key's encoded bytes are compared to the previous key's only, so the
+          # check stays linear; a record ignores the result, a dynamic map needs it.
+          key = bin.byteslice(start, p - start)
+          canonical &&= previous.nil? || previous < key
+          previous = key
           v, p = take(bin, p, depth + 1)
           hash[k] = v
         end
+        hash.instance_variable_set(:@csil_canonical, canonical)
         [hash, p]
       when 6
         inner, p = take(bin, p, depth + 1)
@@ -188,15 +316,16 @@ class Task
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "Task")
     new(
-      uuid: node["uuid"],
-      queue: node["queue"],
-      current_state: node["current_state"],
-      auto_target_state: node["auto_target_state"],
-      submit_time: node["submit_time"],
-      update_time: node["update_time"],
-      timeout: node["timeout"],
-      priority: node["priority"]
+      uuid: CsilCbor.dec_text(CsilCbor.required(node, "uuid")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      current_state: CsilCbor.dec_text(CsilCbor.required(node, "current_state")),
+      auto_target_state: CsilCbor.dec_text(CsilCbor.required(node, "auto_target_state")),
+      submit_time: CsilCbor.dec_int(CsilCbor.required(node, "submit_time")),
+      update_time: CsilCbor.dec_int(CsilCbor.required(node, "update_time")),
+      timeout: CsilCbor.dec_int(CsilCbor.required(node, "timeout")),
+      priority: CsilCbor.dec_int(CsilCbor.required(node, "priority"))
     )
   end
 end
@@ -220,9 +349,10 @@ class TaskDelivery
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "TaskDelivery")
     new(
-      task: Task.csil_from_tree(node["task"]),
-      payload: node["payload"]
+      task: Task.csil_from_tree(CsilCbor.required(node, "task")),
+      payload: CsilCbor.dec_bytes(CsilCbor.required(node, "payload"))
     )
   end
 end
@@ -250,13 +380,14 @@ class SubmitTaskRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "SubmitTaskRequest")
     new(
-      queue: node["queue"],
-      current_state: node["current_state"],
-      auto_target_state: node["auto_target_state"],
-      timeout: node["timeout"],
-      payload: node["payload"],
-      priority: node["priority"]
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      current_state: CsilCbor.dec_text(CsilCbor.required(node, "current_state")),
+      auto_target_state: CsilCbor.dec_text(CsilCbor.required(node, "auto_target_state")),
+      timeout: CsilCbor.dec_int(CsilCbor.required(node, "timeout")),
+      payload: CsilCbor.dec_bytes(CsilCbor.required(node, "payload")),
+      priority: CsilCbor.dec_int(CsilCbor.required(node, "priority"))
     )
   end
 end
@@ -279,6 +410,7 @@ class SubmitTaskResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "SubmitTaskResponse")
     new(
       task: (node.key?("task") ? Task.csil_from_tree(node["task"]) : nil)
     )
@@ -304,9 +436,10 @@ class GetTaskStateByIdRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetTaskStateByIdRequest")
     new(
-      uuid: node["uuid"],
-      queue: node["queue"]
+      uuid: CsilCbor.dec_text(CsilCbor.required(node, "uuid")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue"))
     )
   end
 end
@@ -329,6 +462,7 @@ class GetTaskStateByIdResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetTaskStateByIdResponse")
     new(
       task: (node.key?("task") ? Task.csil_from_tree(node["task"]) : nil)
     )
@@ -357,12 +491,13 @@ class GetNextTaskRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetNextTaskRequest")
     new(
-      queue: node["queue"],
-      current_state: node["current_state"],
-      override_timeout: node["override_timeout"],
-      override_current_state: node["override_current_state"],
-      override_auto_target_state: node["override_auto_target_state"]
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      current_state: CsilCbor.dec_text(CsilCbor.required(node, "current_state")),
+      override_timeout: CsilCbor.dec_int(CsilCbor.required(node, "override_timeout")),
+      override_current_state: CsilCbor.dec_text(CsilCbor.required(node, "override_current_state")),
+      override_auto_target_state: CsilCbor.dec_text(CsilCbor.required(node, "override_auto_target_state"))
     )
   end
 end
@@ -385,6 +520,7 @@ class GetNextTaskResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetNextTaskResponse")
     new(
       delivery: (node.key?("delivery") ? TaskDelivery.csil_from_tree(node["delivery"]) : nil)
     )
@@ -413,12 +549,13 @@ class GetNextTaskGroupRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetNextTaskGroupRequest")
     new(
-      queues: (node["queues"]).map { |csil_e| csil_e },
-      current_state: node["current_state"],
-      override_timeout: node["override_timeout"],
-      override_current_state: node["override_current_state"],
-      override_auto_target_state: node["override_auto_target_state"]
+      queues: (CsilCbor.required(node, "queues")).map { |csil_e| CsilCbor.dec_text(csil_e) },
+      current_state: CsilCbor.dec_text(CsilCbor.required(node, "current_state")),
+      override_timeout: CsilCbor.dec_int(CsilCbor.required(node, "override_timeout")),
+      override_current_state: CsilCbor.dec_text(CsilCbor.required(node, "override_current_state")),
+      override_auto_target_state: CsilCbor.dec_text(CsilCbor.required(node, "override_auto_target_state"))
     )
   end
 end
@@ -441,6 +578,7 @@ class GetNextTaskGroupResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetNextTaskGroupResponse")
     new(
       delivery: (node.key?("delivery") ? TaskDelivery.csil_from_tree(node["delivery"]) : nil)
     )
@@ -467,10 +605,11 @@ class CompleteTaskRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "CompleteTaskRequest")
     new(
-      uuid: node["uuid"],
-      queue: node["queue"],
-      current_state: node["current_state"]
+      uuid: CsilCbor.dec_text(CsilCbor.required(node, "uuid")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      current_state: CsilCbor.dec_text(CsilCbor.required(node, "current_state"))
     )
   end
 end
@@ -493,6 +632,7 @@ class CompleteTaskResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "CompleteTaskResponse")
     new(
       task: (node.key?("task") ? Task.csil_from_tree(node["task"]) : nil)
     )
@@ -524,15 +664,16 @@ class UpdateTaskRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "UpdateTaskRequest")
     new(
-      uuid: node["uuid"],
-      queue: node["queue"],
-      current_state: node["current_state"],
-      auto_target_state: node["auto_target_state"],
-      timeout: node["timeout"],
-      new_state: node["new_state"],
-      payload: (node.key?("payload") ? node["payload"] : nil),
-      priority: (node.key?("priority") ? node["priority"] : nil)
+      uuid: CsilCbor.dec_text(CsilCbor.required(node, "uuid")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      current_state: CsilCbor.dec_text(CsilCbor.required(node, "current_state")),
+      auto_target_state: CsilCbor.dec_text(CsilCbor.required(node, "auto_target_state")),
+      timeout: CsilCbor.dec_int(CsilCbor.required(node, "timeout")),
+      new_state: CsilCbor.dec_text(CsilCbor.required(node, "new_state")),
+      payload: (node.key?("payload") ? CsilCbor.dec_bytes(node["payload"]) : nil),
+      priority: (node.key?("priority") ? CsilCbor.dec_int(node["priority"]) : nil)
     )
   end
 end
@@ -555,6 +696,7 @@ class UpdateTaskResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "UpdateTaskResponse")
     new(
       task: (node.key?("task") ? Task.csil_from_tree(node["task"]) : nil)
     )
@@ -581,10 +723,11 @@ class CancelTaskRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "CancelTaskRequest")
     new(
-      uuid: node["uuid"],
-      queue: node["queue"],
-      current_state: node["current_state"]
+      uuid: CsilCbor.dec_text(CsilCbor.required(node, "uuid")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      current_state: CsilCbor.dec_text(CsilCbor.required(node, "current_state"))
     )
   end
 end
@@ -607,6 +750,7 @@ class CancelTaskResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "CancelTaskResponse")
     new(
       task: (node.key?("task") ? Task.csil_from_tree(node["task"]) : nil)
     )
@@ -632,9 +776,10 @@ class CleanUpTimedOutRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "CleanUpTimedOutRequest")
     new(
-      at_time: node["at_time"],
-      queue: node["queue"]
+      at_time: CsilCbor.dec_int(CsilCbor.required(node, "at_time")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue"))
     )
   end
 end
@@ -657,8 +802,9 @@ class CleanUpTimedOutResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "CleanUpTimedOutResponse")
     new(
-      timed_out: node["timed_out"]
+      timed_out: CsilCbor.dec_int(CsilCbor.required(node, "timed_out"))
     )
   end
 end
@@ -680,6 +826,7 @@ class GetQueuesRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetQueuesRequest")
     new
   end
 end
@@ -703,9 +850,10 @@ class GetQueuesResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetQueuesResponse")
     new(
-      queues: (node["queues"]).map { |csil_e| csil_e },
-      total_task_count: node["total_task_count"]
+      queues: (CsilCbor.required(node, "queues")).map { |csil_e| CsilCbor.dec_text(csil_e) },
+      total_task_count: CsilCbor.dec_int(CsilCbor.required(node, "total_task_count"))
     )
   end
 end
@@ -727,6 +875,7 @@ class GetQueueTaskCountsRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetQueueTaskCountsRequest")
     new
   end
 end
@@ -750,9 +899,10 @@ class GetQueueTaskCountsResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetQueueTaskCountsResponse")
     new(
-      queue_counts: (node["queue_counts"]).each_with_object({}) { |(csil_k, csil_v), csil_h| csil_h[csil_k] = csil_v },
-      total_task_count: node["total_task_count"]
+      queue_counts: CsilCbor.dyn_map(CsilCbor.required(node, "queue_counts")).each_with_object({}) { |(csil_k, csil_v), csil_h| csil_h[CsilCbor.dec_text(csil_k)] = CsilCbor.dec_int(csil_v) },
+      total_task_count: CsilCbor.dec_int(CsilCbor.required(node, "total_task_count"))
     )
   end
 end
@@ -775,8 +925,9 @@ class GetTaskStateCountsRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetTaskStateCountsRequest")
     new(
-      queue: node["queue"]
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue"))
     )
   end
 end
@@ -801,10 +952,11 @@ class GetTaskStateCountsResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetTaskStateCountsResponse")
     new(
-      queue: node["queue"],
-      count: node["count"],
-      state_counts: (node["state_counts"]).each_with_object({}) { |(csil_k, csil_v), csil_h| csil_h[csil_k] = csil_v }
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      count: CsilCbor.dec_int(CsilCbor.required(node, "count")),
+      state_counts: CsilCbor.dyn_map(CsilCbor.required(node, "state_counts")).each_with_object({}) { |(csil_k, csil_v), csil_h| csil_h[CsilCbor.dec_text(csil_k)] = CsilCbor.dec_int(csil_v) }
     )
   end
 end
@@ -829,10 +981,11 @@ class QueueAndStateCounts
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "QueueAndStateCounts")
     new(
-      queue: node["queue"],
-      count: node["count"],
-      state_counts: (node["state_counts"]).each_with_object({}) { |(csil_k, csil_v), csil_h| csil_h[csil_k] = csil_v }
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      count: CsilCbor.dec_int(CsilCbor.required(node, "count")),
+      state_counts: CsilCbor.dyn_map(CsilCbor.required(node, "state_counts")).each_with_object({}) { |(csil_k, csil_v), csil_h| csil_h[CsilCbor.dec_text(csil_k)] = CsilCbor.dec_int(csil_v) }
     )
   end
 end
@@ -854,6 +1007,7 @@ class GetQueueAndStateCountsRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetQueueAndStateCountsRequest")
     new
   end
 end
@@ -876,8 +1030,9 @@ class GetQueueAndStateCountsResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetQueueAndStateCountsResponse")
     new(
-      queue_and_state_counts: (node["queue_and_state_counts"]).each_with_object({}) { |(csil_k, csil_v), csil_h| csil_h[csil_k] = QueueAndStateCounts.csil_from_tree(csil_v) }
+      queue_and_state_counts: CsilCbor.dyn_map(CsilCbor.required(node, "queue_and_state_counts")).each_with_object({}) { |(csil_k, csil_v), csil_h| csil_h[CsilCbor.dec_text(csil_k)] = QueueAndStateCounts.csil_from_tree(csil_v) }
     )
   end
 end
@@ -899,6 +1054,7 @@ class GetServerInfoRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetServerInfoRequest")
     new
   end
 end
@@ -925,12 +1081,13 @@ class GetServerInfoResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetServerInfoResponse")
     new(
-      server_version: node["server_version"],
-      features: (node["features"]).map { |csil_e| csil_e },
-      submission_key_policy: node["submission_key_policy"],
-      task_guard_policy: node["task_guard_policy"],
-      receipt_retention_seconds: node["receipt_retention_seconds"]
+      server_version: CsilCbor.dec_text(CsilCbor.required(node, "server_version")),
+      features: (CsilCbor.required(node, "features")).map { |csil_e| CsilCbor.dec_text(csil_e) },
+      submission_key_policy: CsilCbor.dec_text(CsilCbor.required(node, "submission_key_policy")),
+      task_guard_policy: CsilCbor.dec_text(CsilCbor.required(node, "task_guard_policy")),
+      receipt_retention_seconds: CsilCbor.dec_int(CsilCbor.required(node, "receipt_retention_seconds"))
     )
   end
 end
@@ -956,11 +1113,12 @@ class GuardedTask
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GuardedTask")
     new(
-      task: Task.csil_from_tree(node["task"]),
-      guarded: node["guarded"],
-      revision: node["revision"],
-      terminal: node["terminal"]
+      task: Task.csil_from_tree(CsilCbor.required(node, "task")),
+      guarded: CsilCbor.dec_bool(CsilCbor.required(node, "guarded")),
+      revision: CsilCbor.dec_int(CsilCbor.required(node, "revision")),
+      terminal: CsilCbor.dec_bool(CsilCbor.required(node, "terminal"))
     )
   end
 end
@@ -988,13 +1146,14 @@ class SubmissionReceipt
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "SubmissionReceipt")
     new(
-      queue: node["queue"],
-      submission_key: node["submission_key"],
-      task_uuid: node["task_uuid"],
-      accepted_at: node["accepted_at"],
-      expires_at: node["expires_at"],
-      guarded: node["guarded"]
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      submission_key: CsilCbor.dec_text(CsilCbor.required(node, "submission_key")),
+      task_uuid: CsilCbor.dec_text(CsilCbor.required(node, "task_uuid")),
+      accepted_at: CsilCbor.dec_int(CsilCbor.required(node, "accepted_at")),
+      expires_at: CsilCbor.dec_int(CsilCbor.required(node, "expires_at")),
+      guarded: CsilCbor.dec_bool(CsilCbor.required(node, "guarded"))
     )
   end
 end
@@ -1024,15 +1183,16 @@ class SubmitKeyedTaskRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "SubmitKeyedTaskRequest")
     new(
-      submission_key: node["submission_key"],
-      guarded: node["guarded"],
-      queue: node["queue"],
-      current_state: node["current_state"],
-      auto_target_state: node["auto_target_state"],
-      timeout: node["timeout"],
-      payload: node["payload"],
-      priority: node["priority"]
+      submission_key: CsilCbor.dec_text(CsilCbor.required(node, "submission_key")),
+      guarded: CsilCbor.dec_bool(CsilCbor.required(node, "guarded")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      current_state: CsilCbor.dec_text(CsilCbor.required(node, "current_state")),
+      auto_target_state: CsilCbor.dec_text(CsilCbor.required(node, "auto_target_state")),
+      timeout: CsilCbor.dec_int(CsilCbor.required(node, "timeout")),
+      payload: CsilCbor.dec_bytes(CsilCbor.required(node, "payload")),
+      priority: CsilCbor.dec_int(CsilCbor.required(node, "priority"))
     )
   end
 end
@@ -1057,9 +1217,10 @@ class SubmitKeyedTaskResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "SubmitKeyedTaskResponse")
     new(
-      receipt: SubmissionReceipt.csil_from_tree(node["receipt"]),
-      replayed: node["replayed"],
+      receipt: SubmissionReceipt.csil_from_tree(CsilCbor.required(node, "receipt")),
+      replayed: CsilCbor.dec_bool(CsilCbor.required(node, "replayed")),
       task: (node.key?("task") ? GuardedTask.csil_from_tree(node["task"]) : nil)
     )
   end
@@ -1084,9 +1245,10 @@ class LookupSubmissionRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "LookupSubmissionRequest")
     new(
-      queue: node["queue"],
-      submission_key: node["submission_key"]
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      submission_key: CsilCbor.dec_text(CsilCbor.required(node, "submission_key"))
     )
   end
 end
@@ -1110,6 +1272,7 @@ class LookupSubmissionResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "LookupSubmissionResponse")
     new(
       receipt: (node.key?("receipt") ? SubmissionReceipt.csil_from_tree(node["receipt"]) : nil),
       task: (node.key?("task") ? GuardedTask.csil_from_tree(node["task"]) : nil)
@@ -1140,13 +1303,14 @@ class ClaimGuardedTaskRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "ClaimGuardedTaskRequest")
     new(
-      operation_id: node["operation_id"],
-      queue: node["queue"],
-      current_state: node["current_state"],
-      override_timeout: node["override_timeout"],
-      override_current_state: node["override_current_state"],
-      override_auto_target_state: node["override_auto_target_state"]
+      operation_id: CsilCbor.dec_text(CsilCbor.required(node, "operation_id")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      current_state: CsilCbor.dec_text(CsilCbor.required(node, "current_state")),
+      override_timeout: CsilCbor.dec_int(CsilCbor.required(node, "override_timeout")),
+      override_current_state: CsilCbor.dec_text(CsilCbor.required(node, "override_current_state")),
+      override_auto_target_state: CsilCbor.dec_text(CsilCbor.required(node, "override_auto_target_state"))
     )
   end
 end
@@ -1170,9 +1334,10 @@ class GuardedDelivery
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GuardedDelivery")
     new(
-      task: GuardedTask.csil_from_tree(node["task"]),
-      payload: node["payload"]
+      task: GuardedTask.csil_from_tree(CsilCbor.required(node, "task")),
+      payload: CsilCbor.dec_bytes(CsilCbor.required(node, "payload"))
     )
   end
 end
@@ -1196,9 +1361,10 @@ class ClaimGuardedTaskResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "ClaimGuardedTaskResponse")
     new(
       delivery: (node.key?("delivery") ? GuardedDelivery.csil_from_tree(node["delivery"]) : nil),
-      replayed: node["replayed"]
+      replayed: CsilCbor.dec_bool(CsilCbor.required(node, "replayed"))
     )
   end
 end
@@ -1226,13 +1392,14 @@ class ClaimGuardedTaskGroupRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "ClaimGuardedTaskGroupRequest")
     new(
-      operation_id: node["operation_id"],
-      queues: (node["queues"]).map { |csil_e| csil_e },
-      current_state: node["current_state"],
-      override_timeout: node["override_timeout"],
-      override_current_state: node["override_current_state"],
-      override_auto_target_state: node["override_auto_target_state"]
+      operation_id: CsilCbor.dec_text(CsilCbor.required(node, "operation_id")),
+      queues: (CsilCbor.required(node, "queues")).map { |csil_e| CsilCbor.dec_text(csil_e) },
+      current_state: CsilCbor.dec_text(CsilCbor.required(node, "current_state")),
+      override_timeout: CsilCbor.dec_int(CsilCbor.required(node, "override_timeout")),
+      override_current_state: CsilCbor.dec_text(CsilCbor.required(node, "override_current_state")),
+      override_auto_target_state: CsilCbor.dec_text(CsilCbor.required(node, "override_auto_target_state"))
     )
   end
 end
@@ -1256,9 +1423,10 @@ class ClaimGuardedTaskGroupResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "ClaimGuardedTaskGroupResponse")
     new(
       delivery: (node.key?("delivery") ? GuardedDelivery.csil_from_tree(node["delivery"]) : nil),
-      replayed: node["replayed"]
+      replayed: CsilCbor.dec_bool(CsilCbor.required(node, "replayed"))
     )
   end
 end
@@ -1290,17 +1458,18 @@ class UpdateGuardedTaskRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "UpdateGuardedTaskRequest")
     new(
-      operation_id: node["operation_id"],
-      uuid: node["uuid"],
-      queue: node["queue"],
-      expected_revision: node["expected_revision"],
-      expected_state: (node.key?("expected_state") ? node["expected_state"] : nil),
-      new_state: node["new_state"],
-      auto_target_state: node["auto_target_state"],
-      timeout: node["timeout"],
-      payload: (node.key?("payload") ? node["payload"] : nil),
-      priority: (node.key?("priority") ? node["priority"] : nil)
+      operation_id: CsilCbor.dec_text(CsilCbor.required(node, "operation_id")),
+      uuid: CsilCbor.dec_text(CsilCbor.required(node, "uuid")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      expected_revision: CsilCbor.dec_int(CsilCbor.required(node, "expected_revision")),
+      expected_state: (node.key?("expected_state") ? CsilCbor.dec_text(node["expected_state"]) : nil),
+      new_state: CsilCbor.dec_text(CsilCbor.required(node, "new_state")),
+      auto_target_state: CsilCbor.dec_text(CsilCbor.required(node, "auto_target_state")),
+      timeout: CsilCbor.dec_int(CsilCbor.required(node, "timeout")),
+      payload: (node.key?("payload") ? CsilCbor.dec_bytes(node["payload"]) : nil),
+      priority: (node.key?("priority") ? CsilCbor.dec_int(node["priority"]) : nil)
     )
   end
 end
@@ -1324,9 +1493,10 @@ class UpdateGuardedTaskResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "UpdateGuardedTaskResponse")
     new(
-      task: GuardedTask.csil_from_tree(node["task"]),
-      replayed: node["replayed"]
+      task: GuardedTask.csil_from_tree(CsilCbor.required(node, "task")),
+      replayed: CsilCbor.dec_bool(CsilCbor.required(node, "replayed"))
     )
   end
 end
@@ -1353,12 +1523,13 @@ class CompleteGuardedTaskRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "CompleteGuardedTaskRequest")
     new(
-      operation_id: node["operation_id"],
-      uuid: node["uuid"],
-      queue: node["queue"],
-      expected_revision: node["expected_revision"],
-      expected_state: (node.key?("expected_state") ? node["expected_state"] : nil)
+      operation_id: CsilCbor.dec_text(CsilCbor.required(node, "operation_id")),
+      uuid: CsilCbor.dec_text(CsilCbor.required(node, "uuid")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      expected_revision: CsilCbor.dec_int(CsilCbor.required(node, "expected_revision")),
+      expected_state: (node.key?("expected_state") ? CsilCbor.dec_text(node["expected_state"]) : nil)
     )
   end
 end
@@ -1382,9 +1553,10 @@ class CompleteGuardedTaskResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "CompleteGuardedTaskResponse")
     new(
-      task: GuardedTask.csil_from_tree(node["task"]),
-      replayed: node["replayed"]
+      task: GuardedTask.csil_from_tree(CsilCbor.required(node, "task")),
+      replayed: CsilCbor.dec_bool(CsilCbor.required(node, "replayed"))
     )
   end
 end
@@ -1411,12 +1583,13 @@ class CancelGuardedTaskRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "CancelGuardedTaskRequest")
     new(
-      operation_id: node["operation_id"],
-      uuid: node["uuid"],
-      queue: node["queue"],
-      expected_revision: node["expected_revision"],
-      expected_state: (node.key?("expected_state") ? node["expected_state"] : nil)
+      operation_id: CsilCbor.dec_text(CsilCbor.required(node, "operation_id")),
+      uuid: CsilCbor.dec_text(CsilCbor.required(node, "uuid")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      expected_revision: CsilCbor.dec_int(CsilCbor.required(node, "expected_revision")),
+      expected_state: (node.key?("expected_state") ? CsilCbor.dec_text(node["expected_state"]) : nil)
     )
   end
 end
@@ -1440,9 +1613,10 @@ class CancelGuardedTaskResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "CancelGuardedTaskResponse")
     new(
-      task: GuardedTask.csil_from_tree(node["task"]),
-      replayed: node["replayed"]
+      task: GuardedTask.csil_from_tree(CsilCbor.required(node, "task")),
+      replayed: CsilCbor.dec_bool(CsilCbor.required(node, "replayed"))
     )
   end
 end
@@ -1466,9 +1640,10 @@ class GetGuardedTaskRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetGuardedTaskRequest")
     new(
-      uuid: node["uuid"],
-      queue: node["queue"]
+      uuid: CsilCbor.dec_text(CsilCbor.required(node, "uuid")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue"))
     )
   end
 end
@@ -1491,6 +1666,7 @@ class GetGuardedTaskResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "GetGuardedTaskResponse")
     new(
       task: (node.key?("task") ? GuardedTask.csil_from_tree(node["task"]) : nil)
     )
@@ -1522,15 +1698,16 @@ class OperationReceipt
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "OperationReceipt")
     new(
-      operation_id: node["operation_id"],
-      op: node["op"],
-      task_uuid: node["task_uuid"],
-      queue: node["queue"],
-      result_revision: node["result_revision"],
-      result_state: node["result_state"],
-      at: node["at"],
-      expires_at: node["expires_at"]
+      operation_id: CsilCbor.dec_text(CsilCbor.required(node, "operation_id")),
+      op: CsilCbor.dec_text(CsilCbor.required(node, "op")),
+      task_uuid: CsilCbor.dec_text(CsilCbor.required(node, "task_uuid")),
+      queue: CsilCbor.dec_text(CsilCbor.required(node, "queue")),
+      result_revision: CsilCbor.dec_int(CsilCbor.required(node, "result_revision")),
+      result_state: CsilCbor.dec_text(CsilCbor.required(node, "result_state")),
+      at: CsilCbor.dec_int(CsilCbor.required(node, "at")),
+      expires_at: CsilCbor.dec_int(CsilCbor.required(node, "expires_at"))
     )
   end
 end
@@ -1553,8 +1730,9 @@ class LookupOperationRequest
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "LookupOperationRequest")
     new(
-      operation_id: node["operation_id"]
+      operation_id: CsilCbor.dec_text(CsilCbor.required(node, "operation_id"))
     )
   end
 end
@@ -1577,6 +1755,7 @@ class LookupOperationResponse
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "LookupOperationResponse")
     new(
       receipt: (node.key?("receipt") ? OperationReceipt.csil_from_tree(node["receipt"]) : nil)
     )
@@ -1602,9 +1781,335 @@ class ServiceError
   end
 
   def self.csil_from_tree(node)
+    CsilCbor.record_map(node, "ServiceError")
     new(
-      code: node["code"],
-      message: node["message"]
+      code: CsilCbor.dec_uint(CsilCbor.required(node, "code")),
+      message: CsilCbor.dec_text(CsilCbor.required(node, "message"))
     )
+  end
+end
+
+module CsilCbor
+  module_function
+
+  class ServiceErrorRefusal < StandardError
+    attr_reader :value
+
+    def initialize(value)
+      @value = value
+      super("ServiceError")
+    end
+  end
+
+  def encode_corndogs_service_submit_task_reply
+    value = yield
+    ["SubmitTaskResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_get_task_state_by_id_reply
+    value = yield
+    ["GetTaskStateByIDResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_get_next_task_reply
+    value = yield
+    ["GetNextTaskResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_get_next_task_group_reply
+    value = yield
+    ["GetNextTaskGroupResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_update_task_reply
+    value = yield
+    ["UpdateTaskResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_complete_task_reply
+    value = yield
+    ["CompleteTaskResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_cancel_task_reply
+    value = yield
+    ["CancelTaskResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_clean_up_timed_out_reply
+    value = yield
+    ["CleanUpTimedOutResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_get_queues_reply
+    value = yield
+    ["GetQueuesResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_get_queue_task_counts_reply
+    value = yield
+    ["GetQueueTaskCountsResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_get_task_state_counts_reply
+    value = yield
+    ["GetTaskStateCountsResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_get_queue_and_state_counts_reply
+    value = yield
+    ["GetQueueAndStateCountsResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_get_server_info_reply
+    value = yield
+    ["GetServerInfoResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_submit_keyed_task_reply
+    value = yield
+    ["SubmitKeyedTaskResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_lookup_submission_reply
+    value = yield
+    ["LookupSubmissionResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_claim_guarded_task_reply
+    value = yield
+    ["ClaimGuardedTaskResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_claim_guarded_task_group_reply
+    value = yield
+    ["ClaimGuardedTaskGroupResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_update_guarded_task_reply
+    value = yield
+    ["UpdateGuardedTaskResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_complete_guarded_task_reply
+    value = yield
+    ["CompleteGuardedTaskResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_cancel_guarded_task_reply
+    value = yield
+    ["CancelGuardedTaskResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_get_guarded_task_reply
+    value = yield
+    ["GetGuardedTaskResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def encode_corndogs_service_lookup_operation_reply
+    value = yield
+    ["LookupOperationResponse", encode((value).csil_to_tree)]
+  rescue ServiceErrorRefusal => refusal
+    ["ServiceError", encode((refusal.value).csil_to_tree)]
+  end
+
+  def resolve_rpc_reply(service, op, variant, payload)
+    if service == "CorndogsService" && op == "SubmitTask"
+      case variant
+      when "SubmitTaskResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "GetTaskStateByID"
+      case variant
+      when "GetTaskStateByIDResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "GetNextTask"
+      case variant
+      when "GetNextTaskResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "GetNextTaskGroup"
+      case variant
+      when "GetNextTaskGroupResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "UpdateTask"
+      case variant
+      when "UpdateTaskResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "CompleteTask"
+      case variant
+      when "CompleteTaskResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "CancelTask"
+      case variant
+      when "CancelTaskResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "CleanUpTimedOut"
+      case variant
+      when "CleanUpTimedOutResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "GetQueues"
+      case variant
+      when "GetQueuesResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "GetQueueTaskCounts"
+      case variant
+      when "GetQueueTaskCountsResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "GetTaskStateCounts"
+      case variant
+      when "GetTaskStateCountsResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "GetQueueAndStateCounts"
+      case variant
+      when "GetQueueAndStateCountsResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "GetServerInfo"
+      case variant
+      when "GetServerInfoResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "SubmitKeyedTask"
+      case variant
+      when "SubmitKeyedTaskResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "LookupSubmission"
+      case variant
+      when "LookupSubmissionResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "ClaimGuardedTask"
+      case variant
+      when "ClaimGuardedTaskResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "ClaimGuardedTaskGroup"
+      case variant
+      when "ClaimGuardedTaskGroupResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "UpdateGuardedTask"
+      case variant
+      when "UpdateGuardedTaskResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "CompleteGuardedTask"
+      case variant
+      when "CompleteGuardedTaskResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "CancelGuardedTask"
+      case variant
+      when "CancelGuardedTaskResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "GetGuardedTask"
+      case variant
+      when "GetGuardedTaskResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    if service == "CorndogsService" && op == "LookupOperation"
+      case variant
+      when "LookupOperationResponse" then return payload
+      when "ServiceError" then raise ServiceErrorRefusal.new(ServiceError.csil_from_tree(decode(payload)))
+      else raise ArgumentError, "invalid RPC reply variant: #{variant.inspect}"
+      end
+    end
+    payload
   end
 end

@@ -18,402 +18,428 @@ typedef struct CsilgenTransport {
                 const uint8_t *req, size_t req_len,
                 uint8_t **resp, size_t *resp_len);
     void *self;
+    /* A status-zero reply transfers ownership of its variant and payload to the client. */
+    int (*call_reply)(void *self, const char *service, const char *op,
+                      const uint8_t *req, size_t req_len,
+                      uint8_t **resp, size_t *resp_len, char **variant);
 } CsilgenTransport;
 
 /* Invoke CorndogsService/SubmitTask with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_submit_task(const CsilgenTransport *t, const SubmitTaskRequest *req,
-                        SubmitTaskResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceSubmitTaskReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_SubmitTaskRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "SubmitTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "SubmitTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_SubmitTaskResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceSubmitTaskReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/GetTaskStateByID with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_get_task_state_by_i_d(const CsilgenTransport *t, const GetTaskStateByIDRequest *req,
-                        GetTaskStateByIDResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceGetTaskStateByIDReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_GetTaskStateByIDRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "GetTaskStateByID", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "GetTaskStateByID", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_GetTaskStateByIDResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceGetTaskStateByIDReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/GetNextTask with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_get_next_task(const CsilgenTransport *t, const GetNextTaskRequest *req,
-                        GetNextTaskResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceGetNextTaskReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_GetNextTaskRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "GetNextTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "GetNextTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_GetNextTaskResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceGetNextTaskReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/GetNextTaskGroup with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_get_next_task_group(const CsilgenTransport *t, const GetNextTaskGroupRequest *req,
-                        GetNextTaskGroupResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceGetNextTaskGroupReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_GetNextTaskGroupRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "GetNextTaskGroup", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "GetNextTaskGroup", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_GetNextTaskGroupResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceGetNextTaskGroupReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/UpdateTask with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_update_task(const CsilgenTransport *t, const UpdateTaskRequest *req,
-                        UpdateTaskResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceUpdateTaskReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_UpdateTaskRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "UpdateTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "UpdateTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_UpdateTaskResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceUpdateTaskReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/CompleteTask with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_complete_task(const CsilgenTransport *t, const CompleteTaskRequest *req,
-                        CompleteTaskResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceCompleteTaskReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_CompleteTaskRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "CompleteTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "CompleteTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_CompleteTaskResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceCompleteTaskReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/CancelTask with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_cancel_task(const CsilgenTransport *t, const CancelTaskRequest *req,
-                        CancelTaskResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceCancelTaskReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_CancelTaskRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "CancelTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "CancelTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_CancelTaskResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceCancelTaskReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/CleanUpTimedOut with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_clean_up_timed_out(const CsilgenTransport *t, const CleanUpTimedOutRequest *req,
-                        CleanUpTimedOutResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceCleanUpTimedOutReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_CleanUpTimedOutRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "CleanUpTimedOut", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "CleanUpTimedOut", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_CleanUpTimedOutResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceCleanUpTimedOutReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/GetQueues with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_get_queues(const CsilgenTransport *t, const GetQueuesRequest *req,
-                        GetQueuesResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceGetQueuesReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_GetQueuesRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "GetQueues", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "GetQueues", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_GetQueuesResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceGetQueuesReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/GetQueueTaskCounts with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_get_queue_task_counts(const CsilgenTransport *t, const GetQueueTaskCountsRequest *req,
-                        GetQueueTaskCountsResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceGetQueueTaskCountsReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_GetQueueTaskCountsRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "GetQueueTaskCounts", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "GetQueueTaskCounts", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_GetQueueTaskCountsResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceGetQueueTaskCountsReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/GetTaskStateCounts with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_get_task_state_counts(const CsilgenTransport *t, const GetTaskStateCountsRequest *req,
-                        GetTaskStateCountsResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceGetTaskStateCountsReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_GetTaskStateCountsRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "GetTaskStateCounts", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "GetTaskStateCounts", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_GetTaskStateCountsResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceGetTaskStateCountsReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/GetQueueAndStateCounts with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_get_queue_and_state_counts(const CsilgenTransport *t, const GetQueueAndStateCountsRequest *req,
-                        GetQueueAndStateCountsResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceGetQueueAndStateCountsReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_GetQueueAndStateCountsRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "GetQueueAndStateCounts", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "GetQueueAndStateCounts", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_GetQueueAndStateCountsResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceGetQueueAndStateCountsReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/GetServerInfo with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_get_server_info(const CsilgenTransport *t, const GetServerInfoRequest *req,
-                        GetServerInfoResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceGetServerInfoReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_GetServerInfoRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "GetServerInfo", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "GetServerInfo", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_GetServerInfoResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceGetServerInfoReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/SubmitKeyedTask with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_submit_keyed_task(const CsilgenTransport *t, const SubmitKeyedTaskRequest *req,
-                        SubmitKeyedTaskResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceSubmitKeyedTaskReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_SubmitKeyedTaskRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "SubmitKeyedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "SubmitKeyedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_SubmitKeyedTaskResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceSubmitKeyedTaskReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/LookupSubmission with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_lookup_submission(const CsilgenTransport *t, const LookupSubmissionRequest *req,
-                        LookupSubmissionResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceLookupSubmissionReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_LookupSubmissionRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "LookupSubmission", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "LookupSubmission", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_LookupSubmissionResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceLookupSubmissionReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/ClaimGuardedTask with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_claim_guarded_task(const CsilgenTransport *t, const ClaimGuardedTaskRequest *req,
-                        ClaimGuardedTaskResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceClaimGuardedTaskReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_ClaimGuardedTaskRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "ClaimGuardedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "ClaimGuardedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_ClaimGuardedTaskResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceClaimGuardedTaskReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/ClaimGuardedTaskGroup with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_claim_guarded_task_group(const CsilgenTransport *t, const ClaimGuardedTaskGroupRequest *req,
-                        ClaimGuardedTaskGroupResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceClaimGuardedTaskGroupReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_ClaimGuardedTaskGroupRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "ClaimGuardedTaskGroup", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "ClaimGuardedTaskGroup", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_ClaimGuardedTaskGroupResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceClaimGuardedTaskGroupReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/UpdateGuardedTask with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_update_guarded_task(const CsilgenTransport *t, const UpdateGuardedTaskRequest *req,
-                        UpdateGuardedTaskResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceUpdateGuardedTaskReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_UpdateGuardedTaskRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "UpdateGuardedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "UpdateGuardedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_UpdateGuardedTaskResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceUpdateGuardedTaskReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/CompleteGuardedTask with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_complete_guarded_task(const CsilgenTransport *t, const CompleteGuardedTaskRequest *req,
-                        CompleteGuardedTaskResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceCompleteGuardedTaskReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_CompleteGuardedTaskRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "CompleteGuardedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "CompleteGuardedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_CompleteGuardedTaskResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceCompleteGuardedTaskReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/CancelGuardedTask with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_cancel_guarded_task(const CsilgenTransport *t, const CancelGuardedTaskRequest *req,
-                        CancelGuardedTaskResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceCancelGuardedTaskReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_CancelGuardedTaskRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "CancelGuardedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "CancelGuardedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_CancelGuardedTaskResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceCancelGuardedTaskReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/GetGuardedTask with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_get_guarded_task(const CsilgenTransport *t, const GetGuardedTaskRequest *req,
-                        GetGuardedTaskResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceGetGuardedTaskReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_GetGuardedTaskRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "GetGuardedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "GetGuardedTask", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_GetGuardedTaskResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceGetGuardedTaskReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 /* Invoke CorndogsService/LookupOperation with a typed request and decode the typed
  * response. *resp_owner holds the response's backing storage; free it once
  * with csil_codec_arena_free when done with *resp. Returns non-zero on failure. */
 static inline int csil_corndogs_lookup_operation(const CsilgenTransport *t, const LookupOperationRequest *req,
-                        LookupOperationResponse *resp, CsilCodecArena **resp_owner) {
+                        CorndogsServiceLookupOperationReply *resp, CsilCodecArena **resp_owner) {
     uint8_t *csil_reqb = NULL;
     size_t csil_reqn = 0;
     if (csil_encode_LookupOperationRequest(req, &csil_reqb, &csil_reqn)) return -1;
     uint8_t *csil_respb = NULL;
     size_t csil_respn = 0;
-    int csil_rc = t->call(t->self, "CorndogsService", "LookupOperation", csil_reqb, csil_reqn, &csil_respb, &csil_respn);
+    char *variant = NULL;
+    int rc = t->call_reply ? t->call_reply(t->self, "CorndogsService", "LookupOperation", csil_reqb, csil_reqn, &csil_respb, &csil_respn, &variant) : -1;
     free(csil_reqb);
-    if (csil_rc != 0) { free(csil_respb); return csil_rc; }
-    int csil_drc = csil_decode_LookupOperationResponse(csil_respb, csil_respn, resp, resp_owner);
+    if (!rc) rc = csil_decode_CorndogsServiceLookupOperationReply(variant, csil_respb, csil_respn, resp, resp_owner);
+    free(variant);
     free(csil_respb);
-    return csil_drc;
+    return rc;
 }
 
 #endif /* CSILGEN_CLIENT_GEN_H */

@@ -1,4 +1,4 @@
-// Vendored from csilgen transports/go (csilgen/v0.2.4) — DO NOT EDIT.
+// Vendored from csilgen transports/go (csilgen/v0.3.3) — DO NOT EDIT.
 // Regenerate by re-copying from the pinned csilgen release.
 // Carrier seams — the bring-your-own-carrier boundary (conventions doc §7).
 //

@@ -6,126 +6,404 @@
 /// throws. Asynchronous — the seam suspends on the I/O round-trip. The generated
 /// client owns (de)serialization; the carrier only moves bytes.
 public protocol AsyncCsilTransport {
-    func call(service: String, op: String, request: [UInt8]) async throws -> [UInt8]
+  func call(service: String, op: String, request: [UInt8]) async throws -> [UInt8]
+  /// Performs a call for an operation with more than one reply arm and returns
+  /// the reply variant (nil when absent) with the payload bytes.
+  func callReply(
+    service: String,
+    op: String,
+    request: [UInt8]
+  ) async throws -> (variant: String?, payload: [UInt8])
 }
 
 /// CorndogsAsyncClient is a typed client for the CorndogsService service. The client owns
 /// (de)serialization; the carrier only moves bytes.
 public struct CorndogsAsyncClient {
-    public let transport: AsyncCsilTransport
-    public init(transport: AsyncCsilTransport) {
-        self.transport = transport
-    }
+  public let transport: AsyncCsilTransport
+  public init(transport: AsyncCsilTransport) {
+    self.transport = transport
+  }
 
-    public func submitTask(_ request: SubmitTaskRequest) async throws -> SubmitTaskResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "SubmitTask", request: request.toCbor())
-        return try SubmitTaskResponse.fromCbor(csilResp)
-    }
+  public func submitTask(_ request: SubmitTaskRequest) async throws -> SubmitTaskResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "SubmitTask",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "SubmitTask",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try SubmitTaskResponse.fromCbor(csilResp)
+  }
 
-    public func getTaskStateById(_ request: GetTaskStateByIdRequest) async throws -> GetTaskStateByIdResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "GetTaskStateByID", request: request.toCbor())
-        return try GetTaskStateByIdResponse.fromCbor(csilResp)
-    }
+  public func getTaskStateById(
+    _ request: GetTaskStateByIdRequest
+  ) async throws -> GetTaskStateByIdResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "GetTaskStateByID",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "GetTaskStateByID",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try GetTaskStateByIdResponse.fromCbor(csilResp)
+  }
 
-    public func getNextTask(_ request: GetNextTaskRequest) async throws -> GetNextTaskResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "GetNextTask", request: request.toCbor())
-        return try GetNextTaskResponse.fromCbor(csilResp)
-    }
+  public func getNextTask(_ request: GetNextTaskRequest) async throws -> GetNextTaskResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "GetNextTask",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "GetNextTask",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try GetNextTaskResponse.fromCbor(csilResp)
+  }
 
-    public func getNextTaskGroup(_ request: GetNextTaskGroupRequest) async throws -> GetNextTaskGroupResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "GetNextTaskGroup", request: request.toCbor())
-        return try GetNextTaskGroupResponse.fromCbor(csilResp)
-    }
+  public func getNextTaskGroup(
+    _ request: GetNextTaskGroupRequest
+  ) async throws -> GetNextTaskGroupResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "GetNextTaskGroup",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "GetNextTaskGroup",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try GetNextTaskGroupResponse.fromCbor(csilResp)
+  }
 
-    public func updateTask(_ request: UpdateTaskRequest) async throws -> UpdateTaskResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "UpdateTask", request: request.toCbor())
-        return try UpdateTaskResponse.fromCbor(csilResp)
-    }
+  public func updateTask(_ request: UpdateTaskRequest) async throws -> UpdateTaskResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "UpdateTask",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "UpdateTask",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try UpdateTaskResponse.fromCbor(csilResp)
+  }
 
-    public func completeTask(_ request: CompleteTaskRequest) async throws -> CompleteTaskResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "CompleteTask", request: request.toCbor())
-        return try CompleteTaskResponse.fromCbor(csilResp)
-    }
+  public func completeTask(_ request: CompleteTaskRequest) async throws -> CompleteTaskResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "CompleteTask",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "CompleteTask",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try CompleteTaskResponse.fromCbor(csilResp)
+  }
 
-    public func cancelTask(_ request: CancelTaskRequest) async throws -> CancelTaskResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "CancelTask", request: request.toCbor())
-        return try CancelTaskResponse.fromCbor(csilResp)
-    }
+  public func cancelTask(_ request: CancelTaskRequest) async throws -> CancelTaskResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "CancelTask",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "CancelTask",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try CancelTaskResponse.fromCbor(csilResp)
+  }
 
-    public func cleanUpTimedOut(_ request: CleanUpTimedOutRequest) async throws -> CleanUpTimedOutResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "CleanUpTimedOut", request: request.toCbor())
-        return try CleanUpTimedOutResponse.fromCbor(csilResp)
-    }
+  public func cleanUpTimedOut(
+    _ request: CleanUpTimedOutRequest
+  ) async throws -> CleanUpTimedOutResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "CleanUpTimedOut",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "CleanUpTimedOut",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try CleanUpTimedOutResponse.fromCbor(csilResp)
+  }
 
-    public func getQueues(_ request: GetQueuesRequest) async throws -> GetQueuesResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "GetQueues", request: request.toCbor())
-        return try GetQueuesResponse.fromCbor(csilResp)
-    }
+  public func getQueues(_ request: GetQueuesRequest) async throws -> GetQueuesResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "GetQueues",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "GetQueues",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try GetQueuesResponse.fromCbor(csilResp)
+  }
 
-    public func getQueueTaskCounts(_ request: GetQueueTaskCountsRequest) async throws -> GetQueueTaskCountsResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "GetQueueTaskCounts", request: request.toCbor())
-        return try GetQueueTaskCountsResponse.fromCbor(csilResp)
-    }
+  public func getQueueTaskCounts(
+    _ request: GetQueueTaskCountsRequest
+  ) async throws -> GetQueueTaskCountsResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "GetQueueTaskCounts",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "GetQueueTaskCounts",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try GetQueueTaskCountsResponse.fromCbor(csilResp)
+  }
 
-    public func getTaskStateCounts(_ request: GetTaskStateCountsRequest) async throws -> GetTaskStateCountsResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "GetTaskStateCounts", request: request.toCbor())
-        return try GetTaskStateCountsResponse.fromCbor(csilResp)
-    }
+  public func getTaskStateCounts(
+    _ request: GetTaskStateCountsRequest
+  ) async throws -> GetTaskStateCountsResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "GetTaskStateCounts",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "GetTaskStateCounts",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try GetTaskStateCountsResponse.fromCbor(csilResp)
+  }
 
-    public func getQueueAndStateCounts(_ request: GetQueueAndStateCountsRequest) async throws -> GetQueueAndStateCountsResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "GetQueueAndStateCounts", request: request.toCbor())
-        return try GetQueueAndStateCountsResponse.fromCbor(csilResp)
-    }
+  public func getQueueAndStateCounts(
+    _ request: GetQueueAndStateCountsRequest
+  ) async throws -> GetQueueAndStateCountsResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "GetQueueAndStateCounts",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "GetQueueAndStateCounts",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try GetQueueAndStateCountsResponse.fromCbor(csilResp)
+  }
 
-    public func getServerInfo(_ request: GetServerInfoRequest) async throws -> GetServerInfoResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "GetServerInfo", request: request.toCbor())
-        return try GetServerInfoResponse.fromCbor(csilResp)
-    }
+  public func getServerInfo(_ request: GetServerInfoRequest) async throws -> GetServerInfoResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "GetServerInfo",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "GetServerInfo",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try GetServerInfoResponse.fromCbor(csilResp)
+  }
 
-    public func submitKeyedTask(_ request: SubmitKeyedTaskRequest) async throws -> SubmitKeyedTaskResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "SubmitKeyedTask", request: request.toCbor())
-        return try SubmitKeyedTaskResponse.fromCbor(csilResp)
-    }
+  public func submitKeyedTask(
+    _ request: SubmitKeyedTaskRequest
+  ) async throws -> SubmitKeyedTaskResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "SubmitKeyedTask",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "SubmitKeyedTask",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try SubmitKeyedTaskResponse.fromCbor(csilResp)
+  }
 
-    public func lookupSubmission(_ request: LookupSubmissionRequest) async throws -> LookupSubmissionResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "LookupSubmission", request: request.toCbor())
-        return try LookupSubmissionResponse.fromCbor(csilResp)
-    }
+  public func lookupSubmission(
+    _ request: LookupSubmissionRequest
+  ) async throws -> LookupSubmissionResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "LookupSubmission",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "LookupSubmission",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try LookupSubmissionResponse.fromCbor(csilResp)
+  }
 
-    public func claimGuardedTask(_ request: ClaimGuardedTaskRequest) async throws -> ClaimGuardedTaskResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "ClaimGuardedTask", request: request.toCbor())
-        return try ClaimGuardedTaskResponse.fromCbor(csilResp)
-    }
+  public func claimGuardedTask(
+    _ request: ClaimGuardedTaskRequest
+  ) async throws -> ClaimGuardedTaskResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "ClaimGuardedTask",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "ClaimGuardedTask",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try ClaimGuardedTaskResponse.fromCbor(csilResp)
+  }
 
-    public func claimGuardedTaskGroup(_ request: ClaimGuardedTaskGroupRequest) async throws -> ClaimGuardedTaskGroupResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "ClaimGuardedTaskGroup", request: request.toCbor())
-        return try ClaimGuardedTaskGroupResponse.fromCbor(csilResp)
-    }
+  public func claimGuardedTaskGroup(
+    _ request: ClaimGuardedTaskGroupRequest
+  ) async throws -> ClaimGuardedTaskGroupResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "ClaimGuardedTaskGroup",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "ClaimGuardedTaskGroup",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try ClaimGuardedTaskGroupResponse.fromCbor(csilResp)
+  }
 
-    public func updateGuardedTask(_ request: UpdateGuardedTaskRequest) async throws -> UpdateGuardedTaskResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "UpdateGuardedTask", request: request.toCbor())
-        return try UpdateGuardedTaskResponse.fromCbor(csilResp)
-    }
+  public func updateGuardedTask(
+    _ request: UpdateGuardedTaskRequest
+  ) async throws -> UpdateGuardedTaskResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "UpdateGuardedTask",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "UpdateGuardedTask",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try UpdateGuardedTaskResponse.fromCbor(csilResp)
+  }
 
-    public func completeGuardedTask(_ request: CompleteGuardedTaskRequest) async throws -> CompleteGuardedTaskResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "CompleteGuardedTask", request: request.toCbor())
-        return try CompleteGuardedTaskResponse.fromCbor(csilResp)
-    }
+  public func completeGuardedTask(
+    _ request: CompleteGuardedTaskRequest
+  ) async throws -> CompleteGuardedTaskResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "CompleteGuardedTask",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "CompleteGuardedTask",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try CompleteGuardedTaskResponse.fromCbor(csilResp)
+  }
 
-    public func cancelGuardedTask(_ request: CancelGuardedTaskRequest) async throws -> CancelGuardedTaskResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "CancelGuardedTask", request: request.toCbor())
-        return try CancelGuardedTaskResponse.fromCbor(csilResp)
-    }
+  public func cancelGuardedTask(
+    _ request: CancelGuardedTaskRequest
+  ) async throws -> CancelGuardedTaskResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "CancelGuardedTask",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "CancelGuardedTask",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try CancelGuardedTaskResponse.fromCbor(csilResp)
+  }
 
-    public func getGuardedTask(_ request: GetGuardedTaskRequest) async throws -> GetGuardedTaskResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "GetGuardedTask", request: request.toCbor())
-        return try GetGuardedTaskResponse.fromCbor(csilResp)
-    }
+  public func getGuardedTask(
+    _ request: GetGuardedTaskRequest
+  ) async throws -> GetGuardedTaskResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "GetGuardedTask",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "GetGuardedTask",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try GetGuardedTaskResponse.fromCbor(csilResp)
+  }
 
-    public func lookupOperation(_ request: LookupOperationRequest) async throws -> LookupOperationResponse {
-        let csilResp = try await transport.call(service: "CorndogsService", op: "LookupOperation", request: request.toCbor())
-        return try LookupOperationResponse.fromCbor(csilResp)
-    }
+  public func lookupOperation(
+    _ request: LookupOperationRequest
+  ) async throws -> LookupOperationResponse {
+    let csilRequest = try request.toCbor()
+    let csilReply = try await transport.callReply(
+      service: "CorndogsService",
+      op: "LookupOperation",
+      request: csilRequest
+    )
+    let csilResp = try resolveRpcReply(
+      service: "CorndogsService",
+      op: "LookupOperation",
+      variant: csilReply.variant,
+      payload: csilReply.payload
+    )
+    return try LookupOperationResponse.fromCbor(csilResp)
+  }
 
 }
-

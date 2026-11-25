@@ -22,7 +22,11 @@ func TestUpdateTaskPayloadPresenceRoundTrip(t *testing.T) {
 				NewState:        "new",
 				Payload:         test.payload,
 			}
-			decoded, err := DecodeUpdateTaskRequest(EncodeUpdateTaskRequest(request))
+			encoded, err := EncodeUpdateTaskRequest(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoded, err := DecodeUpdateTaskRequest(encoded)
 			if err != nil {
 				t.Fatal(err)
 			}

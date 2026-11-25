@@ -9,7 +9,10 @@ const codec = @import("codec.gen.zig");
 /// by (service, op) with the already-encoded req bytes (CBOR over HTTP, say) and
 /// returns the response bytes, allocated with `alloc` so the generated client frees
 /// them. The generator owns serialization; the carrier only moves bytes.
+pub const WireReply = struct { variant: ?[]u8, payload: []u8 };
+
 pub const CsilgenTransport = struct {
+    call_reply: ?*const fn (*anyopaque, std.mem.Allocator, []const u8, []const u8, []const u8) anyerror!WireReply = null,
     ptr: *anyopaque,
     call: *const fn (ptr: *anyopaque, alloc: std.mem.Allocator, service: []const u8, op: []const u8, req: []const u8) anyerror![]u8,
 };
@@ -25,242 +28,286 @@ pub const CorndogsClient = struct {
     /// Invoke CorndogsService/SubmitTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn submit_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.SubmitTaskRequest, out: *types.SubmitTaskResponse) anyerror!void {
+    pub fn submit_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.SubmitTaskRequest, out: *types.CorndogsServiceSubmitTaskReply) anyerror!void {
         const csil_reqb = try codec.encode_SubmitTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "SubmitTask", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_SubmitTaskResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "SubmitTask", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceSubmitTaskReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/GetTaskStateByID with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn get_task_state_by_id(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetTaskStateByIDRequest, out: *types.GetTaskStateByIDResponse) anyerror!void {
+    pub fn get_task_state_by_id(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetTaskStateByIDRequest, out: *types.CorndogsServiceGetTaskStateByIDReply) anyerror!void {
         const csil_reqb = try codec.encode_GetTaskStateByIDRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetTaskStateByID", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_GetTaskStateByIDResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "GetTaskStateByID", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceGetTaskStateByIDReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/GetNextTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn get_next_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetNextTaskRequest, out: *types.GetNextTaskResponse) anyerror!void {
+    pub fn get_next_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetNextTaskRequest, out: *types.CorndogsServiceGetNextTaskReply) anyerror!void {
         const csil_reqb = try codec.encode_GetNextTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetNextTask", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_GetNextTaskResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "GetNextTask", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceGetNextTaskReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/GetNextTaskGroup with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn get_next_task_group(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetNextTaskGroupRequest, out: *types.GetNextTaskGroupResponse) anyerror!void {
+    pub fn get_next_task_group(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetNextTaskGroupRequest, out: *types.CorndogsServiceGetNextTaskGroupReply) anyerror!void {
         const csil_reqb = try codec.encode_GetNextTaskGroupRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetNextTaskGroup", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_GetNextTaskGroupResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "GetNextTaskGroup", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceGetNextTaskGroupReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/UpdateTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn update_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.UpdateTaskRequest, out: *types.UpdateTaskResponse) anyerror!void {
+    pub fn update_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.UpdateTaskRequest, out: *types.CorndogsServiceUpdateTaskReply) anyerror!void {
         const csil_reqb = try codec.encode_UpdateTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "UpdateTask", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_UpdateTaskResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "UpdateTask", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceUpdateTaskReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/CompleteTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn complete_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CompleteTaskRequest, out: *types.CompleteTaskResponse) anyerror!void {
+    pub fn complete_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CompleteTaskRequest, out: *types.CorndogsServiceCompleteTaskReply) anyerror!void {
         const csil_reqb = try codec.encode_CompleteTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "CompleteTask", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_CompleteTaskResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "CompleteTask", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceCompleteTaskReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/CancelTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn cancel_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CancelTaskRequest, out: *types.CancelTaskResponse) anyerror!void {
+    pub fn cancel_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CancelTaskRequest, out: *types.CorndogsServiceCancelTaskReply) anyerror!void {
         const csil_reqb = try codec.encode_CancelTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "CancelTask", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_CancelTaskResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "CancelTask", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceCancelTaskReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/CleanUpTimedOut with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn clean_up_timed_out(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CleanUpTimedOutRequest, out: *types.CleanUpTimedOutResponse) anyerror!void {
+    pub fn clean_up_timed_out(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CleanUpTimedOutRequest, out: *types.CorndogsServiceCleanUpTimedOutReply) anyerror!void {
         const csil_reqb = try codec.encode_CleanUpTimedOutRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "CleanUpTimedOut", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_CleanUpTimedOutResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "CleanUpTimedOut", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceCleanUpTimedOutReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/GetQueues with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn get_queues(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetQueuesRequest, out: *types.GetQueuesResponse) anyerror!void {
+    pub fn get_queues(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetQueuesRequest, out: *types.CorndogsServiceGetQueuesReply) anyerror!void {
         const csil_reqb = try codec.encode_GetQueuesRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetQueues", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_GetQueuesResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "GetQueues", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceGetQueuesReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/GetQueueTaskCounts with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn get_queue_task_counts(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetQueueTaskCountsRequest, out: *types.GetQueueTaskCountsResponse) anyerror!void {
+    pub fn get_queue_task_counts(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetQueueTaskCountsRequest, out: *types.CorndogsServiceGetQueueTaskCountsReply) anyerror!void {
         const csil_reqb = try codec.encode_GetQueueTaskCountsRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetQueueTaskCounts", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_GetQueueTaskCountsResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "GetQueueTaskCounts", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceGetQueueTaskCountsReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/GetTaskStateCounts with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn get_task_state_counts(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetTaskStateCountsRequest, out: *types.GetTaskStateCountsResponse) anyerror!void {
+    pub fn get_task_state_counts(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetTaskStateCountsRequest, out: *types.CorndogsServiceGetTaskStateCountsReply) anyerror!void {
         const csil_reqb = try codec.encode_GetTaskStateCountsRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetTaskStateCounts", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_GetTaskStateCountsResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "GetTaskStateCounts", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceGetTaskStateCountsReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/GetQueueAndStateCounts with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn get_queue_and_state_counts(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetQueueAndStateCountsRequest, out: *types.GetQueueAndStateCountsResponse) anyerror!void {
+    pub fn get_queue_and_state_counts(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetQueueAndStateCountsRequest, out: *types.CorndogsServiceGetQueueAndStateCountsReply) anyerror!void {
         const csil_reqb = try codec.encode_GetQueueAndStateCountsRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetQueueAndStateCounts", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_GetQueueAndStateCountsResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "GetQueueAndStateCounts", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceGetQueueAndStateCountsReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/GetServerInfo with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn get_server_info(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetServerInfoRequest, out: *types.GetServerInfoResponse) anyerror!void {
+    pub fn get_server_info(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetServerInfoRequest, out: *types.CorndogsServiceGetServerInfoReply) anyerror!void {
         const csil_reqb = try codec.encode_GetServerInfoRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetServerInfo", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_GetServerInfoResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "GetServerInfo", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceGetServerInfoReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/SubmitKeyedTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn submit_keyed_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.SubmitKeyedTaskRequest, out: *types.SubmitKeyedTaskResponse) anyerror!void {
+    pub fn submit_keyed_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.SubmitKeyedTaskRequest, out: *types.CorndogsServiceSubmitKeyedTaskReply) anyerror!void {
         const csil_reqb = try codec.encode_SubmitKeyedTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "SubmitKeyedTask", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_SubmitKeyedTaskResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "SubmitKeyedTask", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceSubmitKeyedTaskReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/LookupSubmission with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn lookup_submission(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.LookupSubmissionRequest, out: *types.LookupSubmissionResponse) anyerror!void {
+    pub fn lookup_submission(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.LookupSubmissionRequest, out: *types.CorndogsServiceLookupSubmissionReply) anyerror!void {
         const csil_reqb = try codec.encode_LookupSubmissionRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "LookupSubmission", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_LookupSubmissionResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "LookupSubmission", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceLookupSubmissionReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/ClaimGuardedTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn claim_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.ClaimGuardedTaskRequest, out: *types.ClaimGuardedTaskResponse) anyerror!void {
+    pub fn claim_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.ClaimGuardedTaskRequest, out: *types.CorndogsServiceClaimGuardedTaskReply) anyerror!void {
         const csil_reqb = try codec.encode_ClaimGuardedTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "ClaimGuardedTask", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_ClaimGuardedTaskResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "ClaimGuardedTask", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceClaimGuardedTaskReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/ClaimGuardedTaskGroup with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn claim_guarded_task_group(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.ClaimGuardedTaskGroupRequest, out: *types.ClaimGuardedTaskGroupResponse) anyerror!void {
+    pub fn claim_guarded_task_group(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.ClaimGuardedTaskGroupRequest, out: *types.CorndogsServiceClaimGuardedTaskGroupReply) anyerror!void {
         const csil_reqb = try codec.encode_ClaimGuardedTaskGroupRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "ClaimGuardedTaskGroup", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_ClaimGuardedTaskGroupResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "ClaimGuardedTaskGroup", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceClaimGuardedTaskGroupReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/UpdateGuardedTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn update_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.UpdateGuardedTaskRequest, out: *types.UpdateGuardedTaskResponse) anyerror!void {
+    pub fn update_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.UpdateGuardedTaskRequest, out: *types.CorndogsServiceUpdateGuardedTaskReply) anyerror!void {
         const csil_reqb = try codec.encode_UpdateGuardedTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "UpdateGuardedTask", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_UpdateGuardedTaskResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "UpdateGuardedTask", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceUpdateGuardedTaskReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/CompleteGuardedTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn complete_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CompleteGuardedTaskRequest, out: *types.CompleteGuardedTaskResponse) anyerror!void {
+    pub fn complete_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CompleteGuardedTaskRequest, out: *types.CorndogsServiceCompleteGuardedTaskReply) anyerror!void {
         const csil_reqb = try codec.encode_CompleteGuardedTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "CompleteGuardedTask", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_CompleteGuardedTaskResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "CompleteGuardedTask", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceCompleteGuardedTaskReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/CancelGuardedTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn cancel_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CancelGuardedTaskRequest, out: *types.CancelGuardedTaskResponse) anyerror!void {
+    pub fn cancel_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.CancelGuardedTaskRequest, out: *types.CorndogsServiceCancelGuardedTaskReply) anyerror!void {
         const csil_reqb = try codec.encode_CancelGuardedTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "CancelGuardedTask", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_CancelGuardedTaskResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "CancelGuardedTask", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceCancelGuardedTaskReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/GetGuardedTask with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn get_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetGuardedTaskRequest, out: *types.GetGuardedTaskResponse) anyerror!void {
+    pub fn get_guarded_task(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.GetGuardedTaskRequest, out: *types.CorndogsServiceGetGuardedTaskReply) anyerror!void {
         const csil_reqb = try codec.encode_GetGuardedTaskRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "GetGuardedTask", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_GetGuardedTaskResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "GetGuardedTask", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceGetGuardedTaskReply(alloc, reply.variant, reply.payload, out);
     }
 
     /// Invoke CorndogsService/LookupOperation with a typed request, returning the decoded
     /// typed response. Everything in `out` is allocated from `alloc`; pass an arena
     /// and free it once when done.
-    pub fn lookup_operation(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.LookupOperationRequest, out: *types.LookupOperationResponse) anyerror!void {
+    pub fn lookup_operation(self: CorndogsClient, alloc: std.mem.Allocator, req: *const types.LookupOperationRequest, out: *types.CorndogsServiceLookupOperationReply) anyerror!void {
         const csil_reqb = try codec.encode_LookupOperationRequest(alloc, req);
         defer alloc.free(csil_reqb);
-        const csil_respb = try self.transport.call(self.transport.ptr, alloc, "CorndogsService", "LookupOperation", csil_reqb);
-        defer alloc.free(csil_respb);
-        try codec.decode_LookupOperationResponse(alloc, csil_respb, out);
+        const call = self.transport.call_reply orelse return error.MissingRpcReplyCarrier;
+        const reply = try call(self.transport.ptr, alloc, "CorndogsService", "LookupOperation", csil_reqb);
+        defer if (reply.variant) |variant| alloc.free(variant);
+        defer alloc.free(reply.payload);
+        try codec.decode_CorndogsServiceLookupOperationReply(alloc, reply.variant, reply.payload, out);
     }
 };

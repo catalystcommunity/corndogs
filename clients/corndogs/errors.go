@@ -100,6 +100,10 @@ func IsUnsupported(err error) bool { return errors.Is(err, ErrUnsupported) }
 // ServiceErrorCode returns the ServiceError code in err, or 0 and false when
 // err is not a ServiceError from the server.
 func ServiceErrorCode(err error) (uint64, bool) {
+	var refusal *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal) {
+		return refusal.Value.Code, true
+	}
 	var ce *ClientError
 	if errors.As(err, &ce) && ce.Err == nil && (ce.Code != 0 || ce.Message != "") {
 		return uint64(ce.Code), true
@@ -144,6 +148,20 @@ func uncertain(err error) error {
 
 // notApplied wraps err so that errors.Is(err, ErrNotApplied) is true.
 func notApplied(err error) error { return &ClientError{Err: fmt.Errorf("%w: %w", ErrNotApplied, err)} }
+
+// ClientError carries a transport failure or a service error from a raw Call.
+type ClientError struct {
+	Code    int64
+	Message string
+	Err     error
+}
+
+func (e *ClientError) Error() string {
+	if e.Err != nil {
+		return "transport error: " + e.Err.Error()
+	}
+	return fmt.Sprintf("service error %d: %s", e.Code, e.Message)
+}
 
 // Unwrap exposes the transport cause, so errors.Is sees ErrOutcomeUncertain,
 // ErrNotApplied, and ErrUnsupported.

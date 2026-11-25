@@ -97,8 +97,7 @@ Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md
 - **Concurrency:** `TcpTransport` serializes calls (one in flight at a time) behind a
   lock, and re-dials automatically after a dropped connection. Safe to share and call
   from multiple threads.
-- Errors: a service error throws the generated `CsilClientError` (has `code` and
-  `message`); a transport-level failure (dropped connection, connect timeout, dial
-  failure) throws `TransportError`.
+- A service error raises `ServiceErrorRefusal`. Read the error code and message
+  from `value`. A transport failure raises `TransportError`.
 - Call `tr.close()` when you're done — it stops any background heartbeat and closes
   the socket.

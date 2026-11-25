@@ -3,34 +3,39 @@
 
 /// Transport-level failures a router can raise (distinct from application errors,
 /// which ride inside the payload as a declared `/ ErrorType` arm).
-public enum CsilTransportError: Error, Equatable {
-    case unknownOperation(String)
-    case unknownOrdinal(UInt64)
+public enum CsilTransportError: Swift.Error, Equatable {
+  case unknownOperation(String)
+  case unknownOrdinal(UInt64)
 }
 
 /// CorndogsService is the server-side handler seam.
 public protocol CorndogsService {
-    func submitTask(_ request: SubmitTaskRequest) throws -> SubmitTaskResponse
-    func getTaskStateById(_ request: GetTaskStateByIdRequest) throws -> GetTaskStateByIdResponse
-    func getNextTask(_ request: GetNextTaskRequest) throws -> GetNextTaskResponse
-    func getNextTaskGroup(_ request: GetNextTaskGroupRequest) throws -> GetNextTaskGroupResponse
-    func updateTask(_ request: UpdateTaskRequest) throws -> UpdateTaskResponse
-    func completeTask(_ request: CompleteTaskRequest) throws -> CompleteTaskResponse
-    func cancelTask(_ request: CancelTaskRequest) throws -> CancelTaskResponse
-    func cleanUpTimedOut(_ request: CleanUpTimedOutRequest) throws -> CleanUpTimedOutResponse
-    func getQueues(_ request: GetQueuesRequest) throws -> GetQueuesResponse
-    func getQueueTaskCounts(_ request: GetQueueTaskCountsRequest) throws -> GetQueueTaskCountsResponse
-    func getTaskStateCounts(_ request: GetTaskStateCountsRequest) throws -> GetTaskStateCountsResponse
-    func getQueueAndStateCounts(_ request: GetQueueAndStateCountsRequest) throws -> GetQueueAndStateCountsResponse
-    func getServerInfo(_ request: GetServerInfoRequest) throws -> GetServerInfoResponse
-    func submitKeyedTask(_ request: SubmitKeyedTaskRequest) throws -> SubmitKeyedTaskResponse
-    func lookupSubmission(_ request: LookupSubmissionRequest) throws -> LookupSubmissionResponse
-    func claimGuardedTask(_ request: ClaimGuardedTaskRequest) throws -> ClaimGuardedTaskResponse
-    func claimGuardedTaskGroup(_ request: ClaimGuardedTaskGroupRequest) throws -> ClaimGuardedTaskGroupResponse
-    func updateGuardedTask(_ request: UpdateGuardedTaskRequest) throws -> UpdateGuardedTaskResponse
-    func completeGuardedTask(_ request: CompleteGuardedTaskRequest) throws -> CompleteGuardedTaskResponse
-    func cancelGuardedTask(_ request: CancelGuardedTaskRequest) throws -> CancelGuardedTaskResponse
-    func getGuardedTask(_ request: GetGuardedTaskRequest) throws -> GetGuardedTaskResponse
-    func lookupOperation(_ request: LookupOperationRequest) throws -> LookupOperationResponse
+  func submitTask(_ request: SubmitTaskRequest) throws -> SubmitTaskResponse
+  func getTaskStateById(_ request: GetTaskStateByIdRequest) throws -> GetTaskStateByIdResponse
+  func getNextTask(_ request: GetNextTaskRequest) throws -> GetNextTaskResponse
+  func getNextTaskGroup(_ request: GetNextTaskGroupRequest) throws -> GetNextTaskGroupResponse
+  func updateTask(_ request: UpdateTaskRequest) throws -> UpdateTaskResponse
+  func completeTask(_ request: CompleteTaskRequest) throws -> CompleteTaskResponse
+  func cancelTask(_ request: CancelTaskRequest) throws -> CancelTaskResponse
+  func cleanUpTimedOut(_ request: CleanUpTimedOutRequest) throws -> CleanUpTimedOutResponse
+  func getQueues(_ request: GetQueuesRequest) throws -> GetQueuesResponse
+  func getQueueTaskCounts(_ request: GetQueueTaskCountsRequest) throws -> GetQueueTaskCountsResponse
+  func getTaskStateCounts(_ request: GetTaskStateCountsRequest) throws -> GetTaskStateCountsResponse
+  func getQueueAndStateCounts(
+    _ request: GetQueueAndStateCountsRequest
+  ) throws -> GetQueueAndStateCountsResponse
+  func getServerInfo(_ request: GetServerInfoRequest) throws -> GetServerInfoResponse
+  func submitKeyedTask(_ request: SubmitKeyedTaskRequest) throws -> SubmitKeyedTaskResponse
+  func lookupSubmission(_ request: LookupSubmissionRequest) throws -> LookupSubmissionResponse
+  func claimGuardedTask(_ request: ClaimGuardedTaskRequest) throws -> ClaimGuardedTaskResponse
+  func claimGuardedTaskGroup(
+    _ request: ClaimGuardedTaskGroupRequest
+  ) throws -> ClaimGuardedTaskGroupResponse
+  func updateGuardedTask(_ request: UpdateGuardedTaskRequest) throws -> UpdateGuardedTaskResponse
+  func completeGuardedTask(
+    _ request: CompleteGuardedTaskRequest
+  ) throws -> CompleteGuardedTaskResponse
+  func cancelGuardedTask(_ request: CancelGuardedTaskRequest) throws -> CancelGuardedTaskResponse
+  func getGuardedTask(_ request: GetGuardedTaskRequest) throws -> GetGuardedTaskResponse
+  func lookupOperation(_ request: LookupOperationRequest) throws -> LookupOperationResponse
 }
-
