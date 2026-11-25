@@ -69,8 +69,8 @@ Corndogs.Transport.ping(transport)                              # or a single on
 
 ## Errors
 
-- A structured application error raises `Corndogs.Transport.ServiceError`, with
-  `code` and `message` fields.
+- A structured application error raises `Csilgen.Generated.ServiceErrorRefusal`, with
+  the service error in its `value` field.
 - A connection/transport failure (dial failed, connection dropped, malformed
   frame) raises `Corndogs.Transport.TransportError`.
 
@@ -78,7 +78,7 @@ Corndogs.Transport.ping(transport)                              # or a single on
 try do
   Csilgen.Generated.CorndogsClient.submit_task(client, req)
 rescue
-  e in Corndogs.Transport.ServiceError -> IO.puts("service error #{e.code}: #{e.message}")
+  e in Csilgen.Generated.ServiceErrorRefusal -> IO.puts("service error #{e.value.code}: #{e.value.message}")
   e in Corndogs.Transport.TransportError -> IO.puts("transport error: #{e.message}")
 end
 ```

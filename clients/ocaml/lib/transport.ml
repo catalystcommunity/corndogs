@@ -6,7 +6,7 @@
 
      let tr = Corndogs.Transport.connect "localhost:5080" in
      let _stop = Corndogs.Transport.start_heartbeat tr in  (* keep-alive, background *)
-     let client = Corndogs.Client.make_client ~call:(Corndogs.Transport.call tr) in
+     let client = Corndogs.Transport.client tr in
      match Corndogs.Client.Corndogs_service.submit_task client req with
      | Ok resp -> ...
      | Error msg -> ...
@@ -140,10 +140,8 @@ let build_request ~(service : string) ~(op : string) ~(id : int64) ~(payload : b
 let map_get (kvs : (Cbor.t * Cbor.t) list) (key : string) : Cbor.t option =
   List.find_map (fun (k, v) -> if k = Cbor.Text key then Some v else None) kvs
 
-(* Decodes one response frame into the inner reply payload, or a
-   human-readable error string. A non-zero transport [status] or a
-   "ServiceError" [variant] both surface as [Error]. *)
-let parse_response (frame : bytes) : (bytes, string) result =
+(* Return the variant and payload from a successful response. *)
+let parse_response (frame : bytes) =
   match Cbor.decode frame with
   | Error e -> Error ("corndogs: decode response envelope: " ^ e)
   | Ok (Cbor.Map kvs) -> (
@@ -152,19 +150,13 @@ let parse_response (frame : bytes) : (bytes, string) result =
       let msg = match map_get kvs "error" with Some v -> ( try Cbor.to_text v with _ -> "") | None -> "" in
       Error (Printf.sprintf "corndogs: transport status %Ld: %s" status msg)
     else
+      let variant = match map_get kvs "variant" with Some (Cbor.Text name) -> Some name | _ -> None in
       match map_get kvs "payload" with
-      | None -> Ok Bytes.empty (* control replies (e.g. $pong) carry no payload *)
+      | None -> Ok (variant, Bytes.empty) (* control replies (e.g. $pong) carry no payload *)
       | Some pv -> (
         let pv = match pv with Cbor.Tag (_, inner) -> inner | other -> other in
         match pv with
-        | Cbor.Bytes inner -> (
-          match map_get kvs "variant" with
-          | Some (Cbor.Text "ServiceError") -> (
-            try
-              let se = Codec.decode_service_error_bytes inner in
-              Error (Printf.sprintf "corndogs: service error %Ld: %s" se.Types.code se.Types.message)
-            with Failure m -> Error ("corndogs: undecodable ServiceError payload: " ^ m))
-          | _ -> Ok inner)
+        | Cbor.Bytes inner -> Ok (variant, inner)
         | _ -> Error "corndogs: response payload is not a tag-24 byte string"))
   | Ok _ -> Error "corndogs: malformed response envelope"
 
@@ -184,13 +176,8 @@ let reset (t : t) : unit =
    | None -> ());
   t.fd <- None
 
-(* [call t ~service ~op ~payload] performs one CSIL-RPC round trip and returns
-   the inner reply payload bytes (or an error). Matches the generated
-   [Client.client]'s [call] seam exactly, so `Transport.call tr` partially
-   applies straight into [Client.make_client ~call:(Transport.call tr)].
-   Thread-safe: calls are serialized (one in flight); a failed call tears
-   down the connection so the next call re-dials. *)
-let call (t : t) ~(service : string) ~(op : string) ~(payload : bytes) : (bytes, string) result =
+(* The mutex serializes calls over this connection. *)
+let call_reply (t : t) ~(service : string) ~(op : string) ~(payload : bytes) =
   Mutex.lock t.mutex;
   Fun.protect
     ~finally:(fun () -> Mutex.unlock t.mutex)
@@ -221,6 +208,16 @@ let call (t : t) ~(service : string) ~(op : string) ~(payload : bytes) : (bytes,
         | Unix.Unix_error (e, fn, _) ->
           reset t;
           Error (Printf.sprintf "corndogs: outcome uncertain: %s: %s" fn (Unix.error_message e))))
+
+let call t ~service ~op ~payload =
+  match call_reply t ~service ~op ~payload with
+  | Error e -> Error e
+  | Ok (Some "ServiceError", bytes) -> (
+    try
+      let se = Codec.decode_service_error_bytes bytes in
+      Error (Printf.sprintf "corndogs: service error %Ld: %s" se.Types.code se.Types.message)
+    with Failure m -> Error ("corndogs: undecodable ServiceError payload: " ^ m))
+  | Ok (_, bytes) -> Ok bytes
 
 (* --- heartbeat: one-shot, sync (blocking), and async (background thread) - *)
 
@@ -278,8 +275,5 @@ let close (t : t) : unit =
   reset t;
   Mutex.unlock t.mutex
 
-(* Convenience: wires a ready [Client.client] over a fresh transport for
-   [addr] (host:port). Equivalent to [Client.make_client ~call:(call
-   (connect addr))], returned alongside the transport so callers can still
-   drive the heartbeat / [close] it. *)
-let client (t : t) : Client.client = Client.make_client ~call:(call t)
+(* Use this transport for all generated client methods. *)
+let client (t : t) : Client.client = Client.make_client ~call:(call t) ~call_reply:(call_reply t)

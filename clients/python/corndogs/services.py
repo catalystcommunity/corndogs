@@ -20,112 +20,112 @@ class CorndogsServiceHandlers(ABC):
     """Server-side handlers for CorndogsService service operations."""
 
     @abstractmethod
-    def submit_task(self, req: SubmitTaskRequest, ctx: dict) -> Union[SubmitTaskResponse, ServiceError]:
+    def submit_task(self, req: SubmitTaskRequest, ctx: dict) -> SubmitTaskResponse:
         """SubmitTask"""
         ...
 
     @abstractmethod
-    def get_task_state_by_id(self, req: GetTaskStateByIdRequest, ctx: dict) -> Union[GetTaskStateByIdResponse, ServiceError]:
+    def get_task_state_by_id(self, req: GetTaskStateByIdRequest, ctx: dict) -> GetTaskStateByIdResponse:
         """GetTaskStateByID"""
         ...
 
     @abstractmethod
-    def get_next_task(self, req: GetNextTaskRequest, ctx: dict) -> Union[GetNextTaskResponse, ServiceError]:
+    def get_next_task(self, req: GetNextTaskRequest, ctx: dict) -> GetNextTaskResponse:
         """GetNextTask"""
         ...
 
     @abstractmethod
-    def get_next_task_group(self, req: GetNextTaskGroupRequest, ctx: dict) -> Union[GetNextTaskGroupResponse, ServiceError]:
+    def get_next_task_group(self, req: GetNextTaskGroupRequest, ctx: dict) -> GetNextTaskGroupResponse:
         """GetNextTaskGroup"""
         ...
 
     @abstractmethod
-    def update_task(self, req: UpdateTaskRequest, ctx: dict) -> Union[UpdateTaskResponse, ServiceError]:
+    def update_task(self, req: UpdateTaskRequest, ctx: dict) -> UpdateTaskResponse:
         """UpdateTask"""
         ...
 
     @abstractmethod
-    def complete_task(self, req: CompleteTaskRequest, ctx: dict) -> Union[CompleteTaskResponse, ServiceError]:
+    def complete_task(self, req: CompleteTaskRequest, ctx: dict) -> CompleteTaskResponse:
         """CompleteTask"""
         ...
 
     @abstractmethod
-    def cancel_task(self, req: CancelTaskRequest, ctx: dict) -> Union[CancelTaskResponse, ServiceError]:
+    def cancel_task(self, req: CancelTaskRequest, ctx: dict) -> CancelTaskResponse:
         """CancelTask"""
         ...
 
     @abstractmethod
-    def clean_up_timed_out(self, req: CleanUpTimedOutRequest, ctx: dict) -> Union[CleanUpTimedOutResponse, ServiceError]:
+    def clean_up_timed_out(self, req: CleanUpTimedOutRequest, ctx: dict) -> CleanUpTimedOutResponse:
         """CleanUpTimedOut"""
         ...
 
     @abstractmethod
-    def get_queues(self, req: GetQueuesRequest, ctx: dict) -> Union[GetQueuesResponse, ServiceError]:
+    def get_queues(self, req: GetQueuesRequest, ctx: dict) -> GetQueuesResponse:
         """GetQueues"""
         ...
 
     @abstractmethod
-    def get_queue_task_counts(self, req: GetQueueTaskCountsRequest, ctx: dict) -> Union[GetQueueTaskCountsResponse, ServiceError]:
+    def get_queue_task_counts(self, req: GetQueueTaskCountsRequest, ctx: dict) -> GetQueueTaskCountsResponse:
         """GetQueueTaskCounts"""
         ...
 
     @abstractmethod
-    def get_task_state_counts(self, req: GetTaskStateCountsRequest, ctx: dict) -> Union[GetTaskStateCountsResponse, ServiceError]:
+    def get_task_state_counts(self, req: GetTaskStateCountsRequest, ctx: dict) -> GetTaskStateCountsResponse:
         """GetTaskStateCounts"""
         ...
 
     @abstractmethod
-    def get_queue_and_state_counts(self, req: GetQueueAndStateCountsRequest, ctx: dict) -> Union[GetQueueAndStateCountsResponse, ServiceError]:
+    def get_queue_and_state_counts(self, req: GetQueueAndStateCountsRequest, ctx: dict) -> GetQueueAndStateCountsResponse:
         """GetQueueAndStateCounts"""
         ...
 
     @abstractmethod
-    def get_server_info(self, req: GetServerInfoRequest, ctx: dict) -> Union[GetServerInfoResponse, ServiceError]:
+    def get_server_info(self, req: GetServerInfoRequest, ctx: dict) -> GetServerInfoResponse:
         """GetServerInfo"""
         ...
 
     @abstractmethod
-    def submit_keyed_task(self, req: SubmitKeyedTaskRequest, ctx: dict) -> Union[SubmitKeyedTaskResponse, ServiceError]:
+    def submit_keyed_task(self, req: SubmitKeyedTaskRequest, ctx: dict) -> SubmitKeyedTaskResponse:
         """SubmitKeyedTask"""
         ...
 
     @abstractmethod
-    def lookup_submission(self, req: LookupSubmissionRequest, ctx: dict) -> Union[LookupSubmissionResponse, ServiceError]:
+    def lookup_submission(self, req: LookupSubmissionRequest, ctx: dict) -> LookupSubmissionResponse:
         """LookupSubmission"""
         ...
 
     @abstractmethod
-    def claim_guarded_task(self, req: ClaimGuardedTaskRequest, ctx: dict) -> Union[ClaimGuardedTaskResponse, ServiceError]:
+    def claim_guarded_task(self, req: ClaimGuardedTaskRequest, ctx: dict) -> ClaimGuardedTaskResponse:
         """ClaimGuardedTask"""
         ...
 
     @abstractmethod
-    def claim_guarded_task_group(self, req: ClaimGuardedTaskGroupRequest, ctx: dict) -> Union[ClaimGuardedTaskGroupResponse, ServiceError]:
+    def claim_guarded_task_group(self, req: ClaimGuardedTaskGroupRequest, ctx: dict) -> ClaimGuardedTaskGroupResponse:
         """ClaimGuardedTaskGroup"""
         ...
 
     @abstractmethod
-    def update_guarded_task(self, req: UpdateGuardedTaskRequest, ctx: dict) -> Union[UpdateGuardedTaskResponse, ServiceError]:
+    def update_guarded_task(self, req: UpdateGuardedTaskRequest, ctx: dict) -> UpdateGuardedTaskResponse:
         """UpdateGuardedTask"""
         ...
 
     @abstractmethod
-    def complete_guarded_task(self, req: CompleteGuardedTaskRequest, ctx: dict) -> Union[CompleteGuardedTaskResponse, ServiceError]:
+    def complete_guarded_task(self, req: CompleteGuardedTaskRequest, ctx: dict) -> CompleteGuardedTaskResponse:
         """CompleteGuardedTask"""
         ...
 
     @abstractmethod
-    def cancel_guarded_task(self, req: CancelGuardedTaskRequest, ctx: dict) -> Union[CancelGuardedTaskResponse, ServiceError]:
+    def cancel_guarded_task(self, req: CancelGuardedTaskRequest, ctx: dict) -> CancelGuardedTaskResponse:
         """CancelGuardedTask"""
         ...
 
     @abstractmethod
-    def get_guarded_task(self, req: GetGuardedTaskRequest, ctx: dict) -> Union[GetGuardedTaskResponse, ServiceError]:
+    def get_guarded_task(self, req: GetGuardedTaskRequest, ctx: dict) -> GetGuardedTaskResponse:
         """GetGuardedTask"""
         ...
 
     @abstractmethod
-    def lookup_operation(self, req: LookupOperationRequest, ctx: dict) -> Union[LookupOperationResponse, ServiceError]:
+    def lookup_operation(self, req: LookupOperationRequest, ctx: dict) -> LookupOperationResponse:
         """LookupOperation"""
         ...
 

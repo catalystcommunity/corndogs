@@ -12,6 +12,16 @@ use super::types::*;
 /// only moves bytes, so it can be HTTP, a queue, or an in-process loop.
 pub trait AsyncTransport {
     async fn call(&self, service: &str, op: &str, req: &[u8]) -> Result<Vec<u8>, ClientError>;
+
+    /// Perform a call whose operation declares several reply arms and return
+    /// the status-zero reply `variant` with its payload, so the client can
+    /// return the success arm or the declared error arm.
+    async fn call_reply(
+        &self,
+        service: &str,
+        op: &str,
+        req: &[u8],
+    ) -> Result<super::client::WireReply, ClientError>;
 }
 
 /// Typed client for the CorndogsService service.
@@ -30,15 +40,21 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: SubmitTaskRequest,
     ) -> Result<SubmitTaskResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_submit_task_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "SubmitTask",
-                &encode_submit_task_request(&req),
-            )
+            .call_reply("CorndogsService", "SubmitTask", &csil_req)
             .await?;
-        decode_submit_task_response(&csil_resp).map_err(|e| ClientError::Transport(e.to_string()))
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "SubmitTask",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
+        decode_submit_task_response(&csil_resp).map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// GetTaskStateByID (request/response).
@@ -46,16 +62,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: GetTaskStateByIDRequest,
     ) -> Result<GetTaskStateByIDResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_get_task_state_by_id_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "GetTaskStateByID",
-                &encode_get_task_state_by_id_request(&req),
-            )
+            .call_reply("CorndogsService", "GetTaskStateByID", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "GetTaskStateByID",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_get_task_state_by_id_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// GetNextTask (request/response).
@@ -63,15 +85,21 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: GetNextTaskRequest,
     ) -> Result<GetNextTaskResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_get_next_task_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "GetNextTask",
-                &encode_get_next_task_request(&req),
-            )
+            .call_reply("CorndogsService", "GetNextTask", &csil_req)
             .await?;
-        decode_get_next_task_response(&csil_resp).map_err(|e| ClientError::Transport(e.to_string()))
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "GetNextTask",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
+        decode_get_next_task_response(&csil_resp).map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// GetNextTaskGroup (request/response).
@@ -79,16 +107,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: GetNextTaskGroupRequest,
     ) -> Result<GetNextTaskGroupResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_get_next_task_group_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "GetNextTaskGroup",
-                &encode_get_next_task_group_request(&req),
-            )
+            .call_reply("CorndogsService", "GetNextTaskGroup", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "GetNextTaskGroup",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_get_next_task_group_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// UpdateTask (request/response).
@@ -96,15 +130,21 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: UpdateTaskRequest,
     ) -> Result<UpdateTaskResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_update_task_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "UpdateTask",
-                &encode_update_task_request(&req),
-            )
+            .call_reply("CorndogsService", "UpdateTask", &csil_req)
             .await?;
-        decode_update_task_response(&csil_resp).map_err(|e| ClientError::Transport(e.to_string()))
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "UpdateTask",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
+        decode_update_task_response(&csil_resp).map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// CompleteTask (request/response).
@@ -112,15 +152,21 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: CompleteTaskRequest,
     ) -> Result<CompleteTaskResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_complete_task_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "CompleteTask",
-                &encode_complete_task_request(&req),
-            )
+            .call_reply("CorndogsService", "CompleteTask", &csil_req)
             .await?;
-        decode_complete_task_response(&csil_resp).map_err(|e| ClientError::Transport(e.to_string()))
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "CompleteTask",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
+        decode_complete_task_response(&csil_resp).map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// CancelTask (request/response).
@@ -128,15 +174,21 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: CancelTaskRequest,
     ) -> Result<CancelTaskResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_cancel_task_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "CancelTask",
-                &encode_cancel_task_request(&req),
-            )
+            .call_reply("CorndogsService", "CancelTask", &csil_req)
             .await?;
-        decode_cancel_task_response(&csil_resp).map_err(|e| ClientError::Transport(e.to_string()))
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "CancelTask",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
+        decode_cancel_task_response(&csil_resp).map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// CleanUpTimedOut (request/response).
@@ -144,16 +196,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: CleanUpTimedOutRequest,
     ) -> Result<CleanUpTimedOutResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_clean_up_timed_out_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "CleanUpTimedOut",
-                &encode_clean_up_timed_out_request(&req),
-            )
+            .call_reply("CorndogsService", "CleanUpTimedOut", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "CleanUpTimedOut",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_clean_up_timed_out_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// GetQueues (request/response).
@@ -161,15 +219,21 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: GetQueuesRequest,
     ) -> Result<GetQueuesResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_get_queues_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "GetQueues",
-                &encode_get_queues_request(&req),
-            )
+            .call_reply("CorndogsService", "GetQueues", &csil_req)
             .await?;
-        decode_get_queues_response(&csil_resp).map_err(|e| ClientError::Transport(e.to_string()))
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "GetQueues",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
+        decode_get_queues_response(&csil_resp).map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// GetQueueTaskCounts (request/response).
@@ -177,16 +241,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: GetQueueTaskCountsRequest,
     ) -> Result<GetQueueTaskCountsResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_get_queue_task_counts_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "GetQueueTaskCounts",
-                &encode_get_queue_task_counts_request(&req),
-            )
+            .call_reply("CorndogsService", "GetQueueTaskCounts", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "GetQueueTaskCounts",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_get_queue_task_counts_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// GetTaskStateCounts (request/response).
@@ -194,16 +264,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: GetTaskStateCountsRequest,
     ) -> Result<GetTaskStateCountsResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_get_task_state_counts_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "GetTaskStateCounts",
-                &encode_get_task_state_counts_request(&req),
-            )
+            .call_reply("CorndogsService", "GetTaskStateCounts", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "GetTaskStateCounts",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_get_task_state_counts_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// GetQueueAndStateCounts (request/response).
@@ -211,16 +287,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: GetQueueAndStateCountsRequest,
     ) -> Result<GetQueueAndStateCountsResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_get_queue_and_state_counts_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "GetQueueAndStateCounts",
-                &encode_get_queue_and_state_counts_request(&req),
-            )
+            .call_reply("CorndogsService", "GetQueueAndStateCounts", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "GetQueueAndStateCounts",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_get_queue_and_state_counts_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// GetServerInfo (request/response).
@@ -228,16 +310,21 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: GetServerInfoRequest,
     ) -> Result<GetServerInfoResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_get_server_info_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "GetServerInfo",
-                &encode_get_server_info_request(&req),
-            )
+            .call_reply("CorndogsService", "GetServerInfo", &csil_req)
             .await?;
-        decode_get_server_info_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "GetServerInfo",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
+        decode_get_server_info_response(&csil_resp).map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// SubmitKeyedTask (request/response).
@@ -245,16 +332,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: SubmitKeyedTaskRequest,
     ) -> Result<SubmitKeyedTaskResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_submit_keyed_task_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "SubmitKeyedTask",
-                &encode_submit_keyed_task_request(&req),
-            )
+            .call_reply("CorndogsService", "SubmitKeyedTask", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "SubmitKeyedTask",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_submit_keyed_task_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// LookupSubmission (request/response).
@@ -262,16 +355,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: LookupSubmissionRequest,
     ) -> Result<LookupSubmissionResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_lookup_submission_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "LookupSubmission",
-                &encode_lookup_submission_request(&req),
-            )
+            .call_reply("CorndogsService", "LookupSubmission", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "LookupSubmission",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_lookup_submission_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// ClaimGuardedTask (request/response).
@@ -279,16 +378,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: ClaimGuardedTaskRequest,
     ) -> Result<ClaimGuardedTaskResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_claim_guarded_task_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "ClaimGuardedTask",
-                &encode_claim_guarded_task_request(&req),
-            )
+            .call_reply("CorndogsService", "ClaimGuardedTask", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "ClaimGuardedTask",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_claim_guarded_task_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// ClaimGuardedTaskGroup (request/response).
@@ -296,16 +401,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: ClaimGuardedTaskGroupRequest,
     ) -> Result<ClaimGuardedTaskGroupResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_claim_guarded_task_group_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "ClaimGuardedTaskGroup",
-                &encode_claim_guarded_task_group_request(&req),
-            )
+            .call_reply("CorndogsService", "ClaimGuardedTaskGroup", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "ClaimGuardedTaskGroup",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_claim_guarded_task_group_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// UpdateGuardedTask (request/response).
@@ -313,16 +424,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: UpdateGuardedTaskRequest,
     ) -> Result<UpdateGuardedTaskResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_update_guarded_task_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "UpdateGuardedTask",
-                &encode_update_guarded_task_request(&req),
-            )
+            .call_reply("CorndogsService", "UpdateGuardedTask", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "UpdateGuardedTask",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_update_guarded_task_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// CompleteGuardedTask (request/response).
@@ -330,16 +447,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: CompleteGuardedTaskRequest,
     ) -> Result<CompleteGuardedTaskResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_complete_guarded_task_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "CompleteGuardedTask",
-                &encode_complete_guarded_task_request(&req),
-            )
+            .call_reply("CorndogsService", "CompleteGuardedTask", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "CompleteGuardedTask",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_complete_guarded_task_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// CancelGuardedTask (request/response).
@@ -347,16 +470,22 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: CancelGuardedTaskRequest,
     ) -> Result<CancelGuardedTaskResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_cancel_guarded_task_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "CancelGuardedTask",
-                &encode_cancel_guarded_task_request(&req),
-            )
+            .call_reply("CorndogsService", "CancelGuardedTask", &csil_req)
             .await?;
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "CancelGuardedTask",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
         decode_cancel_guarded_task_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            .map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// GetGuardedTask (request/response).
@@ -364,16 +493,21 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: GetGuardedTaskRequest,
     ) -> Result<GetGuardedTaskResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_get_guarded_task_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "GetGuardedTask",
-                &encode_get_guarded_task_request(&req),
-            )
+            .call_reply("CorndogsService", "GetGuardedTask", &csil_req)
             .await?;
-        decode_get_guarded_task_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "GetGuardedTask",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
+        decode_get_guarded_task_response(&csil_resp).map_err(|e| ClientError::Decode(e.to_string()))
     }
 
     /// LookupOperation (request/response).
@@ -381,15 +515,20 @@ impl<T: AsyncTransport> CorndogsAsyncClient<T> {
         &self,
         req: LookupOperationRequest,
     ) -> Result<LookupOperationResponse, ClientError> {
-        let csil_resp = self
+        let csil_req = match encode_lookup_operation_request(&req) {
+            Ok(csil_bytes) => csil_bytes,
+            Err(e) => return Err(ClientError::Encode(e.to_string())),
+        };
+        let csil_reply = self
             .transport
-            .call(
-                "CorndogsService",
-                "LookupOperation",
-                &encode_lookup_operation_request(&req),
-            )
+            .call_reply("CorndogsService", "LookupOperation", &csil_req)
             .await?;
-        decode_lookup_operation_response(&csil_resp)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+        let csil_resp = super::client::resolve_rpc_reply(
+            "CorndogsService",
+            "LookupOperation",
+            csil_reply.variant.as_deref(),
+            csil_reply.payload,
+        )?;
+        decode_lookup_operation_response(&csil_resp).map_err(|e| ClientError::Decode(e.to_string()))
     }
 }

@@ -5,11 +5,11 @@
 import PackageDescription
 
 let package = Package(
-name: "corndogs",
-products: [
-.library(name: "corndogs", targets: ["Corndogs"]),
-],
-targets: [
-.target(name: "Corndogs"),
-]
+  name: "corndogs",
+  products: [
+    .library(name: "corndogs", targets: ["Corndogs"])
+  ],
+  targets: [
+    .target(name: "Corndogs")
+  ]
 )

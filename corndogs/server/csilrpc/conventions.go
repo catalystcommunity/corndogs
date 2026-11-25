@@ -1,4 +1,4 @@
-// Vendored from csilgen transports/go (csilgen/v0.2.4) — DO NOT EDIT.
+// Vendored from csilgen transports/go (csilgen/v0.3.3) — DO NOT EDIT.
 // Regenerate by re-copying from the pinned csilgen release.
 // Conventions shared by every CSIL transport — see csil-transport-conventions.md.
 //

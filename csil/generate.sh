@@ -12,7 +12,7 @@
 # release, run this script, and commit the result.
 set -euo pipefail
 
-CSILGEN_RELEASE="csilgen/v0.2.9"
+CSILGEN_RELEASE="csilgen/v0.3.3"
 
 # Go is generated separately because the server also uses its service interface.
 LANGUAGES=(rust typescript python java csharp c swift kotlin zig ocaml elixir ruby dart)
@@ -24,6 +24,12 @@ OUT="${ROOT}/clients"
 
 if ! command -v csilgen >/dev/null 2>&1; then
   echo "error: csilgen not found on PATH (${CSILGEN_RELEASE} expected)" >&2
+  exit 1
+fi
+
+version="$(csilgen --version)"
+if [[ "$version" != "csilgen ${CSILGEN_RELEASE#csilgen/v}" ]]; then
+  echo "error: found $version; install $CSILGEN_RELEASE" >&2
   exit 1
 fi
 

@@ -107,12 +107,17 @@ func (t *ClusterTransport) clearLeader()       { t.mu.Lock(); t.leader = ""; t.m
 // is never replayed, because a replay could run it twice. A commit timeout of a
 // cluster write is uncertain too: the leader applied it before the timeout.
 func (t *ClusterTransport) Call(ctx context.Context, service, op string, req []byte) ([]byte, error) {
+	return replyPayload(t.CallReply(ctx, service, op, req))
+}
+
+// CallReply returns the variant and payload from the same response.
+func (t *ClusterTransport) CallReply(ctx context.Context, service, op string, req []byte) (WireReply, error) {
 	attempts := len(t.Seeds) + 5
 	var lastErr error
 	for i := 0; i < attempts; i++ {
 		addr := t.target()
 		if addr == "" {
-			return nil, &ClientError{Err: fmt.Errorf("cluster: no seeds configured")}
+			return WireReply{}, &ClientError{Err: fmt.Errorf("cluster: no seeds configured")}
 		}
 		resp, err := t.transportFor(addr).callOnce(ctx, service, op, req)
 		if err == nil {
@@ -129,7 +134,7 @@ func (t *ClusterTransport) Call(ctx context.Context, service, op string, req []b
 			continue
 		}
 		if !retryable(op, err) {
-			return nil, err
+			return WireReply{}, err
 		}
 		t.clearLeader() // connection/transport failure — rotate to a seed
 		if !sleepBackoff(ctx, i) {
@@ -139,7 +144,7 @@ func (t *ClusterTransport) Call(ctx context.Context, service, op string, req []b
 	if lastErr == nil {
 		lastErr = &ClientError{Err: fmt.Errorf("cluster: exhausted retries")}
 	}
-	return nil, lastErr
+	return WireReply{}, lastErr
 }
 
 // Close closes every persistent connection the cluster transport opened.

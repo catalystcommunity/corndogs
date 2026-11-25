@@ -19,28 +19,28 @@ typedef struct CsilgenCodec {
 
 /* CorndogsHandlers is the host's implementation of the CorndogsService service. */
 typedef struct CorndogsHandlers {
-    int (*submit_task)(void *ctx, const SubmitTaskRequest *req, SubmitTaskResponse *resp);
-    int (*get_task_state_by_i_d)(void *ctx, const GetTaskStateByIDRequest *req, GetTaskStateByIDResponse *resp);
-    int (*get_next_task)(void *ctx, const GetNextTaskRequest *req, GetNextTaskResponse *resp);
-    int (*get_next_task_group)(void *ctx, const GetNextTaskGroupRequest *req, GetNextTaskGroupResponse *resp);
-    int (*update_task)(void *ctx, const UpdateTaskRequest *req, UpdateTaskResponse *resp);
-    int (*complete_task)(void *ctx, const CompleteTaskRequest *req, CompleteTaskResponse *resp);
-    int (*cancel_task)(void *ctx, const CancelTaskRequest *req, CancelTaskResponse *resp);
-    int (*clean_up_timed_out)(void *ctx, const CleanUpTimedOutRequest *req, CleanUpTimedOutResponse *resp);
-    int (*get_queues)(void *ctx, const GetQueuesRequest *req, GetQueuesResponse *resp);
-    int (*get_queue_task_counts)(void *ctx, const GetQueueTaskCountsRequest *req, GetQueueTaskCountsResponse *resp);
-    int (*get_task_state_counts)(void *ctx, const GetTaskStateCountsRequest *req, GetTaskStateCountsResponse *resp);
-    int (*get_queue_and_state_counts)(void *ctx, const GetQueueAndStateCountsRequest *req, GetQueueAndStateCountsResponse *resp);
-    int (*get_server_info)(void *ctx, const GetServerInfoRequest *req, GetServerInfoResponse *resp);
-    int (*submit_keyed_task)(void *ctx, const SubmitKeyedTaskRequest *req, SubmitKeyedTaskResponse *resp);
-    int (*lookup_submission)(void *ctx, const LookupSubmissionRequest *req, LookupSubmissionResponse *resp);
-    int (*claim_guarded_task)(void *ctx, const ClaimGuardedTaskRequest *req, ClaimGuardedTaskResponse *resp);
-    int (*claim_guarded_task_group)(void *ctx, const ClaimGuardedTaskGroupRequest *req, ClaimGuardedTaskGroupResponse *resp);
-    int (*update_guarded_task)(void *ctx, const UpdateGuardedTaskRequest *req, UpdateGuardedTaskResponse *resp);
-    int (*complete_guarded_task)(void *ctx, const CompleteGuardedTaskRequest *req, CompleteGuardedTaskResponse *resp);
-    int (*cancel_guarded_task)(void *ctx, const CancelGuardedTaskRequest *req, CancelGuardedTaskResponse *resp);
-    int (*get_guarded_task)(void *ctx, const GetGuardedTaskRequest *req, GetGuardedTaskResponse *resp);
-    int (*lookup_operation)(void *ctx, const LookupOperationRequest *req, LookupOperationResponse *resp);
+    int (*submit_task)(void *ctx, const SubmitTaskRequest *req, CorndogsServiceSubmitTaskReply *resp);
+    int (*get_task_state_by_i_d)(void *ctx, const GetTaskStateByIDRequest *req, CorndogsServiceGetTaskStateByIDReply *resp);
+    int (*get_next_task)(void *ctx, const GetNextTaskRequest *req, CorndogsServiceGetNextTaskReply *resp);
+    int (*get_next_task_group)(void *ctx, const GetNextTaskGroupRequest *req, CorndogsServiceGetNextTaskGroupReply *resp);
+    int (*update_task)(void *ctx, const UpdateTaskRequest *req, CorndogsServiceUpdateTaskReply *resp);
+    int (*complete_task)(void *ctx, const CompleteTaskRequest *req, CorndogsServiceCompleteTaskReply *resp);
+    int (*cancel_task)(void *ctx, const CancelTaskRequest *req, CorndogsServiceCancelTaskReply *resp);
+    int (*clean_up_timed_out)(void *ctx, const CleanUpTimedOutRequest *req, CorndogsServiceCleanUpTimedOutReply *resp);
+    int (*get_queues)(void *ctx, const GetQueuesRequest *req, CorndogsServiceGetQueuesReply *resp);
+    int (*get_queue_task_counts)(void *ctx, const GetQueueTaskCountsRequest *req, CorndogsServiceGetQueueTaskCountsReply *resp);
+    int (*get_task_state_counts)(void *ctx, const GetTaskStateCountsRequest *req, CorndogsServiceGetTaskStateCountsReply *resp);
+    int (*get_queue_and_state_counts)(void *ctx, const GetQueueAndStateCountsRequest *req, CorndogsServiceGetQueueAndStateCountsReply *resp);
+    int (*get_server_info)(void *ctx, const GetServerInfoRequest *req, CorndogsServiceGetServerInfoReply *resp);
+    int (*submit_keyed_task)(void *ctx, const SubmitKeyedTaskRequest *req, CorndogsServiceSubmitKeyedTaskReply *resp);
+    int (*lookup_submission)(void *ctx, const LookupSubmissionRequest *req, CorndogsServiceLookupSubmissionReply *resp);
+    int (*claim_guarded_task)(void *ctx, const ClaimGuardedTaskRequest *req, CorndogsServiceClaimGuardedTaskReply *resp);
+    int (*claim_guarded_task_group)(void *ctx, const ClaimGuardedTaskGroupRequest *req, CorndogsServiceClaimGuardedTaskGroupReply *resp);
+    int (*update_guarded_task)(void *ctx, const UpdateGuardedTaskRequest *req, CorndogsServiceUpdateGuardedTaskReply *resp);
+    int (*complete_guarded_task)(void *ctx, const CompleteGuardedTaskRequest *req, CorndogsServiceCompleteGuardedTaskReply *resp);
+    int (*cancel_guarded_task)(void *ctx, const CancelGuardedTaskRequest *req, CorndogsServiceCancelGuardedTaskReply *resp);
+    int (*get_guarded_task)(void *ctx, const GetGuardedTaskRequest *req, CorndogsServiceGetGuardedTaskReply *resp);
+    int (*lookup_operation)(void *ctx, const LookupOperationRequest *req, CorndogsServiceLookupOperationReply *resp);
 } CorndogsHandlers;
 
 #endif /* CSILGEN_SERVER_GEN_H */

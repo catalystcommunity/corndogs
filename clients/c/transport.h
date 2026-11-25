@@ -9,10 +9,12 @@
  *     CsilgenTransport seam = corndogs_transport_seam(t);
  *
  *     SubmitTaskRequest req = { .queue = "emails", .current_state = "submitted", ... };
- *     SubmitTaskResponse resp;
+ *     CorndogsServiceSubmitTaskReply resp;
  *     CsilCodecArena *owner = NULL;
  *     if (csil_corndogs_submit_task(&seam, &req, &resp, &owner) != 0)
  *         fprintf(stderr, "submit_task failed: %s\n", corndogs_transport_last_error(t));
+ *     else if (resp.kind == CorndogsServiceSubmitTaskReply_as_service_error)
+ *         fprintf(stderr, "%s\n", resp.value.as_service_error.message);
  *     csil_codec_arena_free(owner);
  *
  * The wire is CSIL-RPC framed with the canonical 4-byte big-endian length prefix

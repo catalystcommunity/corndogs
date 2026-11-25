@@ -110,6 +110,10 @@ func main() {
 		fmt.Println("guarded complete:", err)
 		os.Exit(1)
 	}
+	_, err = c.GetGuardedTask(ctx, corndogs.GetGuardedTaskRequest{Uuid: "invalid", Queue: q})
+	if code, ok := corndogs.ServiceErrorCode(err); !ok || code != corndogs.CodeInvalidArgument {
+		panic(fmt.Sprintf("expected invalid argument, got %v", err))
+	}
 	fmt.Println("ok", r.Delivery.Task.Uuid)
 }
 GOEOF
@@ -152,6 +156,13 @@ assert cl is not None and cl.payload == b"res", "guarded claim failed"
 done = client.complete_guarded_task(CompleteGuardedTaskRequest(
     operation_id="e2e-done-" + q, uuid=cl.task.task.uuid, queue=q, expected_revision=cl.task.revision))
 assert done.task.terminal, "not terminal"
+from corndogs import GetGuardedTaskRequest, ServiceErrorRefusal
+try:
+    client.get_guarded_task(GetGuardedTaskRequest(uuid="invalid", queue=q))
+except ServiceErrorRefusal as exc:
+    assert exc.value.code == 1
+else:
+    raise AssertionError("expected invalid argument")
 print("ok")
 PYEOF
   PYTHONPATH="${CLIENTS}/python" python3 "$w/main.py" >"$w/out.log" 2>&1 && pass python || { fail python; sed 's/^/    /' "$w/out.log" | tail -8; }
@@ -196,6 +207,12 @@ done = client.complete_guarded_task(CompleteGuardedTaskRequest.new(
 ))
 raise "not terminal" unless done.task.terminal
 
+begin
+  client.get_guarded_task(GetGuardedTaskRequest.new(uuid: "invalid", queue: q))
+  raise "expected invalid argument"
+rescue CsilCbor::ServiceErrorRefusal => e
+  raise unless e.value.code == 1
+end
 puts "ok"
 RBEOF
   ruby -I"${CLIENTS}/ruby/lib" "$w/main.rb" >"$w/out.log" 2>&1 && pass ruby || { fail ruby; sed 's/^/    /' "$w/out.log" | tail -8; }
@@ -248,6 +265,10 @@ fn main() {
     }).expect("complete_guarded_task");
     assert!(done.task.terminal, "not terminal");
 
+    let refusal = client.get_guarded_task(corndogs::GetGuardedTaskRequest {
+        uuid: "invalid".into(), queue: "q".into(),
+    });
+    assert!(matches!(refusal, Err(corndogs::ClientError::ApplicationServiceError(e)) if e.code == 1));
     println!("ok");
 }
 RUSTEOF
@@ -284,9 +305,10 @@ int main(void) {
         .queue = "e2e-c", .current_state = "s", .auto_target_state = "w",
         .timeout = -1, .payload = {0}, .priority = 0,
     };
-    SubmitTaskResponse sub_resp;
+    CorndogsServiceSubmitTaskReply sub_resp;
     CsilCodecArena *owner = NULL;
-    if (csil_corndogs_submit_task(&client, &sub, &sub_resp, &owner) != 0) {
+    if (csil_corndogs_submit_task(&client, &sub, &sub_resp, &owner) != 0 ||
+        sub_resp.kind != CorndogsServiceSubmitTaskReply_as_submit_task_response) {
         fprintf(stderr, "submit_task failed: %s\n", corndogs_transport_last_error(tr));
         corndogs_transport_close(tr);
         return 1;
@@ -297,14 +319,15 @@ int main(void) {
         .queue = "e2e-c", .current_state = "s",
         .override_timeout = 0, .override_current_state = "", .override_auto_target_state = "",
     };
-    GetNextTaskResponse next_resp;
+    CorndogsServiceGetNextTaskReply next_resp;
     owner = NULL;
-    if (csil_corndogs_get_next_task(&client, &next, &next_resp, &owner) != 0) {
+    if (csil_corndogs_get_next_task(&client, &next, &next_resp, &owner) != 0 ||
+        next_resp.kind != CorndogsServiceGetNextTaskReply_as_get_next_task_response) {
         fprintf(stderr, "get_next_task failed: %s\n", corndogs_transport_last_error(tr));
         corndogs_transport_close(tr);
         return 1;
     }
-    if (!next_resp.delivery) {
+    if (!next_resp.value.as_get_next_task_response.delivery) {
         fprintf(stderr, "get_next_task returned no task\n");
         csil_codec_arena_free(owner);
         corndogs_transport_close(tr);
@@ -322,14 +345,17 @@ int main(void) {
         .submission_key = "e2e-key", .guarded = true, .queue = q, .current_state = "s",
         .auto_target_state = "w", .timeout = -1, .payload = {(uint8_t *)"res", 3}, .priority = 0,
     };
-    SubmitKeyedTaskResponse first, again;
+    CorndogsServiceSubmitKeyedTaskReply first, again;
     CsilCodecArena *o1 = NULL, *o2 = NULL, *o3 = NULL, *o4 = NULL;
     if (csil_corndogs_submit_keyed_task(&client, &ks, &first, &o1) != 0 ||
         csil_corndogs_submit_keyed_task(&client, &ks, &again, &o2) != 0) {
         fprintf(stderr, "submit_keyed_task failed: %s\n", corndogs_transport_last_error(tr));
         return 1;
     }
-    if (!again.replayed || strcmp(again.receipt.task_uuid, first.receipt.task_uuid) != 0) {
+    if (first.kind != CorndogsServiceSubmitKeyedTaskReply_as_submit_keyed_task_response ||
+        again.kind != CorndogsServiceSubmitKeyedTaskReply_as_submit_keyed_task_response) return 1;
+    SubmitKeyedTaskResponse replay = again.value.as_submit_keyed_task_response;
+    if (!replay.replayed || strcmp(replay.receipt.task_uuid, first.value.as_submit_keyed_task_response.receipt.task_uuid) != 0) {
         fprintf(stderr, "submit_keyed_task: no replay\n");
         return 1;
     }
@@ -337,18 +363,21 @@ int main(void) {
         .operation_id = claim_op, .queue = q, .current_state = "s",
         .override_timeout = 0, .override_current_state = "", .override_auto_target_state = "",
     };
-    ClaimGuardedTaskResponse cl;
-    if (csil_corndogs_claim_guarded_task(&client, &cr, &cl, &o3) != 0 || !cl.delivery ||
-        cl.delivery->payload.len != 3 || memcmp(cl.delivery->payload.data, "res", 3) != 0) {
+    CorndogsServiceClaimGuardedTaskReply cl;
+    if (csil_corndogs_claim_guarded_task(&client, &cr, &cl, &o3) != 0 ||
+        cl.kind != CorndogsServiceClaimGuardedTaskReply_as_claim_guarded_task_response) return 1;
+    GuardedDelivery *delivery = cl.value.as_claim_guarded_task_response.delivery;
+    if (!delivery || delivery->payload.len != 3 || memcmp(delivery->payload.data, "res", 3) != 0) {
         fprintf(stderr, "claim_guarded_task failed: %s\n", corndogs_transport_last_error(tr));
         return 1;
     }
     CompleteGuardedTaskRequest fr = {
-        .operation_id = done_op, .uuid = cl.delivery->task.task.uuid, .queue = q,
-        .expected_revision = cl.delivery->task.revision, .expected_state = NULL,
+        .operation_id = done_op, .uuid = delivery->task.task.uuid, .queue = q,
+        .expected_revision = delivery->task.revision, .expected_state = NULL,
     };
-    CompleteGuardedTaskResponse done;
-    if (csil_corndogs_complete_guarded_task(&client, &fr, &done, &o4) != 0 || !done.task.terminal) {
+    CorndogsServiceCompleteGuardedTaskReply done;
+    if (csil_corndogs_complete_guarded_task(&client, &fr, &done, &o4) != 0 ||
+        done.kind != CorndogsServiceCompleteGuardedTaskReply_as_complete_guarded_task_response || !done.value.as_complete_guarded_task_response.task.terminal) {
         fprintf(stderr, "complete_guarded_task failed: %s\n", corndogs_transport_last_error(tr));
         return 1;
     }
@@ -357,6 +386,13 @@ int main(void) {
     csil_codec_arena_free(o3);
     csil_codec_arena_free(o4);
 
+    GetGuardedTaskRequest invalid = {.uuid = "invalid", .queue = q};
+    CorndogsServiceGetGuardedTaskReply refused;
+    owner = NULL;
+    if (csil_corndogs_get_guarded_task(&client, &invalid, &refused, &owner) != 0 ||
+        refused.kind != CorndogsServiceGetGuardedTaskReply_as_service_error ||
+        refused.value.as_service_error.code != 1) return 1;
+    csil_codec_arena_free(owner);
     printf("ok\n");
     corndogs_transport_close(tr);
     return 0;
@@ -417,6 +453,12 @@ Future<void> main() async {
       operationId: 'e2e-done-$q', uuid: cl.task.task.uuid, queue: q, expectedRevision: cl.task.revision,
     ));
     if (!done.task.terminal) throw StateError('not terminal');
+    try {
+      await client.getGuardedTask(GetGuardedTaskRequest(uuid: 'invalid', queue: q));
+      throw StateError('expected invalid argument');
+    } on ServiceErrorRefusal catch (e) {
+      if (e.value.code != 1) rethrow;
+    }
     print('ok');
   } catch (e) {
     stderr.writeln('error: $e');
@@ -486,6 +528,12 @@ var done = client.CompleteGuardedTask(new CompleteGuardedTaskRequest
     OperationId = "e2e-done-" + q, Uuid = cl.Task.Task.Uuid, Queue = q, ExpectedRevision = cl.Task.Revision,
 });
 if (!done.Task.Terminal) throw new Exception("not terminal");
+try
+{
+    client.GetGuardedTask(new GetGuardedTaskRequest { Uuid = "invalid", Queue = q });
+    throw new Exception("expected invalid argument");
+}
+catch (Codec.ServiceErrorRefusal e) when (e.Value.Code == 1) {}
 Console.WriteLine("ok");
 CSEOF
   cat >"$w/test.csproj" <<EOF
@@ -587,6 +635,12 @@ done =
 
 true = done.task.terminal
 
+try do
+  C.get_guarded_task(client, %Csilgen.Generated.GetGuardedTaskRequest{uuid: "invalid", queue: q})
+  raise "expected invalid argument"
+rescue
+  e in Csilgen.Generated.ServiceErrorRefusal -> 1 = e.value.code
+end
 IO.puts("ok")
 EXEOF
   ( cd "$w" && mix deps.get >/dev/null 2>&1 && mix run run.exs ) >"$w/out.log" 2>&1 && pass elixir || { fail elixir; sed 's/^/    /' "$w/out.log" | tail -12; }
@@ -621,7 +675,7 @@ pub fn main() !void {
     defer arena.deinit();
     const a = arena.allocator();
 
-    var submitted: types.SubmitTaskResponse = undefined;
+    var submitted: types.CorndogsServiceSubmitTaskReply = undefined;
     svc.submit_task(a, &types.SubmitTaskRequest{
         .queue = "e2e-zig", .current_state = "s", .auto_target_state = "w",
         .timeout = -1, .payload = "hi", .priority = 0,
@@ -629,8 +683,9 @@ pub fn main() !void {
         std.debug.print("submit: {}\n", .{err});
         std.process.exit(1);
     };
+    if (submitted == .service_error) return error.ServiceRefused;
 
-    var next: types.GetNextTaskResponse = undefined;
+    var next: types.CorndogsServiceGetNextTaskReply = undefined;
     svc.get_next_task(a, &types.GetNextTaskRequest{
         .queue = "e2e-zig", .current_state = "s",
         .override_timeout = 0, .override_current_state = "", .override_auto_target_state = "",
@@ -638,7 +693,8 @@ pub fn main() !void {
         std.debug.print("claim: {}\n", .{err});
         std.process.exit(1);
     };
-    if (next.delivery == null) {
+    if (next == .service_error) return error.ServiceRefused;
+    if (next.get_next_task_response.delivery == null) {
         std.debug.print("claim: no task returned\n", .{});
         std.process.exit(1);
     }
@@ -650,21 +706,23 @@ pub fn main() !void {
         .submission_key = "e2e-key", .guarded = true, .queue = q, .current_state = "s",
         .auto_target_state = "w", .timeout = -1, .payload = "res", .priority = 0,
     };
-    var first: types.SubmitKeyedTaskResponse = undefined;
-    var again: types.SubmitKeyedTaskResponse = undefined;
+    var first: types.CorndogsServiceSubmitKeyedTaskReply = undefined;
+    var again: types.CorndogsServiceSubmitKeyedTaskReply = undefined;
     svc.submit_keyed_task(a, &sub, &first) catch |err| {
         std.debug.print("submit_keyed_task: {}\n", .{err});
         std.process.exit(1);
     };
+    if (first == .service_error) return error.ServiceRefused;
     svc.submit_keyed_task(a, &sub, &again) catch |err| {
         std.debug.print("submit_keyed_task replay: {}\n", .{err});
         std.process.exit(1);
     };
-    if (!again.replayed or !std.mem.eql(u8, again.receipt.task_uuid, first.receipt.task_uuid)) {
+    if (again == .service_error) return error.ServiceRefused;
+    if (!again.submit_keyed_task_response.replayed or !std.mem.eql(u8, again.submit_keyed_task_response.receipt.task_uuid, first.submit_keyed_task_response.receipt.task_uuid)) {
         std.debug.print("keyed submit: no replay\n", .{});
         std.process.exit(1);
     }
-    var claimed: types.ClaimGuardedTaskResponse = undefined;
+    var claimed: types.CorndogsServiceClaimGuardedTaskReply = undefined;
     svc.claim_guarded_task(a, &types.ClaimGuardedTaskRequest{
         .operation_id = try std.fmt.allocPrint(a, "e2e-claim-{s}", .{q}), .queue = q, .current_state = "s",
         .override_timeout = 0, .override_current_state = "", .override_auto_target_state = "",
@@ -672,7 +730,8 @@ pub fn main() !void {
         std.debug.print("claim_guarded_task: {}\n", .{err});
         std.process.exit(1);
     };
-    const cl = claimed.delivery orelse {
+    if (claimed == .service_error) return error.ServiceRefused;
+    const cl = claimed.claim_guarded_task_response.delivery orelse {
         std.debug.print("claim_guarded_task: no task\n", .{});
         std.process.exit(1);
     };
@@ -680,7 +739,7 @@ pub fn main() !void {
         std.debug.print("claim_guarded_task: wrong payload\n", .{});
         std.process.exit(1);
     }
-    var done: types.CompleteGuardedTaskResponse = undefined;
+    var done: types.CorndogsServiceCompleteGuardedTaskReply = undefined;
     svc.complete_guarded_task(a, &types.CompleteGuardedTaskRequest{
         .operation_id = try std.fmt.allocPrint(a, "e2e-done-{s}", .{q}), .uuid = cl.task.task.uuid,
         .queue = q, .expected_revision = cl.task.revision,
@@ -688,11 +747,15 @@ pub fn main() !void {
         std.debug.print("complete_guarded_task: {}\n", .{err});
         std.process.exit(1);
     };
-    if (!done.task.terminal) {
+    if (done == .service_error) return error.ServiceRefused;
+    if (!done.complete_guarded_task_response.task.terminal) {
         std.debug.print("complete_guarded_task: not terminal\n", .{});
         std.process.exit(1);
     }
 
+    var refused: types.CorndogsServiceGetGuardedTaskReply = undefined;
+    try svc.get_guarded_task(a, &types.GetGuardedTaskRequest{ .uuid = "invalid", .queue = q }, &refused);
+    if (refused != .service_error or refused.service_error.code != 1) return error.ExpectedInvalidArgument;
     std.debug.print("ok\n", .{});
 }
 ZIGEOF
@@ -708,23 +771,27 @@ run_ocaml() {
   cat >"$w/bin/main.ml" <<'OCAMLEOF'
 open Corndogs
 
+let error_message = function
+  | `Service_error (e : Types.service_error) -> Printf.sprintf "%Ld: %s" e.code e.message
+  | `Decode msg | `Transport msg -> msg
+
 let () =
   let addr = Sys.getenv "CORNDOGS_ADDR" in
   let tr = Transport.connect addr in                      (* our shipped CSIL-RPC/TCP transport *)
-  let client = Client.make_client ~call:(Transport.call tr) in
+  let client = Transport.client tr in
   let submit_req : Types.submit_task_request =
     { queue = "e2e-ocaml"; current_state = "s"; auto_target_state = "w";
       timeout = -1L; payload = Bytes.of_string "hi"; priority = 0L }
   in
   match Client.Corndogs_service.submit_task client submit_req with
-  | Error e -> Printf.eprintf "submit: %s\n" e; exit 1
+  | Error e -> Printf.eprintf "submit: %s\n" (error_message e); exit 1
   | Ok _ ->
     let next_req : Types.get_next_task_request =
       { queue = "e2e-ocaml"; current_state = "s";
         override_timeout = 0L; override_current_state = ""; override_auto_target_state = "" }
     in
     (match Client.Corndogs_service.get_next_task client next_req with
-     | Error e -> Printf.eprintf "claim: %s\n" e; exit 1
+     | Error e -> Printf.eprintf "claim: %s\n" (error_message e); exit 1
      | Ok { delivery = None } -> Printf.eprintf "claim: no task\n"; exit 1
      | Ok { delivery = Some _ } ->
        (* Resilience round trip: keyed submit twice, guarded claim, guarded complete. *)
@@ -736,7 +803,7 @@ let () =
        in
        let submit () : Types.submit_keyed_task_response =
          match Client.Corndogs_service.submit_keyed_task client sub with
-         | Ok r -> r | Error e -> fail "submit_keyed_task" e
+         | Ok r -> r | Error e -> fail "submit_keyed_task" (error_message e)
        in
        let first = submit () in
        let again = submit () in
@@ -749,7 +816,7 @@ let () =
          match Client.Corndogs_service.claim_guarded_task client claim_req with
          | Ok { delivery = Some d; _ } -> d
          | Ok _ -> fail "claim_guarded_task" "no task"
-         | Error e -> fail "claim_guarded_task" e
+         | Error e -> fail "claim_guarded_task" (error_message e)
        in
        if Bytes.to_string cl.payload <> "res" then fail "claim_guarded_task" "payload";
        let done_req : Types.complete_guarded_task_request =
@@ -759,7 +826,10 @@ let () =
        (match Client.Corndogs_service.complete_guarded_task client done_req with
         | Ok { task = { terminal = true; _ }; _ } -> ()
         | Ok _ -> fail "complete_guarded_task" "not terminal"
-        | Error e -> fail "complete_guarded_task" e);
+        | Error e -> fail "complete_guarded_task" (error_message e));
+       (match Client.Corndogs_service.get_guarded_task client { uuid = "invalid"; queue = q } with
+        | Error (`Service_error { code = 1L; _ }) -> ()
+        | _ -> fail "get_guarded_task" "expected invalid argument");
        Transport.close tr;
        print_endline "ok")
 OCAMLEOF
@@ -773,7 +843,7 @@ run_typescript() {
   # Build the shipped package (tsc -> dist), then a CJS test project depending on it.
   ( cd "${CLIENTS}/typescript" && npm install --no-audit --no-fund >/dev/null 2>&1 && npm run build >/dev/null 2>&1 )
   cat >"$w/main.ts" <<'TSEOF'
-import { AsyncApiClient } from "corndogs";
+import { AsyncApiClient, ServiceErrorRefusal } from "corndogs";
 import { TcpTransport } from "corndogs/transport";
 
 async function main() {
@@ -810,6 +880,12 @@ async function main() {
       operationId: "e2e-done-" + q, uuid: cl.task.task.uuid, queue: q, expectedRevision: cl.task.revision,
     });
     if (!done.task.terminal) throw new Error("not terminal");
+    try {
+      await client.corndogs.getGuardedTask({ uuid: "invalid", queue: q });
+      throw new Error("expected invalid argument");
+    } catch (e) {
+      if (!(e instanceof ServiceErrorRefusal) || e.value.code !== 1) throw e;
+    }
     console.log("ok");
   } finally {
     await tr.close(); // let node exit
@@ -863,6 +939,12 @@ public class RpcExample {
             CompleteGuardedTaskResponse done = client.completeGuardedTask(new CompleteGuardedTaskRequest(
                 "e2e-done-" + q, cl.task().task().uuid(), q, cl.task().revision(), null));
             if (!done.task().terminal()) throw new IllegalStateException("not terminal");
+            try {
+                client.getGuardedTask(new GetGuardedTaskRequest("invalid", q));
+                throw new IllegalStateException("expected invalid argument");
+            } catch (CsilCbor.ServiceErrorRefusal e) {
+                if (e.value.code() != 1L) throw e;
+            }
             System.out.println("ok");
         } catch (Exception e) {
             e.printStackTrace();
@@ -919,6 +1001,12 @@ fun main() {
         operationId = "e2e-done-$q", uuid = cl.task.task.uuid, queue = q, expectedRevision = cl.task.revision,
     ))
     check(done.task.terminal) { "not terminal" }
+    try {
+        client.getGuardedTask(GetGuardedTaskRequest(uuid = "invalid", queue = q))
+        error("expected invalid argument")
+    } catch (e: ServiceErrorRefusal) {
+        check(e.value.code == 1uL)
+    }
     println("ok")
 }
 KTEOF
@@ -938,7 +1026,7 @@ EOF
 
 run_swift() {
   have swiftc || { skip swift "no swiftc"; return; }
-  local w="${WORK}/swift"; mkdir -p "$w/Sources/CorndogsRpcTest"
+  local w="${WORK}/swift-runner"; mkdir -p "$w/Sources/CorndogsRpcTest"
   cat >"$w/Package.swift" <<EOF
 // swift-tools-version:5.9
 import PackageDescription
@@ -950,7 +1038,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "CorndogsRpcTest",
-            dependencies: [.product(name: "corndogs", package: "corndogs")]
+            dependencies: [.product(name: "corndogs", package: "swift")]
         )
     ]
 )
@@ -998,6 +1086,12 @@ do {
     let done = try client.completeGuardedTask(CompleteGuardedTaskRequest(
         operationId: "e2e-done-" + q, uuid: cl.task.task.uuid, queue: q, expectedRevision: cl.task.revision))
     guard done.task.terminal else { print("not terminal"); exit(1) }
+    do {
+        _ = try client.getGuardedTask(GetGuardedTaskRequest(uuid: "invalid", queue: q))
+        print("expected invalid argument"); exit(1)
+    } catch let e as ServiceErrorRefusal {
+        guard e.value.code == 1 else { throw e }
+    }
     print("ok")
 } catch {
     print("error: \(error)"); exit(1)

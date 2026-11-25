@@ -118,5 +118,5 @@ Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md
   backed by real network I/O in Dart and has no carrier here.
 - **Clustered deployments:** point the transport at any node; a write that
   lands on a follower is transparently redirected to the leader.
-- **Errors:** a service error throws a `CorndogsServiceException` with
-  `code`/`message`; a transport failure throws a `CorndogsTransportException`.
+- A service error raises `ServiceErrorRefusal`. Read the error code and message
+  from `value`. A transport failure raises `CorndogsTransportException`.

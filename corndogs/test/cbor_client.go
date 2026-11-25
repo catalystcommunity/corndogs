@@ -92,8 +92,12 @@ func (c *CorndogsClient) reset() {
 // blocking forever.
 func cborDo[Req any, Resp any](
 	ctx context.Context, c *CorndogsClient, op string, req *Req,
-	encode func(Req) []byte, decode func([]byte) (Resp, error),
+	encode func(Req) ([]byte, error), decode func([]byte) (Resp, error),
 ) (*Resp, error) {
+	payload, err := encode(*req)
+	if err != nil {
+		return nil, err
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	rpc, err := c.rpcClient()
@@ -104,17 +108,16 @@ func cborDo[Req any, Resp any](
 		_ = c.conn.SetDeadline(dl)
 		defer c.conn.SetDeadline(time.Time{})
 	}
-	rr, err := rpc.Call("CorndogsService", op, encode(*req), nil)
+	rr, err := rpc.Call("CorndogsService", op, payload, nil)
 	if err != nil {
 		c.reset()
 		return nil, err
 	}
-	if rr.Variant != nil && *rr.Variant == "ServiceError" {
-		if serr, derr := api.DecodeServiceError(rr.Payload); derr == nil {
-			return nil, &serr
-		}
+	reply, err := api.ResolveRPCReply("CorndogsService", op, rr.Variant, rr.Payload)
+	if err != nil {
+		return nil, err
 	}
-	resp, err := decode(rr.Payload)
+	resp, err := decode(reply)
 	if err != nil {
 		return nil, err
 	}

@@ -19,7 +19,9 @@ public abstract record CborValue
     public sealed record Text(string Value) : CborValue;
     public sealed record Bytes(byte[] Value) : CborValue;
     public sealed record Array(System.Collections.Generic.IReadOnlyList<CborValue> Items) : CborValue;
-    public sealed record Map(System.Collections.Generic.IReadOnlyList<(CborValue Key, CborValue Value)> Entries) : CborValue;
+    // Canonical is false when a decoded map's encoded keys were not strictly ascending
+    // bytewise (RFC 8949 section 4.2.1): a dynamic map rejects that, a record does not.
+    public sealed record Map(System.Collections.Generic.IReadOnlyList<(CborValue Key, CborValue Value)> Entries, bool Canonical = true) : CborValue;
     public sealed record Tag(ulong Number, CborValue Inner) : CborValue;
 }
 
@@ -187,6 +189,11 @@ public static partial class Cbor
                 case 21: csilPos += 1; return new CborValue.Bool(true);
                 case 22:
                 case 23: csilPos += 1; return new CborValue.Null();
+                case 25:
+                {
+                    var bits = ReadArg(b, ref csilPos, low);
+                    return new CborValue.Float((double)System.BitConverter.UInt16BitsToHalf((ushort)bits));
+                }
                 case 26:
                 {
                     var bits = ReadArg(b, ref csilPos, low);
@@ -241,13 +248,38 @@ public static partial class Cbor
                 if (arg > (ulong)(b.Length - csilPos)) { throw new CborException("map length exceeds remaining input"); }
                 var n = (int)arg;
                 var kvs = new System.Collections.Generic.List<(CborValue, CborValue)>(System.Math.Min(n, PreallocLimit));
+                // Each key is compared with the one before it as raw bytes, so the order
+                // check is O(n). Only a map out of order can repeat a key, so the set of
+                // seen keys is built only then.
+                var csilKeys = new System.Collections.Generic.List<(int Start, int Length)>(System.Math.Min(n, PreallocLimit));
+                System.Collections.Generic.HashSet<string>? csilSeen = null;
                 for (int csilI = 0; csilI < n; csilI++)
                 {
+                    var csilStart = csilPos;
                     var k = Dec(b, ref csilPos, csilDepth + 1);
+                    var csilKey = (Start: csilStart, Length: csilPos - csilStart);
+                    if (!ShortestHead(b, csilStart)) { throw new CborException("csil cbor: map key is not in shortest form"); }
+                    if (csilSeen == null && csilI > 0)
+                    {
+                        var csilPrev = csilKeys[csilI - 1];
+                        if (System.MemoryExtensions.SequenceCompareTo(new System.ReadOnlySpan<byte>(b, csilPrev.Start, csilPrev.Length), new System.ReadOnlySpan<byte>(b, csilKey.Start, csilKey.Length)) >= 0)
+                        {
+                            csilSeen = new System.Collections.Generic.HashSet<string>();
+                            foreach (var csilEarlier in csilKeys)
+                            {
+                                csilSeen.Add(System.Convert.ToHexString(b, csilEarlier.Start, csilEarlier.Length));
+                            }
+                        }
+                    }
+                    if (csilSeen != null && !csilSeen.Add(System.Convert.ToHexString(b, csilKey.Start, csilKey.Length)))
+                    {
+                        throw new CborException($"csil cbor: duplicate key {DescribeKey(k)}");
+                    }
+                    csilKeys.Add(csilKey);
                     var val = Dec(b, ref csilPos, csilDepth + 1);
                     kvs.Add((k, val));
                 }
-                return new CborValue.Map(kvs);
+                return new CborValue.Map(kvs, csilSeen == null);
             }
             case 6:
             {
@@ -330,6 +362,47 @@ public static partial class Cbor
 
     public static System.Collections.Generic.IReadOnlyList<(CborValue Key, CborValue Value)> AsMap(CborValue v) =>
         v is CborValue.Map x ? x.Entries : throw new CborException("expected map");
+
+    /// <summary>The entries of a dynamic map, which must arrive in canonical key order.</summary>
+    public static System.Collections.Generic.IReadOnlyList<(CborValue Key, CborValue Value)> AsDynamicMap(CborValue v) =>
+        v is CborValue.Map { Canonical: false }
+            ? throw new CborException("csil cbor: map keys are not in canonical order")
+            : AsMap(v);
+
+    /// <summary>The entries in canonical order: bytewise order of each key's encoding,
+    /// which is not the order of the .NET keys.</summary>
+    public static System.Collections.Generic.List<(CborValue, CborValue)> CanonicalEntries(
+        System.Collections.Generic.IEnumerable<(CborValue Key, CborValue Value)> entries) =>
+        entries
+            .Select(csilEntry => (Bytes: Encode(csilEntry.Key), Entry: csilEntry))
+            .OrderBy(csilEntry => csilEntry.Bytes, CsilKeyOrder.Instance)
+            .Select(csilEntry => ((CborValue)csilEntry.Entry.Key, csilEntry.Entry.Value))
+            .ToList();
+
+    sealed class CsilKeyOrder : System.Collections.Generic.IComparer<byte[]>
+    {
+        public static readonly CsilKeyOrder Instance = new();
+
+        public int Compare(byte[]? x, byte[]? y) =>
+            System.MemoryExtensions.SequenceCompareTo(new System.ReadOnlySpan<byte>(x), new System.ReadOnlySpan<byte>(y));
+    }
+
+    /// <summary>Whether the head at <paramref name="at"/> uses the shortest argument for
+    /// its value. A float head (major 7) carries no length, so it is not checked.</summary>
+    static bool ShortestHead(byte[] b, int at)
+    {
+        var major = b[at] >> 5;
+        var low = b[at] & 0x1f;
+        if (major == 7 || low < 24) { return true; }
+        var width = 1 << (low - 24);
+        ulong arg = 0;
+        for (int csilI = 1; csilI <= width; csilI++) { arg = (arg << 8) | b[at + csilI]; }
+        ulong floor = low == 24 ? 24UL : 1UL << (8 * (width / 2));
+        return arg >= floor;
+    }
+
+    static string DescribeKey(CborValue k) =>
+        k is CborValue.Text t ? $"\"{t.Value}\"" : System.Convert.ToHexString(Encode(k)).ToLowerInvariant();
 
     public static string AsTaggedText(CborValue v, ulong num) =>
         v is CborValue.Tag x && x.Number == num ? AsText(x.Inner) : throw new CborException("expected tagged text");
@@ -965,7 +1038,7 @@ public static class Codec
     public static CborValue GetQueueTaskCountsResponseToCborValue(GetQueueTaskCountsResponse value)
     {
         var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
-        csilEntries.Add((new CborValue.Text("queue_counts"), new CborValue.Map(value.QueueCounts.Select(csilKv => ((CborValue)new CborValue.Text(csilKv.Key), (CborValue)new CborValue.Int(csilKv.Value))).ToList())));
+        csilEntries.Add((new CborValue.Text("queue_counts"), new CborValue.Map(Cbor.CanonicalEntries(value.QueueCounts.Select(csilKv => ((CborValue)new CborValue.Text(csilKv.Key), (CborValue)new CborValue.Int(csilKv.Value)))))));
         csilEntries.Add((new CborValue.Text("total_task_count"), new CborValue.Int(value.TotalTaskCount)));
         return new CborValue.Map(csilEntries);
     }
@@ -973,7 +1046,7 @@ public static class Codec
     /// <summary>Reconstruct a GetQueueTaskCountsResponse from a decoded CBOR value tree.</summary>
     public static GetQueueTaskCountsResponse GetQueueTaskCountsResponseFromCborValue(CborValue value)
     {
-        var csilField0 = Cbor.AsMap(Cbor.Require(value, "queue_counts")).ToDictionary(csilKv => Cbor.AsText(csilKv.Key), csilKv => Cbor.AsI64(csilKv.Value));
+        var csilField0 = Cbor.AsDynamicMap(Cbor.Require(value, "queue_counts")).ToDictionary(csilKv => Cbor.AsText(csilKv.Key), csilKv => Cbor.AsI64(csilKv.Value));
         var csilField1 = Cbor.AsI64(Cbor.Require(value, "total_task_count"));
         return new GetQueueTaskCountsResponse
         {
@@ -1006,7 +1079,7 @@ public static class Codec
         var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
         csilEntries.Add((new CborValue.Text("count"), new CborValue.Int(value.Count)));
         csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
-        csilEntries.Add((new CborValue.Text("state_counts"), new CborValue.Map(value.StateCounts.Select(csilKv => ((CborValue)new CborValue.Text(csilKv.Key), (CborValue)new CborValue.Int(csilKv.Value))).ToList())));
+        csilEntries.Add((new CborValue.Text("state_counts"), new CborValue.Map(Cbor.CanonicalEntries(value.StateCounts.Select(csilKv => ((CborValue)new CborValue.Text(csilKv.Key), (CborValue)new CborValue.Int(csilKv.Value)))))));
         return new CborValue.Map(csilEntries);
     }
 
@@ -1015,7 +1088,7 @@ public static class Codec
     {
         var csilField0 = Cbor.AsText(Cbor.Require(value, "queue"));
         var csilField1 = Cbor.AsI64(Cbor.Require(value, "count"));
-        var csilField2 = Cbor.AsMap(Cbor.Require(value, "state_counts")).ToDictionary(csilKv => Cbor.AsText(csilKv.Key), csilKv => Cbor.AsI64(csilKv.Value));
+        var csilField2 = Cbor.AsDynamicMap(Cbor.Require(value, "state_counts")).ToDictionary(csilKv => Cbor.AsText(csilKv.Key), csilKv => Cbor.AsI64(csilKv.Value));
         return new GetTaskStateCountsResponse
         {
             Queue = csilField0,
@@ -1030,7 +1103,7 @@ public static class Codec
         var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
         csilEntries.Add((new CborValue.Text("count"), new CborValue.Int(value.Count)));
         csilEntries.Add((new CborValue.Text("queue"), new CborValue.Text(value.Queue)));
-        csilEntries.Add((new CborValue.Text("state_counts"), new CborValue.Map(value.StateCounts.Select(csilKv => ((CborValue)new CborValue.Text(csilKv.Key), (CborValue)new CborValue.Int(csilKv.Value))).ToList())));
+        csilEntries.Add((new CborValue.Text("state_counts"), new CborValue.Map(Cbor.CanonicalEntries(value.StateCounts.Select(csilKv => ((CborValue)new CborValue.Text(csilKv.Key), (CborValue)new CborValue.Int(csilKv.Value)))))));
         return new CborValue.Map(csilEntries);
     }
 
@@ -1039,7 +1112,7 @@ public static class Codec
     {
         var csilField0 = Cbor.AsText(Cbor.Require(value, "queue"));
         var csilField1 = Cbor.AsI64(Cbor.Require(value, "count"));
-        var csilField2 = Cbor.AsMap(Cbor.Require(value, "state_counts")).ToDictionary(csilKv => Cbor.AsText(csilKv.Key), csilKv => Cbor.AsI64(csilKv.Value));
+        var csilField2 = Cbor.AsDynamicMap(Cbor.Require(value, "state_counts")).ToDictionary(csilKv => Cbor.AsText(csilKv.Key), csilKv => Cbor.AsI64(csilKv.Value));
         return new QueueAndStateCounts
         {
             Queue = csilField0,
@@ -1067,14 +1140,14 @@ public static class Codec
     public static CborValue GetQueueAndStateCountsResponseToCborValue(GetQueueAndStateCountsResponse value)
     {
         var csilEntries = new System.Collections.Generic.List<(CborValue, CborValue)>();
-        csilEntries.Add((new CborValue.Text("queue_and_state_counts"), new CborValue.Map(value.QueueAndStateCounts.Select(csilKv => ((CborValue)new CborValue.Text(csilKv.Key), (CborValue)QueueAndStateCountsToCborValue(csilKv.Value))).ToList())));
+        csilEntries.Add((new CborValue.Text("queue_and_state_counts"), new CborValue.Map(Cbor.CanonicalEntries(value.QueueAndStateCounts.Select(csilKv => ((CborValue)new CborValue.Text(csilKv.Key), (CborValue)QueueAndStateCountsToCborValue(csilKv.Value)))))));
         return new CborValue.Map(csilEntries);
     }
 
     /// <summary>Reconstruct a GetQueueAndStateCountsResponse from a decoded CBOR value tree.</summary>
     public static GetQueueAndStateCountsResponse GetQueueAndStateCountsResponseFromCborValue(CborValue value)
     {
-        var csilField0 = Cbor.AsMap(Cbor.Require(value, "queue_and_state_counts")).ToDictionary(csilKv => Cbor.AsText(csilKv.Key), csilKv => QueueAndStateCountsFromCborValue(csilKv.Value));
+        var csilField0 = Cbor.AsDynamicMap(Cbor.Require(value, "queue_and_state_counts")).ToDictionary(csilKv => Cbor.AsText(csilKv.Key), csilKv => QueueAndStateCountsFromCborValue(csilKv.Value));
         return new GetQueueAndStateCountsResponse
         {
             QueueAndStateCounts = csilField0,
@@ -1757,5 +1830,499 @@ public static class Codec
             Code = csilField0,
             Message = csilField1,
         };
+    }
+
+    public sealed class ServiceErrorRefusal(ServiceError value) : System.Exception("ServiceError")
+    {
+        public ServiceError Value { get; } = value;
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsSubmitTaskReply(System.Func<SubmitTaskResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("SubmitTaskResponse", Cbor.Encode(SubmitTaskResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsGetTaskStateByIDReply(System.Func<GetTaskStateByIDResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("GetTaskStateByIDResponse", Cbor.Encode(GetTaskStateByIDResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsGetNextTaskReply(System.Func<GetNextTaskResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("GetNextTaskResponse", Cbor.Encode(GetNextTaskResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsGetNextTaskGroupReply(System.Func<GetNextTaskGroupResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("GetNextTaskGroupResponse", Cbor.Encode(GetNextTaskGroupResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsUpdateTaskReply(System.Func<UpdateTaskResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("UpdateTaskResponse", Cbor.Encode(UpdateTaskResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsCompleteTaskReply(System.Func<CompleteTaskResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("CompleteTaskResponse", Cbor.Encode(CompleteTaskResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsCancelTaskReply(System.Func<CancelTaskResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("CancelTaskResponse", Cbor.Encode(CancelTaskResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsCleanUpTimedOutReply(System.Func<CleanUpTimedOutResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("CleanUpTimedOutResponse", Cbor.Encode(CleanUpTimedOutResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsGetQueuesReply(System.Func<GetQueuesResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("GetQueuesResponse", Cbor.Encode(GetQueuesResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsGetQueueTaskCountsReply(System.Func<GetQueueTaskCountsResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("GetQueueTaskCountsResponse", Cbor.Encode(GetQueueTaskCountsResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsGetTaskStateCountsReply(System.Func<GetTaskStateCountsResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("GetTaskStateCountsResponse", Cbor.Encode(GetTaskStateCountsResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsGetQueueAndStateCountsReply(System.Func<GetQueueAndStateCountsResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("GetQueueAndStateCountsResponse", Cbor.Encode(GetQueueAndStateCountsResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsGetServerInfoReply(System.Func<GetServerInfoResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("GetServerInfoResponse", Cbor.Encode(GetServerInfoResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsSubmitKeyedTaskReply(System.Func<SubmitKeyedTaskResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("SubmitKeyedTaskResponse", Cbor.Encode(SubmitKeyedTaskResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsLookupSubmissionReply(System.Func<LookupSubmissionResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("LookupSubmissionResponse", Cbor.Encode(LookupSubmissionResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsClaimGuardedTaskReply(System.Func<ClaimGuardedTaskResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("ClaimGuardedTaskResponse", Cbor.Encode(ClaimGuardedTaskResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsClaimGuardedTaskGroupReply(System.Func<ClaimGuardedTaskGroupResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("ClaimGuardedTaskGroupResponse", Cbor.Encode(ClaimGuardedTaskGroupResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsUpdateGuardedTaskReply(System.Func<UpdateGuardedTaskResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("UpdateGuardedTaskResponse", Cbor.Encode(UpdateGuardedTaskResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsCompleteGuardedTaskReply(System.Func<CompleteGuardedTaskResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("CompleteGuardedTaskResponse", Cbor.Encode(CompleteGuardedTaskResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsCancelGuardedTaskReply(System.Func<CancelGuardedTaskResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("CancelGuardedTaskResponse", Cbor.Encode(CancelGuardedTaskResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsGetGuardedTaskReply(System.Func<GetGuardedTaskResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("GetGuardedTaskResponse", Cbor.Encode(GetGuardedTaskResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static (string Variant, byte[] Payload) EncodeCorndogsLookupOperationReply(System.Func<LookupOperationResponse> handler)
+    {
+        try
+        {
+            var value = handler();
+            return ("LookupOperationResponse", Cbor.Encode(LookupOperationResponseToCborValue(value)));
+        }
+        catch (ServiceErrorRefusal refusal)
+        {
+            return ("ServiceError", Cbor.Encode(ServiceErrorToCborValue(refusal.Value)));
+        }
+    }
+
+    public static byte[] ResolveRpcReply(string service, string op, string? variant, byte[] payload)
+    {
+        if (service == "CorndogsService" && op == "SubmitTask")
+        {
+            return variant switch
+            {
+                "SubmitTaskResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "GetTaskStateByID")
+        {
+            return variant switch
+            {
+                "GetTaskStateByIDResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "GetNextTask")
+        {
+            return variant switch
+            {
+                "GetNextTaskResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "GetNextTaskGroup")
+        {
+            return variant switch
+            {
+                "GetNextTaskGroupResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "UpdateTask")
+        {
+            return variant switch
+            {
+                "UpdateTaskResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "CompleteTask")
+        {
+            return variant switch
+            {
+                "CompleteTaskResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "CancelTask")
+        {
+            return variant switch
+            {
+                "CancelTaskResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "CleanUpTimedOut")
+        {
+            return variant switch
+            {
+                "CleanUpTimedOutResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "GetQueues")
+        {
+            return variant switch
+            {
+                "GetQueuesResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "GetQueueTaskCounts")
+        {
+            return variant switch
+            {
+                "GetQueueTaskCountsResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "GetTaskStateCounts")
+        {
+            return variant switch
+            {
+                "GetTaskStateCountsResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "GetQueueAndStateCounts")
+        {
+            return variant switch
+            {
+                "GetQueueAndStateCountsResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "GetServerInfo")
+        {
+            return variant switch
+            {
+                "GetServerInfoResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "SubmitKeyedTask")
+        {
+            return variant switch
+            {
+                "SubmitKeyedTaskResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "LookupSubmission")
+        {
+            return variant switch
+            {
+                "LookupSubmissionResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "ClaimGuardedTask")
+        {
+            return variant switch
+            {
+                "ClaimGuardedTaskResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "ClaimGuardedTaskGroup")
+        {
+            return variant switch
+            {
+                "ClaimGuardedTaskGroupResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "UpdateGuardedTask")
+        {
+            return variant switch
+            {
+                "UpdateGuardedTaskResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "CompleteGuardedTask")
+        {
+            return variant switch
+            {
+                "CompleteGuardedTaskResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "CancelGuardedTask")
+        {
+            return variant switch
+            {
+                "CancelGuardedTaskResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "GetGuardedTask")
+        {
+            return variant switch
+            {
+                "GetGuardedTaskResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        if (service == "CorndogsService" && op == "LookupOperation")
+        {
+            return variant switch
+            {
+                "LookupOperationResponse" => payload,
+                "ServiceError" => throw new ServiceErrorRefusal(ServiceErrorFromCborValue(Cbor.Decode(payload))),
+                _ => throw new CborException("invalid RPC reply variant: " + variant),
+            };
+        }
+        return payload;
     }
 }

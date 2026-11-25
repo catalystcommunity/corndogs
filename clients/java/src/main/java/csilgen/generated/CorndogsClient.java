@@ -14,90 +14,112 @@ public final class CorndogsClient {
     }
 
     public SubmitTaskResponse submitTask(SubmitTaskRequest req) throws ClientException {
-        return CsilCbor.decodeSubmitTaskResponse(transport.call("CorndogsService", "SubmitTask", CsilCbor.encodeSubmitTaskRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "SubmitTask", CsilCbor.encodeSubmitTaskRequest(req));
+        return CsilCbor.decodeSubmitTaskResponse(CsilCbor.resolveRpcReply("CorndogsService", "SubmitTask", reply.variant(), reply.payload()));
     }
 
     public GetTaskStateByIdResponse getTaskStateById(GetTaskStateByIdRequest req) throws ClientException {
-        return CsilCbor.decodeGetTaskStateByIdResponse(transport.call("CorndogsService", "GetTaskStateByID", CsilCbor.encodeGetTaskStateByIdRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "GetTaskStateByID", CsilCbor.encodeGetTaskStateByIdRequest(req));
+        return CsilCbor.decodeGetTaskStateByIdResponse(CsilCbor.resolveRpcReply("CorndogsService", "GetTaskStateByID", reply.variant(), reply.payload()));
     }
 
     public GetNextTaskResponse getNextTask(GetNextTaskRequest req) throws ClientException {
-        return CsilCbor.decodeGetNextTaskResponse(transport.call("CorndogsService", "GetNextTask", CsilCbor.encodeGetNextTaskRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "GetNextTask", CsilCbor.encodeGetNextTaskRequest(req));
+        return CsilCbor.decodeGetNextTaskResponse(CsilCbor.resolveRpcReply("CorndogsService", "GetNextTask", reply.variant(), reply.payload()));
     }
 
     public GetNextTaskGroupResponse getNextTaskGroup(GetNextTaskGroupRequest req) throws ClientException {
-        return CsilCbor.decodeGetNextTaskGroupResponse(transport.call("CorndogsService", "GetNextTaskGroup", CsilCbor.encodeGetNextTaskGroupRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "GetNextTaskGroup", CsilCbor.encodeGetNextTaskGroupRequest(req));
+        return CsilCbor.decodeGetNextTaskGroupResponse(CsilCbor.resolveRpcReply("CorndogsService", "GetNextTaskGroup", reply.variant(), reply.payload()));
     }
 
     public UpdateTaskResponse updateTask(UpdateTaskRequest req) throws ClientException {
-        return CsilCbor.decodeUpdateTaskResponse(transport.call("CorndogsService", "UpdateTask", CsilCbor.encodeUpdateTaskRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "UpdateTask", CsilCbor.encodeUpdateTaskRequest(req));
+        return CsilCbor.decodeUpdateTaskResponse(CsilCbor.resolveRpcReply("CorndogsService", "UpdateTask", reply.variant(), reply.payload()));
     }
 
     public CompleteTaskResponse completeTask(CompleteTaskRequest req) throws ClientException {
-        return CsilCbor.decodeCompleteTaskResponse(transport.call("CorndogsService", "CompleteTask", CsilCbor.encodeCompleteTaskRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "CompleteTask", CsilCbor.encodeCompleteTaskRequest(req));
+        return CsilCbor.decodeCompleteTaskResponse(CsilCbor.resolveRpcReply("CorndogsService", "CompleteTask", reply.variant(), reply.payload()));
     }
 
     public CancelTaskResponse cancelTask(CancelTaskRequest req) throws ClientException {
-        return CsilCbor.decodeCancelTaskResponse(transport.call("CorndogsService", "CancelTask", CsilCbor.encodeCancelTaskRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "CancelTask", CsilCbor.encodeCancelTaskRequest(req));
+        return CsilCbor.decodeCancelTaskResponse(CsilCbor.resolveRpcReply("CorndogsService", "CancelTask", reply.variant(), reply.payload()));
     }
 
     public CleanUpTimedOutResponse cleanUpTimedOut(CleanUpTimedOutRequest req) throws ClientException {
-        return CsilCbor.decodeCleanUpTimedOutResponse(transport.call("CorndogsService", "CleanUpTimedOut", CsilCbor.encodeCleanUpTimedOutRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "CleanUpTimedOut", CsilCbor.encodeCleanUpTimedOutRequest(req));
+        return CsilCbor.decodeCleanUpTimedOutResponse(CsilCbor.resolveRpcReply("CorndogsService", "CleanUpTimedOut", reply.variant(), reply.payload()));
     }
 
     public GetQueuesResponse getQueues(GetQueuesRequest req) throws ClientException {
-        return CsilCbor.decodeGetQueuesResponse(transport.call("CorndogsService", "GetQueues", CsilCbor.encodeGetQueuesRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "GetQueues", CsilCbor.encodeGetQueuesRequest(req));
+        return CsilCbor.decodeGetQueuesResponse(CsilCbor.resolveRpcReply("CorndogsService", "GetQueues", reply.variant(), reply.payload()));
     }
 
     public GetQueueTaskCountsResponse getQueueTaskCounts(GetQueueTaskCountsRequest req) throws ClientException {
-        return CsilCbor.decodeGetQueueTaskCountsResponse(transport.call("CorndogsService", "GetQueueTaskCounts", CsilCbor.encodeGetQueueTaskCountsRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "GetQueueTaskCounts", CsilCbor.encodeGetQueueTaskCountsRequest(req));
+        return CsilCbor.decodeGetQueueTaskCountsResponse(CsilCbor.resolveRpcReply("CorndogsService", "GetQueueTaskCounts", reply.variant(), reply.payload()));
     }
 
     public GetTaskStateCountsResponse getTaskStateCounts(GetTaskStateCountsRequest req) throws ClientException {
-        return CsilCbor.decodeGetTaskStateCountsResponse(transport.call("CorndogsService", "GetTaskStateCounts", CsilCbor.encodeGetTaskStateCountsRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "GetTaskStateCounts", CsilCbor.encodeGetTaskStateCountsRequest(req));
+        return CsilCbor.decodeGetTaskStateCountsResponse(CsilCbor.resolveRpcReply("CorndogsService", "GetTaskStateCounts", reply.variant(), reply.payload()));
     }
 
     public GetQueueAndStateCountsResponse getQueueAndStateCounts(GetQueueAndStateCountsRequest req) throws ClientException {
-        return CsilCbor.decodeGetQueueAndStateCountsResponse(transport.call("CorndogsService", "GetQueueAndStateCounts", CsilCbor.encodeGetQueueAndStateCountsRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "GetQueueAndStateCounts", CsilCbor.encodeGetQueueAndStateCountsRequest(req));
+        return CsilCbor.decodeGetQueueAndStateCountsResponse(CsilCbor.resolveRpcReply("CorndogsService", "GetQueueAndStateCounts", reply.variant(), reply.payload()));
     }
 
     public GetServerInfoResponse getServerInfo(GetServerInfoRequest req) throws ClientException {
-        return CsilCbor.decodeGetServerInfoResponse(transport.call("CorndogsService", "GetServerInfo", CsilCbor.encodeGetServerInfoRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "GetServerInfo", CsilCbor.encodeGetServerInfoRequest(req));
+        return CsilCbor.decodeGetServerInfoResponse(CsilCbor.resolveRpcReply("CorndogsService", "GetServerInfo", reply.variant(), reply.payload()));
     }
 
     public SubmitKeyedTaskResponse submitKeyedTask(SubmitKeyedTaskRequest req) throws ClientException {
-        return CsilCbor.decodeSubmitKeyedTaskResponse(transport.call("CorndogsService", "SubmitKeyedTask", CsilCbor.encodeSubmitKeyedTaskRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "SubmitKeyedTask", CsilCbor.encodeSubmitKeyedTaskRequest(req));
+        return CsilCbor.decodeSubmitKeyedTaskResponse(CsilCbor.resolveRpcReply("CorndogsService", "SubmitKeyedTask", reply.variant(), reply.payload()));
     }
 
     public LookupSubmissionResponse lookupSubmission(LookupSubmissionRequest req) throws ClientException {
-        return CsilCbor.decodeLookupSubmissionResponse(transport.call("CorndogsService", "LookupSubmission", CsilCbor.encodeLookupSubmissionRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "LookupSubmission", CsilCbor.encodeLookupSubmissionRequest(req));
+        return CsilCbor.decodeLookupSubmissionResponse(CsilCbor.resolveRpcReply("CorndogsService", "LookupSubmission", reply.variant(), reply.payload()));
     }
 
     public ClaimGuardedTaskResponse claimGuardedTask(ClaimGuardedTaskRequest req) throws ClientException {
-        return CsilCbor.decodeClaimGuardedTaskResponse(transport.call("CorndogsService", "ClaimGuardedTask", CsilCbor.encodeClaimGuardedTaskRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "ClaimGuardedTask", CsilCbor.encodeClaimGuardedTaskRequest(req));
+        return CsilCbor.decodeClaimGuardedTaskResponse(CsilCbor.resolveRpcReply("CorndogsService", "ClaimGuardedTask", reply.variant(), reply.payload()));
     }
 
     public ClaimGuardedTaskGroupResponse claimGuardedTaskGroup(ClaimGuardedTaskGroupRequest req) throws ClientException {
-        return CsilCbor.decodeClaimGuardedTaskGroupResponse(transport.call("CorndogsService", "ClaimGuardedTaskGroup", CsilCbor.encodeClaimGuardedTaskGroupRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "ClaimGuardedTaskGroup", CsilCbor.encodeClaimGuardedTaskGroupRequest(req));
+        return CsilCbor.decodeClaimGuardedTaskGroupResponse(CsilCbor.resolveRpcReply("CorndogsService", "ClaimGuardedTaskGroup", reply.variant(), reply.payload()));
     }
 
     public UpdateGuardedTaskResponse updateGuardedTask(UpdateGuardedTaskRequest req) throws ClientException {
-        return CsilCbor.decodeUpdateGuardedTaskResponse(transport.call("CorndogsService", "UpdateGuardedTask", CsilCbor.encodeUpdateGuardedTaskRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "UpdateGuardedTask", CsilCbor.encodeUpdateGuardedTaskRequest(req));
+        return CsilCbor.decodeUpdateGuardedTaskResponse(CsilCbor.resolveRpcReply("CorndogsService", "UpdateGuardedTask", reply.variant(), reply.payload()));
     }
 
     public CompleteGuardedTaskResponse completeGuardedTask(CompleteGuardedTaskRequest req) throws ClientException {
-        return CsilCbor.decodeCompleteGuardedTaskResponse(transport.call("CorndogsService", "CompleteGuardedTask", CsilCbor.encodeCompleteGuardedTaskRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "CompleteGuardedTask", CsilCbor.encodeCompleteGuardedTaskRequest(req));
+        return CsilCbor.decodeCompleteGuardedTaskResponse(CsilCbor.resolveRpcReply("CorndogsService", "CompleteGuardedTask", reply.variant(), reply.payload()));
     }
 
     public CancelGuardedTaskResponse cancelGuardedTask(CancelGuardedTaskRequest req) throws ClientException {
-        return CsilCbor.decodeCancelGuardedTaskResponse(transport.call("CorndogsService", "CancelGuardedTask", CsilCbor.encodeCancelGuardedTaskRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "CancelGuardedTask", CsilCbor.encodeCancelGuardedTaskRequest(req));
+        return CsilCbor.decodeCancelGuardedTaskResponse(CsilCbor.resolveRpcReply("CorndogsService", "CancelGuardedTask", reply.variant(), reply.payload()));
     }
 
     public GetGuardedTaskResponse getGuardedTask(GetGuardedTaskRequest req) throws ClientException {
-        return CsilCbor.decodeGetGuardedTaskResponse(transport.call("CorndogsService", "GetGuardedTask", CsilCbor.encodeGetGuardedTaskRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "GetGuardedTask", CsilCbor.encodeGetGuardedTaskRequest(req));
+        return CsilCbor.decodeGetGuardedTaskResponse(CsilCbor.resolveRpcReply("CorndogsService", "GetGuardedTask", reply.variant(), reply.payload()));
     }
 
     public LookupOperationResponse lookupOperation(LookupOperationRequest req) throws ClientException {
-        return CsilCbor.decodeLookupOperationResponse(transport.call("CorndogsService", "LookupOperation", CsilCbor.encodeLookupOperationRequest(req)));
+        WireReply reply = transport.callReply("CorndogsService", "LookupOperation", CsilCbor.encodeLookupOperationRequest(req));
+        return CsilCbor.decodeLookupOperationResponse(CsilCbor.resolveRpcReply("CorndogsService", "LookupOperation", reply.variant(), reply.payload()));
     }
 }

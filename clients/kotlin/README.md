@@ -111,7 +111,6 @@ Do not retry a `ServiceError`. See [docs/resilience.md](../../docs/resilience.md
   follower is transparently redirected to the leader.
 - Calls are serialized (one in flight) over the connection, guarded by a lock; the
   connection is dialed lazily and re-dialed on failure.
-- Errors: a service error throws `community.catalyst.csilgen.generated.ClientError`
-  (`code`/`message`); a transport failure throws
-  `community.catalyst.csilgen.generated.TransportError`.
+- A service error raises `ServiceErrorRefusal`. Read the error code and message
+  from `value`. A transport failure raises `TransportError`.
 - Dependency-free: the transport reuses the package's own CBOR codec.

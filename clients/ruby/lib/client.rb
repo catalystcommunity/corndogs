@@ -8,6 +8,26 @@ require_relative "codec"
 # delegates only byte movement to a host-supplied transport seam: a duck-typed
 # object responding to `call(service, op, req_bytes) -> resp_bytes`. The carrier
 # moves bytes (HTTP, a queue, an in-process loop); it never sees the typed values.
+#
+# This spec has operations with more than one reply arm, so the transport must
+# also respond to `call_reply(service, op, req_bytes) -> [variant, payload]`:
+# `variant` is the CSIL-RPC response envelope's `variant` text (nil when absent)
+# and `payload` the reply bytes. The client picks the arm from `variant`: the
+# success arm returns its value, a declared error arm raises its
+# `CsilCbor::<Arm>Refusal`, and a missing or unknown variant raises ArgumentError.
+
+module CsilCbor
+  module_function
+
+  def rpc_reply_payload(transport, service, op, req_bytes)
+    unless transport.respond_to?(:call_reply)
+      raise NotImplementedError,
+            "transport must implement call_reply(service, op, req_bytes) -> [variant, payload] for #{service}/#{op}"
+    end
+    variant, payload = transport.call_reply(service, op, req_bytes)
+    resolve_rpc_reply(service, op, variant, payload)
+  end
+end
 
 # Typed client for the CorndogsService service.
 class CorndogsClient
@@ -17,111 +37,111 @@ class CorndogsClient
 
   # SubmitTask: -> SubmitTaskResponse
   def submit_task(req)
-    SubmitTaskResponse.from_cbor(@transport.call("CorndogsService", "SubmitTask", req.to_cbor))
+    SubmitTaskResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "SubmitTask", req.to_cbor))
   end
 
   # GetTaskStateByID: -> GetTaskStateByIdResponse
   def get_task_state_by_id(req)
-    GetTaskStateByIdResponse.from_cbor(@transport.call("CorndogsService", "GetTaskStateByID", req.to_cbor))
+    GetTaskStateByIdResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "GetTaskStateByID", req.to_cbor))
   end
 
   # GetNextTask: -> GetNextTaskResponse
   def get_next_task(req)
-    GetNextTaskResponse.from_cbor(@transport.call("CorndogsService", "GetNextTask", req.to_cbor))
+    GetNextTaskResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "GetNextTask", req.to_cbor))
   end
 
   # GetNextTaskGroup: -> GetNextTaskGroupResponse
   def get_next_task_group(req)
-    GetNextTaskGroupResponse.from_cbor(@transport.call("CorndogsService", "GetNextTaskGroup", req.to_cbor))
+    GetNextTaskGroupResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "GetNextTaskGroup", req.to_cbor))
   end
 
   # UpdateTask: -> UpdateTaskResponse
   def update_task(req)
-    UpdateTaskResponse.from_cbor(@transport.call("CorndogsService", "UpdateTask", req.to_cbor))
+    UpdateTaskResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "UpdateTask", req.to_cbor))
   end
 
   # CompleteTask: -> CompleteTaskResponse
   def complete_task(req)
-    CompleteTaskResponse.from_cbor(@transport.call("CorndogsService", "CompleteTask", req.to_cbor))
+    CompleteTaskResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "CompleteTask", req.to_cbor))
   end
 
   # CancelTask: -> CancelTaskResponse
   def cancel_task(req)
-    CancelTaskResponse.from_cbor(@transport.call("CorndogsService", "CancelTask", req.to_cbor))
+    CancelTaskResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "CancelTask", req.to_cbor))
   end
 
   # CleanUpTimedOut: -> CleanUpTimedOutResponse
   def clean_up_timed_out(req)
-    CleanUpTimedOutResponse.from_cbor(@transport.call("CorndogsService", "CleanUpTimedOut", req.to_cbor))
+    CleanUpTimedOutResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "CleanUpTimedOut", req.to_cbor))
   end
 
   # GetQueues: -> GetQueuesResponse
   def get_queues(req)
-    GetQueuesResponse.from_cbor(@transport.call("CorndogsService", "GetQueues", req.to_cbor))
+    GetQueuesResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "GetQueues", req.to_cbor))
   end
 
   # GetQueueTaskCounts: -> GetQueueTaskCountsResponse
   def get_queue_task_counts(req)
-    GetQueueTaskCountsResponse.from_cbor(@transport.call("CorndogsService", "GetQueueTaskCounts", req.to_cbor))
+    GetQueueTaskCountsResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "GetQueueTaskCounts", req.to_cbor))
   end
 
   # GetTaskStateCounts: -> GetTaskStateCountsResponse
   def get_task_state_counts(req)
-    GetTaskStateCountsResponse.from_cbor(@transport.call("CorndogsService", "GetTaskStateCounts", req.to_cbor))
+    GetTaskStateCountsResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "GetTaskStateCounts", req.to_cbor))
   end
 
   # GetQueueAndStateCounts: -> GetQueueAndStateCountsResponse
   def get_queue_and_state_counts(req)
-    GetQueueAndStateCountsResponse.from_cbor(@transport.call("CorndogsService", "GetQueueAndStateCounts", req.to_cbor))
+    GetQueueAndStateCountsResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "GetQueueAndStateCounts", req.to_cbor))
   end
 
   # GetServerInfo: -> GetServerInfoResponse
   def get_server_info(req)
-    GetServerInfoResponse.from_cbor(@transport.call("CorndogsService", "GetServerInfo", req.to_cbor))
+    GetServerInfoResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "GetServerInfo", req.to_cbor))
   end
 
   # SubmitKeyedTask: -> SubmitKeyedTaskResponse
   def submit_keyed_task(req)
-    SubmitKeyedTaskResponse.from_cbor(@transport.call("CorndogsService", "SubmitKeyedTask", req.to_cbor))
+    SubmitKeyedTaskResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "SubmitKeyedTask", req.to_cbor))
   end
 
   # LookupSubmission: -> LookupSubmissionResponse
   def lookup_submission(req)
-    LookupSubmissionResponse.from_cbor(@transport.call("CorndogsService", "LookupSubmission", req.to_cbor))
+    LookupSubmissionResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "LookupSubmission", req.to_cbor))
   end
 
   # ClaimGuardedTask: -> ClaimGuardedTaskResponse
   def claim_guarded_task(req)
-    ClaimGuardedTaskResponse.from_cbor(@transport.call("CorndogsService", "ClaimGuardedTask", req.to_cbor))
+    ClaimGuardedTaskResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "ClaimGuardedTask", req.to_cbor))
   end
 
   # ClaimGuardedTaskGroup: -> ClaimGuardedTaskGroupResponse
   def claim_guarded_task_group(req)
-    ClaimGuardedTaskGroupResponse.from_cbor(@transport.call("CorndogsService", "ClaimGuardedTaskGroup", req.to_cbor))
+    ClaimGuardedTaskGroupResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "ClaimGuardedTaskGroup", req.to_cbor))
   end
 
   # UpdateGuardedTask: -> UpdateGuardedTaskResponse
   def update_guarded_task(req)
-    UpdateGuardedTaskResponse.from_cbor(@transport.call("CorndogsService", "UpdateGuardedTask", req.to_cbor))
+    UpdateGuardedTaskResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "UpdateGuardedTask", req.to_cbor))
   end
 
   # CompleteGuardedTask: -> CompleteGuardedTaskResponse
   def complete_guarded_task(req)
-    CompleteGuardedTaskResponse.from_cbor(@transport.call("CorndogsService", "CompleteGuardedTask", req.to_cbor))
+    CompleteGuardedTaskResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "CompleteGuardedTask", req.to_cbor))
   end
 
   # CancelGuardedTask: -> CancelGuardedTaskResponse
   def cancel_guarded_task(req)
-    CancelGuardedTaskResponse.from_cbor(@transport.call("CorndogsService", "CancelGuardedTask", req.to_cbor))
+    CancelGuardedTaskResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "CancelGuardedTask", req.to_cbor))
   end
 
   # GetGuardedTask: -> GetGuardedTaskResponse
   def get_guarded_task(req)
-    GetGuardedTaskResponse.from_cbor(@transport.call("CorndogsService", "GetGuardedTask", req.to_cbor))
+    GetGuardedTaskResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "GetGuardedTask", req.to_cbor))
   end
 
   # LookupOperation: -> LookupOperationResponse
   def lookup_operation(req)
-    LookupOperationResponse.from_cbor(@transport.call("CorndogsService", "LookupOperation", req.to_cbor))
+    LookupOperationResponse.from_cbor(CsilCbor.rpc_reply_payload(@transport, "CorndogsService", "LookupOperation", req.to_cbor))
   end
 end

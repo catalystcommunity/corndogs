@@ -221,9 +221,10 @@ static int read_frame(int fd, uint8_t **out, size_t *out_len) {
  * payload:tag24(req) }) with the generated codec's generic CBOR builder, send
  * one frame, wait for the correlated reply, and hand back the inner payload
  * bytes. One call in flight per transport at a time. */
-static int corndogs_transport_call(void *self, const char *service, const char *op,
+static int corndogs_transport_call_reply(void *self, const char *service, const char *op,
                                     const uint8_t *req, size_t req_len,
-                                    uint8_t **resp, size_t *resp_len) {
+                                    uint8_t **resp, size_t *resp_len, char **reply_variant) {
+    if (reply_variant) *reply_variant = NULL;
     corndogs_transport_t *t = (corndogs_transport_t *)self;
     *resp = NULL;
     *resp_len = 0;
@@ -298,16 +299,10 @@ static int corndogs_transport_call(void *self, const char *service, const char *
     }
 
     const csilc_value *pv = csilc_map_get(root, "payload");
-    if (!pv) {
-        /* control replies (e.g. $pong) may carry no payload */
-        csil_codec_arena_free(arena);
-        pthread_mutex_unlock(&t->mu);
-        return 0;
-    }
-    if (pv->kind == CSILC_TAG) pv = pv->as.tag.content;
+    if (pv && pv->kind == CSILC_TAG) pv = pv->as.tag.content;
     uint8_t *inner = NULL;
     size_t inner_len = 0;
-    if (!csilc_get_bytes(pv, &inner, &inner_len)) {
+    if (pv && !csilc_get_bytes(pv, &inner, &inner_len)) {
         corndogs_set_error(t, "corndogs: response payload is not a byte string");
         csil_codec_arena_free(arena);
         pthread_mutex_unlock(&t->mu);
@@ -316,8 +311,8 @@ static int corndogs_transport_call(void *self, const char *service, const char *
 
     /* A typed application error rides as a status-0 "ServiceError" variant. */
     char *variant = NULL;
-    if (csilc_get_text(csilc_map_get(root, "variant"), &variant) &&
-        strcmp(variant, "ServiceError") == 0) {
+    csilc_get_text(csilc_map_get(root, "variant"), &variant);
+    if (!reply_variant && variant && strcmp(variant, "ServiceError") == 0) {
         ServiceError se;
         CsilCodecArena *seo = NULL;
         if (csil_decode_ServiceError(inner, inner_len, &se, &seo) == 0) {
@@ -332,20 +327,35 @@ static int corndogs_transport_call(void *self, const char *service, const char *
         return 1;
     }
 
-    uint8_t *out = (uint8_t *)malloc(inner_len ? inner_len : 1);
-    if (!out) {
+    uint8_t *out = pv ? malloc(inner_len ? inner_len : 1) : NULL;
+    char *name = NULL;
+    if (reply_variant && variant) {
+        size_t len = strlen(variant) + 1;
+        name = malloc(len);
+        if (name) memcpy(name, variant, len);
+    }
+    if ((pv && !out) || (reply_variant && variant && !name)) {
+        free(out);
+        free(name);
         corndogs_set_error(t, "corndogs: out of memory");
         csil_codec_arena_free(arena);
         pthread_mutex_unlock(&t->mu);
         return -1;
     }
     if (inner_len) memcpy(out, inner, inner_len);
+    if (reply_variant) *reply_variant = name;
     *resp = out;
     *resp_len = inner_len;
 
     csil_codec_arena_free(arena);
     pthread_mutex_unlock(&t->mu);
     return 0;
+}
+
+static int corndogs_transport_call(void *self, const char *service, const char *op,
+                                    const uint8_t *req, size_t req_len,
+                                    uint8_t **resp, size_t *resp_len) {
+    return corndogs_transport_call_reply(self, service, op, req, req_len, resp, resp_len, NULL);
 }
 
 /* ---- public lifecycle ------------------------------------------------------ */
@@ -374,6 +384,7 @@ corndogs_transport_t *corndogs_transport_connect(const char *addr, double connec
 CsilgenTransport corndogs_transport_seam(corndogs_transport_t *t) {
     CsilgenTransport seam;
     seam.call = corndogs_transport_call;
+    seam.call_reply = corndogs_transport_call_reply;
     seam.self = t;
     return seam;
 }

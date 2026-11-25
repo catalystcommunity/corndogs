@@ -18,7 +18,9 @@ sealed class CborValue {
         override fun hashCode(): Int = value.contentHashCode()
     }
     data class CArray(val items: List<CborValue>) : CborValue()
-    data class CMap(val entries: List<Pair<CborValue, CborValue>>) : CborValue()
+    // `canonical` is false when a decoded map's encoded keys were not strictly ascending
+    // bytewise (RFC 8949 section 4.2.1): a dynamic map rejects that, a record does not.
+    data class CMap(val entries: List<Pair<CborValue, CborValue>>, val canonical: Boolean = true) : CborValue()
     data class CTag(val tag: ULong, val value: CborValue) : CborValue()
 }
 
@@ -121,6 +123,18 @@ object CsilCbor {
         return v
     }
 
+    // Float.float16ToFloat needs JDK 20; the generated package targets JDK 17.
+    private fun halfToDouble(h: Int): Double {
+        val exp = (h shr 10) and 0x1f
+        val mant = h and 0x3ff
+        val magnitude = when (exp) {
+            0 -> Math.scalb(mant.toDouble(), -24)
+            31 -> if (mant == 0) Double.POSITIVE_INFINITY else Double.NaN
+            else -> Math.scalb((mant or 0x400).toDouble(), exp - 25)
+        }
+        return if ((h and 0x8000) != 0) -magnitude else magnitude
+    }
+
     private fun readArg(cur: Cursor, low: Int): ULong {
         if (low < 24) {
             cur.pos += 1
@@ -192,6 +206,10 @@ object CsilCbor {
                     cur.pos += 1
                     CborValue.CNull
                 }
+                25 -> {
+                    val bits = readArg(cur, low)
+                    CborValue.CFloat(halfToDouble(bits.toInt()))
+                }
                 26 -> {
                     val bits = readArg(cur, low)
                     CborValue.CFloat(Float.fromBits((bits and 0xffffffffuL).toInt()).toDouble())
@@ -235,12 +253,30 @@ object CsilCbor {
                 if (arg > (cur.b.size - cur.pos).toULong()) throw CborError("map length exceeds remaining input")
                 val n = arg.toInt()
                 val entries = ArrayList<Pair<CborValue, CborValue>>(minOf(n, PREALLOC_LIMIT))
+                // Each key is compared with the one before it as raw bytes, so the order
+                // check is O(n). Only a map out of order can repeat a key, so the set of
+                // seen keys is built only then.
+                val keyRanges = ArrayList<IntArray>(minOf(n, PREALLOC_LIMIT))
+                var seen: HashSet<java.nio.ByteBuffer>? = null
                 repeat(n) {
+                    val keyStart = cur.pos
                     val k = dec(cur, depth + 1)
+                    val keyEnd = cur.pos
+                    if (!shortestHead(cur.b, keyStart)) throw CborError("csil cbor: map key is not in shortest form")
+                    if (seen == null && keyRanges.isNotEmpty()) {
+                        val prev = keyRanges[keyRanges.size - 1]
+                        if (java.util.Arrays.compareUnsigned(cur.b, prev[0], prev[1], cur.b, keyStart, keyEnd) >= 0) {
+                            seen = keyRanges.mapTo(HashSet()) { java.nio.ByteBuffer.wrap(cur.b, it[0], it[1] - it[0]) }
+                        }
+                    }
+                    if (seen?.add(java.nio.ByteBuffer.wrap(cur.b, keyStart, keyEnd - keyStart)) == false) {
+                        throw CborError("csil cbor: duplicate key ${describeKey(k)}")
+                    }
+                    keyRanges.add(intArrayOf(keyStart, keyEnd))
                     val value = dec(cur, depth + 1)
                     entries.add(k to value)
                 }
-                CborValue.CMap(entries)
+                CborValue.CMap(entries, seen == null)
             }
             6 -> CborValue.CTag(arg, dec(cur, depth + 1))
             else -> throw CborError("malformed CBOR major type")
@@ -303,6 +339,196 @@ object CsilCbor {
 
     fun asMap(v: CborValue): List<Pair<CborValue, CborValue>> =
         (v as? CborValue.CMap)?.entries ?: throw CborError("expected map")
+
+    /** The entries of a dynamic map, which must arrive in canonical key order. */
+    fun asDynamicMap(v: CborValue): List<Pair<CborValue, CborValue>> {
+        if (v is CborValue.CMap && !v.canonical) throw CborError("csil cbor: map keys are not in canonical order")
+        return asMap(v)
+    }
+
+    /** `entries` in canonical order: bytewise order of each key's encoding, which is not
+     * the order of the Kotlin keys. */
+    fun canonicalEntries(entries: List<Pair<CborValue, CborValue>>): List<Pair<CborValue, CborValue>> =
+        entries.map { encode(it.first) to it }
+            .sortedWith { x, y -> java.util.Arrays.compareUnsigned(x.first, y.first) }
+            .map { it.second }
+
+    /** Whether the head at [at] uses the shortest argument for its value. A float head
+     * (major 7) carries no length, so it is not checked. */
+    private fun shortestHead(b: ByteArray, at: Int): Boolean {
+        val major = (b[at].toInt() and 0xff) shr 5
+        val low = b[at].toInt() and 0x1f
+        if (major == 7 || low < 24) return true
+        val width = 1 shl (low - 24)
+        var arg = 0uL
+        for (i in 1..width) arg = (arg shl 8) or (b[at + i].toInt() and 0xff).toULong()
+        val floor = if (low == 24) 24uL else 1uL shl (8 * (width / 2))
+        return arg >= floor
+    }
+
+    private fun describeKey(k: CborValue): String =
+        if (k is CborValue.CText) "\"${k.value}\"" else encode(k).joinToString("") { "%02x".format(it) }
+
+    fun encDate(date: java.time.LocalDate): CborValue {
+        val text = date.toString()
+        require(text.length == 10) { "date requires a four-digit year" }
+        return CborValue.CTag(1004uL, CborValue.CText(text))
+    }
+
+    fun asDate(v: CborValue): java.time.LocalDate {
+        val text = asTaggedText(v, 1004uL)
+        require(text.length == 10) { "expected YYYY-MM-DD" }
+        return java.time.LocalDate.parse(text)
+    }
+
+    // The timestamp shape is checked by hand because Instant.parse accepts forms the
+    // wire contract rejects, and Instant.toString picks fraction widths the contract does
+    // not allow (it requires 3, 6, or 9 digits).
+    fun encTimestamp(t: java.time.Instant): CborValue {
+        val u = t.atOffset(java.time.ZoneOffset.UTC)
+        if (u.year < 1 || u.year > 9999) throw CborError("timestamp year outside 0001-9999")
+        val b = StringBuilder(30)
+        b.append(tsDigits(u.year, 4)).append('-').append(tsDigits(u.monthValue, 2)).append('-')
+            .append(tsDigits(u.dayOfMonth, 2)).append('T').append(tsDigits(u.hour, 2)).append(':')
+            .append(tsDigits(u.minute, 2)).append(':').append(tsDigits(u.second, 2))
+        val nano = u.nano
+        if (nano != 0) {
+            b.append('.')
+            when {
+                nano % 1_000_000 == 0 -> b.append(tsDigits(nano / 1_000_000, 3))
+                nano % 1_000 == 0 -> b.append(tsDigits(nano / 1_000, 6))
+                else -> b.append(tsDigits(nano, 9))
+            }
+        }
+        b.append('Z')
+        return CborValue.CTag(0uL, CborValue.CText(b.toString()))
+    }
+
+    private fun tsDigits(value: Int, width: Int): String = value.toString().padStart(width, '0')
+
+    fun asTimestamp(v: CborValue): java.time.Instant {
+        if (v is CborValue.CTag && v.tag == 0uL && v.value is CborValue.CText) {
+            return parseTimestamp(v.value.value)
+        }
+        throw CborError("expected CBOR tag 0 timestamp")
+    }
+
+    private fun tsField(s: String, at: Int, width: Int): Int {
+        if (at + width > s.length) throw CborError("invalid timestamp text")
+        var value = 0
+        for (i in at until at + width) {
+            val c = s[i]
+            if (c < '0' || c > '9') throw CborError("invalid timestamp text")
+            value = value * 10 + (c - '0')
+        }
+        return value
+    }
+
+    private fun tsSeparator(s: String, at: Int, a: Char, b: Char) {
+        if (at >= s.length || (s[at] != a && s[at] != b)) throw CborError("invalid timestamp text")
+    }
+
+    private val tsMinEpoch = java.time.LocalDate.of(1, 1, 1).toEpochDay() * 86_400L
+    private val tsEndEpoch = java.time.LocalDate.of(10000, 1, 1).toEpochDay() * 86_400L
+
+    private fun parseTimestamp(s: String): java.time.Instant {
+        val year = tsField(s, 0, 4)
+        tsSeparator(s, 4, '-', '-')
+        val month = tsField(s, 5, 2)
+        tsSeparator(s, 7, '-', '-')
+        val day = tsField(s, 8, 2)
+        tsSeparator(s, 10, 'T', 't')
+        val hour = tsField(s, 11, 2)
+        tsSeparator(s, 13, ':', ':')
+        val minute = tsField(s, 14, 2)
+        tsSeparator(s, 16, ':', ':')
+        val second = tsField(s, 17, 2)
+        if (year < 1 || month < 1 || month > 12 || day < 1 ||
+            day > java.time.YearMonth.of(year, month).lengthOfMonth() ||
+            hour > 23 || minute > 59 || second > 59
+        ) {
+            throw CborError("invalid timestamp value")
+        }
+        var at = 19
+        var nano = 0
+        if (at < s.length && s[at] == '.') {
+            val start = ++at
+            while (at < s.length && s[at] >= '0' && s[at] <= '9') at++
+            val digits = at - start
+            if (digits < 1 || digits > 9) throw CborError("invalid timestamp fraction")
+            nano = tsField(s, start, digits)
+            repeat(9 - digits) { nano *= 10 }
+        }
+        if (at >= s.length) throw CborError("timestamp has no offset")
+        val zone = s[at]
+        val offset: Int
+        if (zone == 'Z' || zone == 'z') {
+            offset = 0
+            at += 1
+        } else if (zone == '+' || zone == '-') {
+            val offsetHour = tsField(s, at + 1, 2)
+            tsSeparator(s, at + 3, ':', ':')
+            val offsetMinute = tsField(s, at + 4, 2)
+            if (offsetHour > 23 || offsetMinute > 59) throw CborError("invalid timestamp offset")
+            offset = (if (zone == '-') -1 else 1) * (offsetHour * 3600 + offsetMinute * 60)
+            at += 6
+        } else {
+            throw CborError("invalid timestamp offset")
+        }
+        if (at != s.length) throw CborError("trailing timestamp text")
+        val epoch = java.time.LocalDate.of(year, month, day).toEpochDay() * 86_400L +
+            hour * 3_600L + minute * 60L + second - offset
+        // The range is checked again after conversion to UTC, because an offset can move
+        // a written year 0001 or 9999 value outside it.
+        if (epoch < tsMinEpoch || epoch >= tsEndEpoch) throw CborError("timestamp year outside 0001-9999")
+        return java.time.Instant.ofEpochSecond(epoch, nano.toLong())
+    }
+
+    private const val CDDL_TIME_FIRST = -62_135_596_800L
+    private const val CDDL_TIME_LAST = 253_402_300_799L
+
+    fun encCddlTime(t: java.time.Instant): CborValue {
+        val seconds = t.epochSecond
+        val nanos = t.nano
+        if (seconds < CDDL_TIME_FIRST || seconds > CDDL_TIME_LAST) throw CborError("cddl_time year outside 0001-9999")
+        if (nanos == 0) return CborValue.CTag(1uL, CborValue.CInt(seconds))
+        return CborValue.CTag(1uL, CborValue.CFloat(seconds.toDouble() + nanos.toDouble() / 1e9))
+    }
+
+    // The float split is spelled out step by step because the wire contract fixes each
+    // binary64 operation, so every target lands on the same instant.
+    fun asCddlTime(v: CborValue): java.time.Instant {
+        if (v !is CborValue.CTag || v.tag != 1uL) throw CborError("expected CBOR tag 1 cddl_time")
+        var seconds: Long
+        var nanos = 0L
+        when (val inner = v.value) {
+            is CborValue.CUint -> {
+                if (inner.value > CDDL_TIME_LAST.toULong()) throw CborError("cddl_time year outside 0001-9999")
+                seconds = inner.value.toLong()
+            }
+            is CborValue.CInt -> seconds = inner.value
+            is CborValue.CFloat -> {
+                val value = inner.value
+                if (!value.isFinite()) throw CborError("cddl_time is not finite")
+                // Refused before the integer conversion so that the cast cannot saturate.
+                if (value < (CDDL_TIME_FIRST - 1).toDouble() || value > (CDDL_TIME_LAST + 1).toDouble()) {
+                    throw CborError("cddl_time year outside 0001-9999")
+                }
+                val whole = kotlin.math.floor(value)
+                val scaled = (value - whole) * 1e9
+                val units = kotlin.math.floor(scaled + 0.5)
+                seconds = whole.toLong()
+                nanos = units.toLong()
+                if (nanos == 1_000_000_000L) {
+                    seconds += 1
+                    nanos = 0
+                }
+            }
+            else -> throw CborError("cddl_time tag 1 requires a number")
+        }
+        if (seconds < CDDL_TIME_FIRST || seconds > CDDL_TIME_LAST) throw CborError("cddl_time year outside 0001-9999")
+        return java.time.Instant.ofEpochSecond(seconds, nanos)
+    }
 
     fun asTaggedText(v: CborValue, tag: ULong): String {
         if (v is CborValue.CTag && v.tag == tag) return asText(v.value)
@@ -792,7 +1018,7 @@ fun getQueueTaskCountsRequestFromCbor(bytes: ByteArray): GetQueueTaskCountsReque
 /** The CBOR value tree for a GetQueueTaskCountsResponse (deep, canonical key order). */
 fun GetQueueTaskCountsResponse.toCborValue(): CborValue {
     val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
-    csilEntries.add(CborValue.CText("queue_counts") to CborValue.CMap((this.queueCounts).map { (csilK, csilV) -> CborValue.CText(csilK) to CborValue.CInt(csilV) }))
+    csilEntries.add(CborValue.CText("queue_counts") to CborValue.CMap(CsilCbor.canonicalEntries((this.queueCounts).map { (csilK, csilV) -> CborValue.CText(csilK) to CborValue.CInt(csilV) })))
     csilEntries.add(CborValue.CText("total_task_count") to CborValue.CInt(this.totalTaskCount))
     return CborValue.CMap(csilEntries)
 }
@@ -802,7 +1028,7 @@ fun GetQueueTaskCountsResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCbor
 
 /** Reconstruct a GetQueueTaskCountsResponse from a decoded CBOR value tree. */
 fun getQueueTaskCountsResponseFromCborValue(cbor: CborValue): GetQueueTaskCountsResponse {
-    val queueCounts = CsilCbor.asMap(CsilCbor.require(cbor, "queue_counts")).associate { (csilK, csilV) -> CsilCbor.asText(csilK) to CsilCbor.asLong(csilV) }
+    val queueCounts = CsilCbor.asDynamicMap(CsilCbor.require(cbor, "queue_counts")).associate { (csilK, csilV) -> CsilCbor.asText(csilK) to CsilCbor.asLong(csilV) }
     val totalTaskCount = CsilCbor.asLong(CsilCbor.require(cbor, "total_task_count"))
     return GetQueueTaskCountsResponse(queueCounts = queueCounts, totalTaskCount = totalTaskCount)
 }
@@ -834,7 +1060,7 @@ fun GetTaskStateCountsResponse.toCborValue(): CborValue {
     val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
     csilEntries.add(CborValue.CText("count") to CborValue.CInt(this.count))
     csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
-    csilEntries.add(CborValue.CText("state_counts") to CborValue.CMap((this.stateCounts).map { (csilK, csilV) -> CborValue.CText(csilK) to CborValue.CInt(csilV) }))
+    csilEntries.add(CborValue.CText("state_counts") to CborValue.CMap(CsilCbor.canonicalEntries((this.stateCounts).map { (csilK, csilV) -> CborValue.CText(csilK) to CborValue.CInt(csilV) })))
     return CborValue.CMap(csilEntries)
 }
 
@@ -845,7 +1071,7 @@ fun GetTaskStateCountsResponse.toCbor(): ByteArray = CsilCbor.encode(this.toCbor
 fun getTaskStateCountsResponseFromCborValue(cbor: CborValue): GetTaskStateCountsResponse {
     val queue = CsilCbor.asText(CsilCbor.require(cbor, "queue"))
     val count = CsilCbor.asLong(CsilCbor.require(cbor, "count"))
-    val stateCounts = CsilCbor.asMap(CsilCbor.require(cbor, "state_counts")).associate { (csilK, csilV) -> CsilCbor.asText(csilK) to CsilCbor.asLong(csilV) }
+    val stateCounts = CsilCbor.asDynamicMap(CsilCbor.require(cbor, "state_counts")).associate { (csilK, csilV) -> CsilCbor.asText(csilK) to CsilCbor.asLong(csilV) }
     return GetTaskStateCountsResponse(queue = queue, count = count, stateCounts = stateCounts)
 }
 
@@ -857,7 +1083,7 @@ fun QueueAndStateCounts.toCborValue(): CborValue {
     val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
     csilEntries.add(CborValue.CText("count") to CborValue.CInt(this.count))
     csilEntries.add(CborValue.CText("queue") to CborValue.CText(this.queue))
-    csilEntries.add(CborValue.CText("state_counts") to CborValue.CMap((this.stateCounts).map { (csilK, csilV) -> CborValue.CText(csilK) to CborValue.CInt(csilV) }))
+    csilEntries.add(CborValue.CText("state_counts") to CborValue.CMap(CsilCbor.canonicalEntries((this.stateCounts).map { (csilK, csilV) -> CborValue.CText(csilK) to CborValue.CInt(csilV) })))
     return CborValue.CMap(csilEntries)
 }
 
@@ -868,7 +1094,7 @@ fun QueueAndStateCounts.toCbor(): ByteArray = CsilCbor.encode(this.toCborValue()
 fun queueAndStateCountsFromCborValue(cbor: CborValue): QueueAndStateCounts {
     val queue = CsilCbor.asText(CsilCbor.require(cbor, "queue"))
     val count = CsilCbor.asLong(CsilCbor.require(cbor, "count"))
-    val stateCounts = CsilCbor.asMap(CsilCbor.require(cbor, "state_counts")).associate { (csilK, csilV) -> CsilCbor.asText(csilK) to CsilCbor.asLong(csilV) }
+    val stateCounts = CsilCbor.asDynamicMap(CsilCbor.require(cbor, "state_counts")).associate { (csilK, csilV) -> CsilCbor.asText(csilK) to CsilCbor.asLong(csilV) }
     return QueueAndStateCounts(queue = queue, count = count, stateCounts = stateCounts)
 }
 
@@ -895,7 +1121,7 @@ fun getQueueAndStateCountsRequestFromCbor(bytes: ByteArray): GetQueueAndStateCou
 /** The CBOR value tree for a GetQueueAndStateCountsResponse (deep, canonical key order). */
 fun GetQueueAndStateCountsResponse.toCborValue(): CborValue {
     val csilEntries = ArrayList<Pair<CborValue, CborValue>>()
-    csilEntries.add(CborValue.CText("queue_and_state_counts") to CborValue.CMap((this.queueAndStateCounts).map { (csilK, csilV) -> CborValue.CText(csilK) to csilV.toCborValue() }))
+    csilEntries.add(CborValue.CText("queue_and_state_counts") to CborValue.CMap(CsilCbor.canonicalEntries((this.queueAndStateCounts).map { (csilK, csilV) -> CborValue.CText(csilK) to csilV.toCborValue() })))
     return CborValue.CMap(csilEntries)
 }
 
@@ -904,7 +1130,7 @@ fun GetQueueAndStateCountsResponse.toCbor(): ByteArray = CsilCbor.encode(this.to
 
 /** Reconstruct a GetQueueAndStateCountsResponse from a decoded CBOR value tree. */
 fun getQueueAndStateCountsResponseFromCborValue(cbor: CborValue): GetQueueAndStateCountsResponse {
-    val queueAndStateCounts = CsilCbor.asMap(CsilCbor.require(cbor, "queue_and_state_counts")).associate { (csilK, csilV) -> CsilCbor.asText(csilK) to queueAndStateCountsFromCborValue(csilV) }
+    val queueAndStateCounts = CsilCbor.asDynamicMap(CsilCbor.require(cbor, "queue_and_state_counts")).associate { (csilK, csilV) -> CsilCbor.asText(csilK) to queueAndStateCountsFromCborValue(csilV) }
     return GetQueueAndStateCountsResponse(queueAndStateCounts = queueAndStateCounts)
 }
 
@@ -1632,4 +1858,344 @@ fun csilFromCborValue(type: kotlin.reflect.KClass<*>, cbor: CborValue): Any = wh
     LookupOperationResponse::class -> lookupOperationResponseFromCborValue(cbor)
     ServiceError::class -> serviceErrorFromCborValue(cbor)
     else -> throw CborError("no CSIL CBOR codec for $type")
+}
+data class RpcReply(val variant: String, val payload: ByteArray)
+
+/** One RPC reply as the client transport received it; [variant] is null when the reply carried none. */
+class WireReply(val variant: String?, val payload: ByteArray)
+
+class ServiceErrorRefusal(val value: ServiceError) : RuntimeException("ServiceError")
+
+fun encodeCorndogsSubmitTaskReply(handler: () -> SubmitTaskResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("SubmitTaskResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsGetTaskStateByIDReply(handler: () -> GetTaskStateByIDResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("GetTaskStateByIDResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsGetNextTaskReply(handler: () -> GetNextTaskResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("GetNextTaskResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsGetNextTaskGroupReply(handler: () -> GetNextTaskGroupResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("GetNextTaskGroupResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsUpdateTaskReply(handler: () -> UpdateTaskResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("UpdateTaskResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsCompleteTaskReply(handler: () -> CompleteTaskResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("CompleteTaskResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsCancelTaskReply(handler: () -> CancelTaskResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("CancelTaskResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsCleanUpTimedOutReply(handler: () -> CleanUpTimedOutResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("CleanUpTimedOutResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsGetQueuesReply(handler: () -> GetQueuesResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("GetQueuesResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsGetQueueTaskCountsReply(handler: () -> GetQueueTaskCountsResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("GetQueueTaskCountsResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsGetTaskStateCountsReply(handler: () -> GetTaskStateCountsResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("GetTaskStateCountsResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsGetQueueAndStateCountsReply(handler: () -> GetQueueAndStateCountsResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("GetQueueAndStateCountsResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsGetServerInfoReply(handler: () -> GetServerInfoResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("GetServerInfoResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsSubmitKeyedTaskReply(handler: () -> SubmitKeyedTaskResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("SubmitKeyedTaskResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsLookupSubmissionReply(handler: () -> LookupSubmissionResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("LookupSubmissionResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsClaimGuardedTaskReply(handler: () -> ClaimGuardedTaskResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("ClaimGuardedTaskResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsClaimGuardedTaskGroupReply(handler: () -> ClaimGuardedTaskGroupResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("ClaimGuardedTaskGroupResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsUpdateGuardedTaskReply(handler: () -> UpdateGuardedTaskResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("UpdateGuardedTaskResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsCompleteGuardedTaskReply(handler: () -> CompleteGuardedTaskResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("CompleteGuardedTaskResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsCancelGuardedTaskReply(handler: () -> CancelGuardedTaskResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("CancelGuardedTaskResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsGetGuardedTaskReply(handler: () -> GetGuardedTaskResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("GetGuardedTaskResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun encodeCorndogsLookupOperationReply(handler: () -> LookupOperationResponse): RpcReply =
+    try {
+        val value = handler()
+        RpcReply("LookupOperationResponse", CsilCbor.encode(value.toCborValue()))
+    } catch (refusal: ServiceErrorRefusal) {
+        RpcReply("ServiceError", CsilCbor.encode(refusal.value.toCborValue()))
+    }
+
+fun resolveRpcReply(service: String, op: String, variant: String?, payload: ByteArray): ByteArray {
+    if (service == "CorndogsService" && op == "SubmitTask") {
+        return when (variant) {
+            "SubmitTaskResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "GetTaskStateByID") {
+        return when (variant) {
+            "GetTaskStateByIDResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "GetNextTask") {
+        return when (variant) {
+            "GetNextTaskResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "GetNextTaskGroup") {
+        return when (variant) {
+            "GetNextTaskGroupResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "UpdateTask") {
+        return when (variant) {
+            "UpdateTaskResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "CompleteTask") {
+        return when (variant) {
+            "CompleteTaskResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "CancelTask") {
+        return when (variant) {
+            "CancelTaskResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "CleanUpTimedOut") {
+        return when (variant) {
+            "CleanUpTimedOutResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "GetQueues") {
+        return when (variant) {
+            "GetQueuesResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "GetQueueTaskCounts") {
+        return when (variant) {
+            "GetQueueTaskCountsResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "GetTaskStateCounts") {
+        return when (variant) {
+            "GetTaskStateCountsResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "GetQueueAndStateCounts") {
+        return when (variant) {
+            "GetQueueAndStateCountsResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "GetServerInfo") {
+        return when (variant) {
+            "GetServerInfoResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "SubmitKeyedTask") {
+        return when (variant) {
+            "SubmitKeyedTaskResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "LookupSubmission") {
+        return when (variant) {
+            "LookupSubmissionResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "ClaimGuardedTask") {
+        return when (variant) {
+            "ClaimGuardedTaskResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "ClaimGuardedTaskGroup") {
+        return when (variant) {
+            "ClaimGuardedTaskGroupResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "UpdateGuardedTask") {
+        return when (variant) {
+            "UpdateGuardedTaskResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "CompleteGuardedTask") {
+        return when (variant) {
+            "CompleteGuardedTaskResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "CancelGuardedTask") {
+        return when (variant) {
+            "CancelGuardedTaskResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "GetGuardedTask") {
+        return when (variant) {
+            "GetGuardedTaskResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    if (service == "CorndogsService" && op == "LookupOperation") {
+        return when (variant) {
+            "LookupOperationResponse" -> payload
+            "ServiceError" -> throw ServiceErrorRefusal(serviceErrorFromCborValue(CsilCbor.decode(payload)))
+            else -> throw CborError("invalid RPC reply variant: $variant")
+        }
+    }
+    return payload
 }

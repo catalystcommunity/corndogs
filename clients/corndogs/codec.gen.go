@@ -4,8 +4,10 @@
 package corndogs
 
 import (
+	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"unicode/utf8"
 )
 
@@ -29,6 +31,11 @@ type cborEntry struct {
 	val cborValue
 }
 type cborMap []cborEntry
+
+// cborUnorderedMap is a decoded map whose keys are not in canonical order. A record
+// accepts its fields in any order, but a dynamic map refuses it, so the decoder keeps
+// the order fact in the type and never sorts or compares again.
+type cborUnorderedMap []cborEntry
 type cborTag struct {
 	num   uint64
 	inner cborValue
@@ -92,11 +99,57 @@ func (cborArray) isCbor() {}
 func (cborMap) isCbor()   {}
 func (cborTag) isCbor()   {}
 
+func (cborUnorderedMap) isCbor() {}
+
 // cborEncode serializes a value tree to canonical CBOR bytes.
 func cborEncode(v cborValue) []byte {
 	var out []byte
 	cborEnc(v, &out)
 	return out
+}
+
+// cborEncodeE serializes the tree an encoder returned, or passes its error on.
+func cborEncodeE(v cborValue, err error) ([]byte, error) {
+	if err != nil {
+		return nil, err
+	}
+	return cborEncode(v), nil
+}
+
+// csilRtEncDepthLimit is the nesting limit every decoder enforces.
+const csilRtEncDepthLimit = 64
+
+// csilRtEncErr keeps the first failure of one encode call. Go accepts a two-result
+// call only as the sole argument of another call, so the latch lets a fallible
+// encoder sit inside a composite literal of the value tree.
+type csilRtEncErr struct{ err error }
+
+func (e *csilRtEncErr) val(v cborValue, err error) cborValue {
+	if err != nil {
+		if e.err == nil {
+			e.err = err
+		}
+		return cborNull{}
+	}
+	return v
+}
+
+func (e *csilRtEncErr) result(v cborValue) (cborValue, error) {
+	if e.err != nil {
+		return nil, e.err
+	}
+	return v, nil
+}
+
+// csilRtEncMember refuses an enum value outside the declared set, because every
+// decoder refuses it.
+func csilRtEncMember[T comparable](v T, enc cborValue, members ...T) (cborValue, error) {
+	for _, m := range members {
+		if v == m {
+			return enc, nil
+		}
+	}
+	return nil, fmt.Errorf("csil cbor: value %v is not a member of the declared enum", v)
 }
 
 func cborHead(major byte, n uint64, out *[]byte) {
@@ -158,6 +211,8 @@ func cborEnc(v cborValue, out *[]byte) {
 			cborEnc(e.key, out)
 			cborEnc(e.val, out)
 		}
+	case cborUnorderedMap:
+		cborEnc(cborMap(x), out)
 	case cborTag:
 		cborHead(6, x.num, out)
 		cborEnc(x.inner, out)
@@ -229,6 +284,28 @@ func cborReadArg(b []byte, pos *int, low byte) (uint64, error) {
 // lets a small frame reserve a large multiple of its size at every nesting level.
 const csilCborPreallocLimit = 1024
 
+// cborHalfToFloat64 widens an IEEE 754 half-precision value (RFC 8949 Appendix D)
+// exactly to binary64.
+func cborHalfToFloat64(half uint16) float64 {
+	exp := int(half>>10) & 0x1f
+	mant := float64(half & 0x3ff)
+	var magnitude float64
+	switch {
+	case exp == 0:
+		magnitude = math.Ldexp(mant, -24)
+	case exp == 31 && mant == 0:
+		magnitude = math.Inf(1)
+	case exp == 31:
+		magnitude = math.NaN()
+	default:
+		magnitude = math.Ldexp(mant+1024, exp-25)
+	}
+	if half&0x8000 != 0 {
+		return -magnitude
+	}
+	return magnitude
+}
+
 func cborDec(b []byte, pos *int, depth int) (cborValue, error) {
 	if depth > 64 {
 		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
@@ -250,6 +327,12 @@ func cborDec(b []byte, pos *int, depth int) (cborValue, error) {
 		case 22, 23:
 			*pos++
 			return cborNull{}, nil
+		case 25:
+			bits, err := cborReadArg(b, pos, low)
+			if err != nil {
+				return nil, err
+			}
+			return cborFloat(cborHalfToFloat64(uint16(bits))), nil
 		case 26:
 			bits, err := cborReadArg(b, pos, low)
 			if err != nil {
@@ -326,18 +409,45 @@ func cborDec(b []byte, pos *int, depth int) (cborValue, error) {
 			reserve = csilCborPreallocLimit
 		}
 		entries := make(cborMap, 0, reserve)
+		// Compare each key's raw bytes with the previous key's: strictly ascending
+		// raw keys are the canonical order of RFC 8949 section 4.2.1 and cannot
+		// repeat, so only an out-of-order map pays for the duplicate check.
+		raws := make([][]byte, 0, reserve)
+		ordered := true
 		for i := 0; i < n; i++ {
+			start := *pos
 			k, err := cborDec(b, pos, depth+1)
 			if err != nil {
 				return nil, err
 			}
+			raw := b[start:*pos]
+			if !cborRtShortestHead(raw) {
+				return nil, fmt.Errorf("csil cbor: map key is not in shortest form")
+			}
+			if len(raws) > 0 && cborRtKeyCompare(raws[len(raws)-1], raw) >= 0 {
+				ordered = false
+			}
+			raws = append(raws, raw)
 			val, err := cborDec(b, pos, depth+1)
 			if err != nil {
 				return nil, err
 			}
 			entries = append(entries, cborEntry{k, val})
 		}
-		return entries, nil
+		if ordered {
+			return entries, nil
+		}
+		seen := make(map[string]struct{}, len(raws))
+		for i, raw := range raws {
+			if _, dup := seen[string(raw)]; dup {
+				if text, ok := entries[i].key.(cborText); ok {
+					return nil, fmt.Errorf("csil cbor: duplicate key %q", string(text))
+				}
+				return nil, fmt.Errorf("csil cbor: duplicate key 0x%x", raw)
+			}
+			seen[string(raw)] = struct{}{}
+		}
+		return cborUnorderedMap(entries), nil
 	case 6:
 		inner, err := cborDec(b, pos, depth+1)
 		if err != nil {
@@ -350,23 +460,92 @@ func cborDec(b []byte, pos *int, depth int) (cborValue, error) {
 }
 
 // cborEncArray maps a typed slice to a CBOR array via the per-element encoder.
-func cborEncArray[E any](xs []E, f func(E) cborValue) cborValue {
+func cborEncArray[E any](xs []E, f func(E) (cborValue, error)) (cborValue, error) {
 	items := make(cborArray, 0, len(xs))
 	for _, x := range xs {
-		items = append(items, f(x))
+		item, err := f(x)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
 	}
-	return items
+	return items, nil
 }
 
-// cborEncMap maps a typed map to a CBOR map. Go map iteration is unordered, so the
-// inner map's entry order is not canonicalized; the record's own keys (laid down at
-// generation time) are what the cross-language wire contract pins.
-func cborEncMap[K comparable, V any](m map[K]V, kf func(K) cborValue, vf func(V) cborValue) cborValue {
+// cborEncMap maps a typed map to a CBOR map with its entries in canonical order: the
+// bytewise order of each encoded key (RFC 8949 section 4.2.1). Go map iteration is
+// random, and an ordered key type would still sort by value, not by encoding.
+func cborEncMap[K comparable, V any](m map[K]V, kf func(K) (cborValue, error), vf func(V) (cborValue, error)) (cborValue, error) {
 	entries := make(cborMap, 0, len(m))
+	raws := make([][]byte, 0, len(m))
 	for k, v := range m {
-		entries = append(entries, cborEntry{kf(k), vf(v)})
+		key, err := kf(k)
+		if err != nil {
+			return nil, err
+		}
+		val, err := vf(v)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, cborEntry{key, val})
+		raws = append(raws, cborEncode(key))
 	}
-	return entries
+	order := make([]int, len(entries))
+	for i := range order {
+		order[i] = i
+	}
+	sort.Slice(order, func(a, b int) bool { return cborRtKeyCompare(raws[order[a]], raws[order[b]]) < 0 })
+	sorted := make(cborMap, len(entries))
+	for i, j := range order {
+		sorted[i] = entries[j]
+	}
+	return sorted, nil
+}
+
+// cborRtShortestHead reports whether an encoded item starts with the shortest head
+// for its value or length. A longer head gives one key a second byte form, and the
+// order check would then accept a map that no canonical encoder writes. A float
+// (major type 7) has no shorter integer head, so it is not checked here. The caller
+// has decoded the item, so every argument byte the head names is present.
+func cborRtShortestHead(raw []byte) bool {
+	if len(raw) == 0 || raw[0]>>5 == 7 {
+		return true
+	}
+	var arg uint64
+	var least uint64
+	switch low := raw[0] & 0x1f; low {
+	case 24:
+		arg, least = uint64(raw[1]), 24
+	case 25:
+		arg, least = uint64(raw[1])<<8|uint64(raw[2]), 0x100
+	case 26:
+		for _, c := range raw[1:5] {
+			arg = arg<<8 | uint64(c)
+		}
+		least = 0x10000
+	case 27:
+		for _, c := range raw[1:9] {
+			arg = arg<<8 | uint64(c)
+		}
+		least = 0x100000000
+	default:
+		return true
+	}
+	return arg >= least
+}
+
+// cborRtKeyCompare orders two encoded keys bytewise; a key that is a prefix of
+// another sorts first.
+func cborRtKeyCompare(a, b []byte) int {
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if a[i] != b[i] {
+			if a[i] < b[i] {
+				return -1
+			}
+			return 1
+		}
+	}
+	return len(a) - len(b)
 }
 
 func cborDecArray[E any](v cborValue, f func(cborValue) (E, error)) ([]E, error) {
@@ -386,6 +565,9 @@ func cborDecArray[E any](v cborValue, f func(cborValue) (E, error)) ([]E, error)
 }
 
 func cborDecMap[K comparable, V any](v cborValue, kf func(cborValue) (K, error), vf func(cborValue) (V, error)) (map[K]V, error) {
+	if _, unordered := v.(cborUnorderedMap); unordered {
+		return nil, fmt.Errorf("csil cbor: map keys are not in canonical order")
+	}
 	entries, err := cborAsMap(v)
 	if err != nil {
 		return nil, err
@@ -400,12 +582,19 @@ func cborDecMap[K comparable, V any](v cborValue, kf func(cborValue) (K, error),
 		if err != nil {
 			return nil, err
 		}
+		// Two distinct encodings can still decode to one Go key.
+		if _, dup := out[k]; dup {
+			return nil, fmt.Errorf("csil cbor: duplicate key %v", k)
+		}
 		out[k] = val
 	}
 	return out, nil
 }
 
 func cborMapGet(v cborValue, key string) (cborValue, bool) {
+	if u, ok := v.(cborUnorderedMap); ok {
+		v = cborMap(u)
+	}
 	if m, ok := v.(cborMap); ok {
 		for _, e := range m {
 			if k, ok := e.key.(cborText); ok && string(k) == key {
@@ -493,14 +682,20 @@ func cborAsArray(v cborValue) ([]cborValue, error) {
 }
 
 func cborAsMap(v cborValue) (cborMap, error) {
-	if m, ok := v.(cborMap); ok {
+	switch m := v.(type) {
+	case cborMap:
 		return m, nil
+	case cborUnorderedMap:
+		return cborMap(m), nil
 	}
 	return nil, fmt.Errorf("csil cbor: expected map, got %T", v)
 }
 
 // csilEncTask builds the canonical CBOR value tree for a Task.
-func csilEncTask(csilV Task) cborValue {
+func csilEncTask(csilV Task, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 8)
 	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
@@ -510,7 +705,7 @@ func csilEncTask(csilV Task) cborValue {
 	csilEntries = append(csilEntries, cborEntry{cborText("update_time"), cborInt(csilV.UpdateTime)})
 	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("auto_target_state"), cborText(csilV.AutoTargetState)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecTask reconstructs a Task from a decoded CBOR value tree.
@@ -608,8 +803,8 @@ func csilDecTask(csilRoot cborValue) (Task, error) {
 }
 
 // EncodeTask encodes a Task to canonical CSIL CBOR bytes.
-func EncodeTask(csilV Task) []byte {
-	return cborEncode(csilEncTask(csilV))
+func EncodeTask(csilV Task) ([]byte, error) {
+	return cborEncodeE(csilEncTask(csilV, 0))
 }
 
 // DecodeTask decodes canonical CSIL CBOR bytes into a Task.
@@ -623,11 +818,15 @@ func DecodeTask(csilData []byte) (Task, error) {
 }
 
 // csilEncTaskDelivery builds the canonical CBOR value tree for a TaskDelivery.
-func csilEncTaskDelivery(csilV TaskDelivery) cborValue {
+func csilEncTaskDelivery(csilV TaskDelivery, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 2)
-	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncTask(csilV.Task, csilDepth+1))})
 	csilEntries = append(csilEntries, cborEntry{cborText("payload"), cborBytes(csilV.Payload)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecTaskDelivery reconstructs a TaskDelivery from a decoded CBOR value tree.
@@ -659,8 +858,8 @@ func csilDecTaskDelivery(csilRoot cborValue) (TaskDelivery, error) {
 }
 
 // EncodeTaskDelivery encodes a TaskDelivery to canonical CSIL CBOR bytes.
-func EncodeTaskDelivery(csilV TaskDelivery) []byte {
-	return cborEncode(csilEncTaskDelivery(csilV))
+func EncodeTaskDelivery(csilV TaskDelivery) ([]byte, error) {
+	return cborEncodeE(csilEncTaskDelivery(csilV, 0))
 }
 
 // DecodeTaskDelivery decodes canonical CSIL CBOR bytes into a TaskDelivery.
@@ -674,7 +873,10 @@ func DecodeTaskDelivery(csilData []byte) (TaskDelivery, error) {
 }
 
 // csilEncSubmitTaskRequest builds the canonical CBOR value tree for a SubmitTaskRequest.
-func csilEncSubmitTaskRequest(csilV SubmitTaskRequest) cborValue {
+func csilEncSubmitTaskRequest(csilV SubmitTaskRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 6)
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
 	csilEntries = append(csilEntries, cborEntry{cborText("payload"), cborBytes(csilV.Payload)})
@@ -682,7 +884,7 @@ func csilEncSubmitTaskRequest(csilV SubmitTaskRequest) cborValue {
 	csilEntries = append(csilEntries, cborEntry{cborText("priority"), cborInt(csilV.Priority)})
 	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("auto_target_state"), cborText(csilV.AutoTargetState)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecSubmitTaskRequest reconstructs a SubmitTaskRequest from a decoded CBOR value tree.
@@ -758,8 +960,8 @@ func csilDecSubmitTaskRequest(csilRoot cborValue) (SubmitTaskRequest, error) {
 }
 
 // EncodeSubmitTaskRequest encodes a SubmitTaskRequest to canonical CSIL CBOR bytes.
-func EncodeSubmitTaskRequest(csilV SubmitTaskRequest) []byte {
-	return cborEncode(csilEncSubmitTaskRequest(csilV))
+func EncodeSubmitTaskRequest(csilV SubmitTaskRequest) ([]byte, error) {
+	return cborEncodeE(csilEncSubmitTaskRequest(csilV, 0))
 }
 
 // DecodeSubmitTaskRequest decodes canonical CSIL CBOR bytes into a SubmitTaskRequest.
@@ -773,12 +975,16 @@ func DecodeSubmitTaskRequest(csilData []byte) (SubmitTaskRequest, error) {
 }
 
 // csilEncSubmitTaskResponse builds the canonical CBOR value tree for a SubmitTaskResponse.
-func csilEncSubmitTaskResponse(csilV SubmitTaskResponse) cborValue {
+func csilEncSubmitTaskResponse(csilV SubmitTaskResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 1)
 	if csilV.Task != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask((*csilV.Task))})
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncTask((*csilV.Task), csilDepth+1))})
 	}
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecSubmitTaskResponse reconstructs a SubmitTaskResponse from a decoded CBOR value tree.
@@ -795,8 +1001,8 @@ func csilDecSubmitTaskResponse(csilRoot cborValue) (SubmitTaskResponse, error) {
 }
 
 // EncodeSubmitTaskResponse encodes a SubmitTaskResponse to canonical CSIL CBOR bytes.
-func EncodeSubmitTaskResponse(csilV SubmitTaskResponse) []byte {
-	return cborEncode(csilEncSubmitTaskResponse(csilV))
+func EncodeSubmitTaskResponse(csilV SubmitTaskResponse) ([]byte, error) {
+	return cborEncodeE(csilEncSubmitTaskResponse(csilV, 0))
 }
 
 // DecodeSubmitTaskResponse decodes canonical CSIL CBOR bytes into a SubmitTaskResponse.
@@ -810,11 +1016,14 @@ func DecodeSubmitTaskResponse(csilData []byte) (SubmitTaskResponse, error) {
 }
 
 // csilEncGetTaskStateByIDRequest builds the canonical CBOR value tree for a GetTaskStateByIDRequest.
-func csilEncGetTaskStateByIDRequest(csilV GetTaskStateByIDRequest) cborValue {
+func csilEncGetTaskStateByIDRequest(csilV GetTaskStateByIDRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 2)
 	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecGetTaskStateByIDRequest reconstructs a GetTaskStateByIDRequest from a decoded CBOR value tree.
@@ -846,8 +1055,8 @@ func csilDecGetTaskStateByIDRequest(csilRoot cborValue) (GetTaskStateByIDRequest
 }
 
 // EncodeGetTaskStateByIDRequest encodes a GetTaskStateByIDRequest to canonical CSIL CBOR bytes.
-func EncodeGetTaskStateByIDRequest(csilV GetTaskStateByIDRequest) []byte {
-	return cborEncode(csilEncGetTaskStateByIDRequest(csilV))
+func EncodeGetTaskStateByIDRequest(csilV GetTaskStateByIDRequest) ([]byte, error) {
+	return cborEncodeE(csilEncGetTaskStateByIDRequest(csilV, 0))
 }
 
 // DecodeGetTaskStateByIDRequest decodes canonical CSIL CBOR bytes into a GetTaskStateByIDRequest.
@@ -861,12 +1070,16 @@ func DecodeGetTaskStateByIDRequest(csilData []byte) (GetTaskStateByIDRequest, er
 }
 
 // csilEncGetTaskStateByIDResponse builds the canonical CBOR value tree for a GetTaskStateByIDResponse.
-func csilEncGetTaskStateByIDResponse(csilV GetTaskStateByIDResponse) cborValue {
+func csilEncGetTaskStateByIDResponse(csilV GetTaskStateByIDResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 1)
 	if csilV.Task != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask((*csilV.Task))})
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncTask((*csilV.Task), csilDepth+1))})
 	}
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecGetTaskStateByIDResponse reconstructs a GetTaskStateByIDResponse from a decoded CBOR value tree.
@@ -883,8 +1096,8 @@ func csilDecGetTaskStateByIDResponse(csilRoot cborValue) (GetTaskStateByIDRespon
 }
 
 // EncodeGetTaskStateByIDResponse encodes a GetTaskStateByIDResponse to canonical CSIL CBOR bytes.
-func EncodeGetTaskStateByIDResponse(csilV GetTaskStateByIDResponse) []byte {
-	return cborEncode(csilEncGetTaskStateByIDResponse(csilV))
+func EncodeGetTaskStateByIDResponse(csilV GetTaskStateByIDResponse) ([]byte, error) {
+	return cborEncodeE(csilEncGetTaskStateByIDResponse(csilV, 0))
 }
 
 // DecodeGetTaskStateByIDResponse decodes canonical CSIL CBOR bytes into a GetTaskStateByIDResponse.
@@ -898,14 +1111,17 @@ func DecodeGetTaskStateByIDResponse(csilData []byte) (GetTaskStateByIDResponse, 
 }
 
 // csilEncGetNextTaskRequest builds the canonical CBOR value tree for a GetNextTaskRequest.
-func csilEncGetNextTaskRequest(csilV GetNextTaskRequest) cborValue {
+func csilEncGetNextTaskRequest(csilV GetNextTaskRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 5)
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
 	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("override_timeout"), cborInt(csilV.OverrideTimeout)})
 	csilEntries = append(csilEntries, cborEntry{cborText("override_current_state"), cborText(csilV.OverrideCurrentState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("override_auto_target_state"), cborText(csilV.OverrideAutoTargetState)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecGetNextTaskRequest reconstructs a GetNextTaskRequest from a decoded CBOR value tree.
@@ -970,8 +1186,8 @@ func csilDecGetNextTaskRequest(csilRoot cborValue) (GetNextTaskRequest, error) {
 }
 
 // EncodeGetNextTaskRequest encodes a GetNextTaskRequest to canonical CSIL CBOR bytes.
-func EncodeGetNextTaskRequest(csilV GetNextTaskRequest) []byte {
-	return cborEncode(csilEncGetNextTaskRequest(csilV))
+func EncodeGetNextTaskRequest(csilV GetNextTaskRequest) ([]byte, error) {
+	return cborEncodeE(csilEncGetNextTaskRequest(csilV, 0))
 }
 
 // DecodeGetNextTaskRequest decodes canonical CSIL CBOR bytes into a GetNextTaskRequest.
@@ -985,12 +1201,16 @@ func DecodeGetNextTaskRequest(csilData []byte) (GetNextTaskRequest, error) {
 }
 
 // csilEncGetNextTaskResponse builds the canonical CBOR value tree for a GetNextTaskResponse.
-func csilEncGetNextTaskResponse(csilV GetNextTaskResponse) cborValue {
+func csilEncGetNextTaskResponse(csilV GetNextTaskResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 1)
 	if csilV.Delivery != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilEncTaskDelivery((*csilV.Delivery))})
+		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilE.val(csilEncTaskDelivery((*csilV.Delivery), csilDepth+1))})
 	}
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecGetNextTaskResponse reconstructs a GetNextTaskResponse from a decoded CBOR value tree.
@@ -1007,8 +1227,8 @@ func csilDecGetNextTaskResponse(csilRoot cborValue) (GetNextTaskResponse, error)
 }
 
 // EncodeGetNextTaskResponse encodes a GetNextTaskResponse to canonical CSIL CBOR bytes.
-func EncodeGetNextTaskResponse(csilV GetNextTaskResponse) []byte {
-	return cborEncode(csilEncGetNextTaskResponse(csilV))
+func EncodeGetNextTaskResponse(csilV GetNextTaskResponse) ([]byte, error) {
+	return cborEncodeE(csilEncGetNextTaskResponse(csilV, 0))
 }
 
 // DecodeGetNextTaskResponse decodes canonical CSIL CBOR bytes into a GetNextTaskResponse.
@@ -1022,14 +1242,18 @@ func DecodeGetNextTaskResponse(csilData []byte) (GetNextTaskResponse, error) {
 }
 
 // csilEncGetNextTaskGroupRequest builds the canonical CBOR value tree for a GetNextTaskGroupRequest.
-func csilEncGetNextTaskGroupRequest(csilV GetNextTaskGroupRequest) cborValue {
+func csilEncGetNextTaskGroupRequest(csilV GetNextTaskGroupRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 5)
-	csilEntries = append(csilEntries, cborEntry{cborText("queues"), cborEncArray(csilV.Queues, func(csilElem string) cborValue { return cborText(csilElem) })})
+	csilEntries = append(csilEntries, cborEntry{cborText("queues"), csilE.val(cborEncArray(csilV.Queues, func(csilElem string) (cborValue, error) { return cborText(csilElem), nil }))})
 	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("override_timeout"), cborInt(csilV.OverrideTimeout)})
 	csilEntries = append(csilEntries, cborEntry{cborText("override_current_state"), cborText(csilV.OverrideCurrentState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("override_auto_target_state"), cborText(csilV.OverrideAutoTargetState)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecGetNextTaskGroupRequest reconstructs a GetNextTaskGroupRequest from a decoded CBOR value tree.
@@ -1094,8 +1318,8 @@ func csilDecGetNextTaskGroupRequest(csilRoot cborValue) (GetNextTaskGroupRequest
 }
 
 // EncodeGetNextTaskGroupRequest encodes a GetNextTaskGroupRequest to canonical CSIL CBOR bytes.
-func EncodeGetNextTaskGroupRequest(csilV GetNextTaskGroupRequest) []byte {
-	return cborEncode(csilEncGetNextTaskGroupRequest(csilV))
+func EncodeGetNextTaskGroupRequest(csilV GetNextTaskGroupRequest) ([]byte, error) {
+	return cborEncodeE(csilEncGetNextTaskGroupRequest(csilV, 0))
 }
 
 // DecodeGetNextTaskGroupRequest decodes canonical CSIL CBOR bytes into a GetNextTaskGroupRequest.
@@ -1109,12 +1333,16 @@ func DecodeGetNextTaskGroupRequest(csilData []byte) (GetNextTaskGroupRequest, er
 }
 
 // csilEncGetNextTaskGroupResponse builds the canonical CBOR value tree for a GetNextTaskGroupResponse.
-func csilEncGetNextTaskGroupResponse(csilV GetNextTaskGroupResponse) cborValue {
+func csilEncGetNextTaskGroupResponse(csilV GetNextTaskGroupResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 1)
 	if csilV.Delivery != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilEncTaskDelivery((*csilV.Delivery))})
+		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilE.val(csilEncTaskDelivery((*csilV.Delivery), csilDepth+1))})
 	}
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecGetNextTaskGroupResponse reconstructs a GetNextTaskGroupResponse from a decoded CBOR value tree.
@@ -1131,8 +1359,8 @@ func csilDecGetNextTaskGroupResponse(csilRoot cborValue) (GetNextTaskGroupRespon
 }
 
 // EncodeGetNextTaskGroupResponse encodes a GetNextTaskGroupResponse to canonical CSIL CBOR bytes.
-func EncodeGetNextTaskGroupResponse(csilV GetNextTaskGroupResponse) []byte {
-	return cborEncode(csilEncGetNextTaskGroupResponse(csilV))
+func EncodeGetNextTaskGroupResponse(csilV GetNextTaskGroupResponse) ([]byte, error) {
+	return cborEncodeE(csilEncGetNextTaskGroupResponse(csilV, 0))
 }
 
 // DecodeGetNextTaskGroupResponse decodes canonical CSIL CBOR bytes into a GetNextTaskGroupResponse.
@@ -1146,12 +1374,15 @@ func DecodeGetNextTaskGroupResponse(csilData []byte) (GetNextTaskGroupResponse, 
 }
 
 // csilEncCompleteTaskRequest builds the canonical CBOR value tree for a CompleteTaskRequest.
-func csilEncCompleteTaskRequest(csilV CompleteTaskRequest) cborValue {
+func csilEncCompleteTaskRequest(csilV CompleteTaskRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 3)
 	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
 	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecCompleteTaskRequest reconstructs a CompleteTaskRequest from a decoded CBOR value tree.
@@ -1194,8 +1425,8 @@ func csilDecCompleteTaskRequest(csilRoot cborValue) (CompleteTaskRequest, error)
 }
 
 // EncodeCompleteTaskRequest encodes a CompleteTaskRequest to canonical CSIL CBOR bytes.
-func EncodeCompleteTaskRequest(csilV CompleteTaskRequest) []byte {
-	return cborEncode(csilEncCompleteTaskRequest(csilV))
+func EncodeCompleteTaskRequest(csilV CompleteTaskRequest) ([]byte, error) {
+	return cborEncodeE(csilEncCompleteTaskRequest(csilV, 0))
 }
 
 // DecodeCompleteTaskRequest decodes canonical CSIL CBOR bytes into a CompleteTaskRequest.
@@ -1209,12 +1440,16 @@ func DecodeCompleteTaskRequest(csilData []byte) (CompleteTaskRequest, error) {
 }
 
 // csilEncCompleteTaskResponse builds the canonical CBOR value tree for a CompleteTaskResponse.
-func csilEncCompleteTaskResponse(csilV CompleteTaskResponse) cborValue {
+func csilEncCompleteTaskResponse(csilV CompleteTaskResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 1)
 	if csilV.Task != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask((*csilV.Task))})
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncTask((*csilV.Task), csilDepth+1))})
 	}
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecCompleteTaskResponse reconstructs a CompleteTaskResponse from a decoded CBOR value tree.
@@ -1231,8 +1466,8 @@ func csilDecCompleteTaskResponse(csilRoot cborValue) (CompleteTaskResponse, erro
 }
 
 // EncodeCompleteTaskResponse encodes a CompleteTaskResponse to canonical CSIL CBOR bytes.
-func EncodeCompleteTaskResponse(csilV CompleteTaskResponse) []byte {
-	return cborEncode(csilEncCompleteTaskResponse(csilV))
+func EncodeCompleteTaskResponse(csilV CompleteTaskResponse) ([]byte, error) {
+	return cborEncodeE(csilEncCompleteTaskResponse(csilV, 0))
 }
 
 // DecodeCompleteTaskResponse decodes canonical CSIL CBOR bytes into a CompleteTaskResponse.
@@ -1246,7 +1481,10 @@ func DecodeCompleteTaskResponse(csilData []byte) (CompleteTaskResponse, error) {
 }
 
 // csilEncUpdateTaskRequest builds the canonical CBOR value tree for a UpdateTaskRequest.
-func csilEncUpdateTaskRequest(csilV UpdateTaskRequest) cborValue {
+func csilEncUpdateTaskRequest(csilV UpdateTaskRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 8)
 	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
@@ -1260,7 +1498,7 @@ func csilEncUpdateTaskRequest(csilV UpdateTaskRequest) cborValue {
 	csilEntries = append(csilEntries, cborEntry{cborText("new_state"), cborText(csilV.NewState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("auto_target_state"), cborText(csilV.AutoTargetState)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecUpdateTaskRequest reconstructs a UpdateTaskRequest from a decoded CBOR value tree.
@@ -1350,8 +1588,8 @@ func csilDecUpdateTaskRequest(csilRoot cborValue) (UpdateTaskRequest, error) {
 }
 
 // EncodeUpdateTaskRequest encodes a UpdateTaskRequest to canonical CSIL CBOR bytes.
-func EncodeUpdateTaskRequest(csilV UpdateTaskRequest) []byte {
-	return cborEncode(csilEncUpdateTaskRequest(csilV))
+func EncodeUpdateTaskRequest(csilV UpdateTaskRequest) ([]byte, error) {
+	return cborEncodeE(csilEncUpdateTaskRequest(csilV, 0))
 }
 
 // DecodeUpdateTaskRequest decodes canonical CSIL CBOR bytes into a UpdateTaskRequest.
@@ -1365,12 +1603,16 @@ func DecodeUpdateTaskRequest(csilData []byte) (UpdateTaskRequest, error) {
 }
 
 // csilEncUpdateTaskResponse builds the canonical CBOR value tree for a UpdateTaskResponse.
-func csilEncUpdateTaskResponse(csilV UpdateTaskResponse) cborValue {
+func csilEncUpdateTaskResponse(csilV UpdateTaskResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 1)
 	if csilV.Task != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask((*csilV.Task))})
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncTask((*csilV.Task), csilDepth+1))})
 	}
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecUpdateTaskResponse reconstructs a UpdateTaskResponse from a decoded CBOR value tree.
@@ -1387,8 +1629,8 @@ func csilDecUpdateTaskResponse(csilRoot cborValue) (UpdateTaskResponse, error) {
 }
 
 // EncodeUpdateTaskResponse encodes a UpdateTaskResponse to canonical CSIL CBOR bytes.
-func EncodeUpdateTaskResponse(csilV UpdateTaskResponse) []byte {
-	return cborEncode(csilEncUpdateTaskResponse(csilV))
+func EncodeUpdateTaskResponse(csilV UpdateTaskResponse) ([]byte, error) {
+	return cborEncodeE(csilEncUpdateTaskResponse(csilV, 0))
 }
 
 // DecodeUpdateTaskResponse decodes canonical CSIL CBOR bytes into a UpdateTaskResponse.
@@ -1402,12 +1644,15 @@ func DecodeUpdateTaskResponse(csilData []byte) (UpdateTaskResponse, error) {
 }
 
 // csilEncCancelTaskRequest builds the canonical CBOR value tree for a CancelTaskRequest.
-func csilEncCancelTaskRequest(csilV CancelTaskRequest) cborValue {
+func csilEncCancelTaskRequest(csilV CancelTaskRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 3)
 	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
 	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecCancelTaskRequest reconstructs a CancelTaskRequest from a decoded CBOR value tree.
@@ -1450,8 +1695,8 @@ func csilDecCancelTaskRequest(csilRoot cborValue) (CancelTaskRequest, error) {
 }
 
 // EncodeCancelTaskRequest encodes a CancelTaskRequest to canonical CSIL CBOR bytes.
-func EncodeCancelTaskRequest(csilV CancelTaskRequest) []byte {
-	return cborEncode(csilEncCancelTaskRequest(csilV))
+func EncodeCancelTaskRequest(csilV CancelTaskRequest) ([]byte, error) {
+	return cborEncodeE(csilEncCancelTaskRequest(csilV, 0))
 }
 
 // DecodeCancelTaskRequest decodes canonical CSIL CBOR bytes into a CancelTaskRequest.
@@ -1465,12 +1710,16 @@ func DecodeCancelTaskRequest(csilData []byte) (CancelTaskRequest, error) {
 }
 
 // csilEncCancelTaskResponse builds the canonical CBOR value tree for a CancelTaskResponse.
-func csilEncCancelTaskResponse(csilV CancelTaskResponse) cborValue {
+func csilEncCancelTaskResponse(csilV CancelTaskResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 1)
 	if csilV.Task != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask((*csilV.Task))})
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncTask((*csilV.Task), csilDepth+1))})
 	}
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecCancelTaskResponse reconstructs a CancelTaskResponse from a decoded CBOR value tree.
@@ -1487,8 +1736,8 @@ func csilDecCancelTaskResponse(csilRoot cborValue) (CancelTaskResponse, error) {
 }
 
 // EncodeCancelTaskResponse encodes a CancelTaskResponse to canonical CSIL CBOR bytes.
-func EncodeCancelTaskResponse(csilV CancelTaskResponse) []byte {
-	return cborEncode(csilEncCancelTaskResponse(csilV))
+func EncodeCancelTaskResponse(csilV CancelTaskResponse) ([]byte, error) {
+	return cborEncodeE(csilEncCancelTaskResponse(csilV, 0))
 }
 
 // DecodeCancelTaskResponse decodes canonical CSIL CBOR bytes into a CancelTaskResponse.
@@ -1502,11 +1751,14 @@ func DecodeCancelTaskResponse(csilData []byte) (CancelTaskResponse, error) {
 }
 
 // csilEncCleanUpTimedOutRequest builds the canonical CBOR value tree for a CleanUpTimedOutRequest.
-func csilEncCleanUpTimedOutRequest(csilV CleanUpTimedOutRequest) cborValue {
+func csilEncCleanUpTimedOutRequest(csilV CleanUpTimedOutRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 2)
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
 	csilEntries = append(csilEntries, cborEntry{cborText("at_time"), cborInt(csilV.AtTime)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecCleanUpTimedOutRequest reconstructs a CleanUpTimedOutRequest from a decoded CBOR value tree.
@@ -1538,8 +1790,8 @@ func csilDecCleanUpTimedOutRequest(csilRoot cborValue) (CleanUpTimedOutRequest, 
 }
 
 // EncodeCleanUpTimedOutRequest encodes a CleanUpTimedOutRequest to canonical CSIL CBOR bytes.
-func EncodeCleanUpTimedOutRequest(csilV CleanUpTimedOutRequest) []byte {
-	return cborEncode(csilEncCleanUpTimedOutRequest(csilV))
+func EncodeCleanUpTimedOutRequest(csilV CleanUpTimedOutRequest) ([]byte, error) {
+	return cborEncodeE(csilEncCleanUpTimedOutRequest(csilV, 0))
 }
 
 // DecodeCleanUpTimedOutRequest decodes canonical CSIL CBOR bytes into a CleanUpTimedOutRequest.
@@ -1553,10 +1805,13 @@ func DecodeCleanUpTimedOutRequest(csilData []byte) (CleanUpTimedOutRequest, erro
 }
 
 // csilEncCleanUpTimedOutResponse builds the canonical CBOR value tree for a CleanUpTimedOutResponse.
-func csilEncCleanUpTimedOutResponse(csilV CleanUpTimedOutResponse) cborValue {
+func csilEncCleanUpTimedOutResponse(csilV CleanUpTimedOutResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 1)
 	csilEntries = append(csilEntries, cborEntry{cborText("timed_out"), cborInt(csilV.TimedOut)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecCleanUpTimedOutResponse reconstructs a CleanUpTimedOutResponse from a decoded CBOR value tree.
@@ -1577,8 +1832,8 @@ func csilDecCleanUpTimedOutResponse(csilRoot cborValue) (CleanUpTimedOutResponse
 }
 
 // EncodeCleanUpTimedOutResponse encodes a CleanUpTimedOutResponse to canonical CSIL CBOR bytes.
-func EncodeCleanUpTimedOutResponse(csilV CleanUpTimedOutResponse) []byte {
-	return cborEncode(csilEncCleanUpTimedOutResponse(csilV))
+func EncodeCleanUpTimedOutResponse(csilV CleanUpTimedOutResponse) ([]byte, error) {
+	return cborEncodeE(csilEncCleanUpTimedOutResponse(csilV, 0))
 }
 
 // DecodeCleanUpTimedOutResponse decodes canonical CSIL CBOR bytes into a CleanUpTimedOutResponse.
@@ -1592,9 +1847,12 @@ func DecodeCleanUpTimedOutResponse(csilData []byte) (CleanUpTimedOutResponse, er
 }
 
 // csilEncGetQueuesRequest builds the canonical CBOR value tree for a GetQueuesRequest.
-func csilEncGetQueuesRequest(csilV GetQueuesRequest) cborValue {
+func csilEncGetQueuesRequest(csilV GetQueuesRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 0)
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecGetQueuesRequest reconstructs a GetQueuesRequest from a decoded CBOR value tree.
@@ -1604,8 +1862,8 @@ func csilDecGetQueuesRequest(csilRoot cborValue) (GetQueuesRequest, error) {
 }
 
 // EncodeGetQueuesRequest encodes a GetQueuesRequest to canonical CSIL CBOR bytes.
-func EncodeGetQueuesRequest(csilV GetQueuesRequest) []byte {
-	return cborEncode(csilEncGetQueuesRequest(csilV))
+func EncodeGetQueuesRequest(csilV GetQueuesRequest) ([]byte, error) {
+	return cborEncodeE(csilEncGetQueuesRequest(csilV, 0))
 }
 
 // DecodeGetQueuesRequest decodes canonical CSIL CBOR bytes into a GetQueuesRequest.
@@ -1619,11 +1877,15 @@ func DecodeGetQueuesRequest(csilData []byte) (GetQueuesRequest, error) {
 }
 
 // csilEncGetQueuesResponse builds the canonical CBOR value tree for a GetQueuesResponse.
-func csilEncGetQueuesResponse(csilV GetQueuesResponse) cborValue {
+func csilEncGetQueuesResponse(csilV GetQueuesResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 2)
-	csilEntries = append(csilEntries, cborEntry{cborText("queues"), cborEncArray(csilV.Queues, func(csilElem string) cborValue { return cborText(csilElem) })})
+	csilEntries = append(csilEntries, cborEntry{cborText("queues"), csilE.val(cborEncArray(csilV.Queues, func(csilElem string) (cborValue, error) { return cborText(csilElem), nil }))})
 	csilEntries = append(csilEntries, cborEntry{cborText("total_task_count"), cborInt(csilV.TotalTaskCount)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecGetQueuesResponse reconstructs a GetQueuesResponse from a decoded CBOR value tree.
@@ -1655,8 +1917,8 @@ func csilDecGetQueuesResponse(csilRoot cborValue) (GetQueuesResponse, error) {
 }
 
 // EncodeGetQueuesResponse encodes a GetQueuesResponse to canonical CSIL CBOR bytes.
-func EncodeGetQueuesResponse(csilV GetQueuesResponse) []byte {
-	return cborEncode(csilEncGetQueuesResponse(csilV))
+func EncodeGetQueuesResponse(csilV GetQueuesResponse) ([]byte, error) {
+	return cborEncodeE(csilEncGetQueuesResponse(csilV, 0))
 }
 
 // DecodeGetQueuesResponse decodes canonical CSIL CBOR bytes into a GetQueuesResponse.
@@ -1670,9 +1932,12 @@ func DecodeGetQueuesResponse(csilData []byte) (GetQueuesResponse, error) {
 }
 
 // csilEncGetQueueTaskCountsRequest builds the canonical CBOR value tree for a GetQueueTaskCountsRequest.
-func csilEncGetQueueTaskCountsRequest(csilV GetQueueTaskCountsRequest) cborValue {
+func csilEncGetQueueTaskCountsRequest(csilV GetQueueTaskCountsRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 0)
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecGetQueueTaskCountsRequest reconstructs a GetQueueTaskCountsRequest from a decoded CBOR value tree.
@@ -1682,8 +1947,8 @@ func csilDecGetQueueTaskCountsRequest(csilRoot cborValue) (GetQueueTaskCountsReq
 }
 
 // EncodeGetQueueTaskCountsRequest encodes a GetQueueTaskCountsRequest to canonical CSIL CBOR bytes.
-func EncodeGetQueueTaskCountsRequest(csilV GetQueueTaskCountsRequest) []byte {
-	return cborEncode(csilEncGetQueueTaskCountsRequest(csilV))
+func EncodeGetQueueTaskCountsRequest(csilV GetQueueTaskCountsRequest) ([]byte, error) {
+	return cborEncodeE(csilEncGetQueueTaskCountsRequest(csilV, 0))
 }
 
 // DecodeGetQueueTaskCountsRequest decodes canonical CSIL CBOR bytes into a GetQueueTaskCountsRequest.
@@ -1697,11 +1962,15 @@ func DecodeGetQueueTaskCountsRequest(csilData []byte) (GetQueueTaskCountsRequest
 }
 
 // csilEncGetQueueTaskCountsResponse builds the canonical CBOR value tree for a GetQueueTaskCountsResponse.
-func csilEncGetQueueTaskCountsResponse(csilV GetQueueTaskCountsResponse) cborValue {
+func csilEncGetQueueTaskCountsResponse(csilV GetQueueTaskCountsResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 2)
-	csilEntries = append(csilEntries, cborEntry{cborText("queue_counts"), cborEncMap(csilV.QueueCounts, func(csilK string) cborValue { return cborText(csilK) }, func(csilV int64) cborValue { return cborInt(csilV) })})
+	csilEntries = append(csilEntries, cborEntry{cborText("queue_counts"), csilE.val(cborEncMap(csilV.QueueCounts, func(csilK string) (cborValue, error) { return cborText(csilK), nil }, func(csilV int64) (cborValue, error) { return cborInt(csilV), nil }))})
 	csilEntries = append(csilEntries, cborEntry{cborText("total_task_count"), cborInt(csilV.TotalTaskCount)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecGetQueueTaskCountsResponse reconstructs a GetQueueTaskCountsResponse from a decoded CBOR value tree.
@@ -1736,8 +2005,8 @@ func csilDecGetQueueTaskCountsResponse(csilRoot cborValue) (GetQueueTaskCountsRe
 }
 
 // EncodeGetQueueTaskCountsResponse encodes a GetQueueTaskCountsResponse to canonical CSIL CBOR bytes.
-func EncodeGetQueueTaskCountsResponse(csilV GetQueueTaskCountsResponse) []byte {
-	return cborEncode(csilEncGetQueueTaskCountsResponse(csilV))
+func EncodeGetQueueTaskCountsResponse(csilV GetQueueTaskCountsResponse) ([]byte, error) {
+	return cborEncodeE(csilEncGetQueueTaskCountsResponse(csilV, 0))
 }
 
 // DecodeGetQueueTaskCountsResponse decodes canonical CSIL CBOR bytes into a GetQueueTaskCountsResponse.
@@ -1751,10 +2020,13 @@ func DecodeGetQueueTaskCountsResponse(csilData []byte) (GetQueueTaskCountsRespon
 }
 
 // csilEncGetTaskStateCountsRequest builds the canonical CBOR value tree for a GetTaskStateCountsRequest.
-func csilEncGetTaskStateCountsRequest(csilV GetTaskStateCountsRequest) cborValue {
+func csilEncGetTaskStateCountsRequest(csilV GetTaskStateCountsRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 1)
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecGetTaskStateCountsRequest reconstructs a GetTaskStateCountsRequest from a decoded CBOR value tree.
@@ -1775,8 +2047,8 @@ func csilDecGetTaskStateCountsRequest(csilRoot cborValue) (GetTaskStateCountsReq
 }
 
 // EncodeGetTaskStateCountsRequest encodes a GetTaskStateCountsRequest to canonical CSIL CBOR bytes.
-func EncodeGetTaskStateCountsRequest(csilV GetTaskStateCountsRequest) []byte {
-	return cborEncode(csilEncGetTaskStateCountsRequest(csilV))
+func EncodeGetTaskStateCountsRequest(csilV GetTaskStateCountsRequest) ([]byte, error) {
+	return cborEncodeE(csilEncGetTaskStateCountsRequest(csilV, 0))
 }
 
 // DecodeGetTaskStateCountsRequest decodes canonical CSIL CBOR bytes into a GetTaskStateCountsRequest.
@@ -1790,12 +2062,16 @@ func DecodeGetTaskStateCountsRequest(csilData []byte) (GetTaskStateCountsRequest
 }
 
 // csilEncGetTaskStateCountsResponse builds the canonical CBOR value tree for a GetTaskStateCountsResponse.
-func csilEncGetTaskStateCountsResponse(csilV GetTaskStateCountsResponse) cborValue {
+func csilEncGetTaskStateCountsResponse(csilV GetTaskStateCountsResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 3)
 	csilEntries = append(csilEntries, cborEntry{cborText("count"), cborInt(csilV.Count)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
-	csilEntries = append(csilEntries, cborEntry{cborText("state_counts"), cborEncMap(csilV.StateCounts, func(csilK string) cborValue { return cborText(csilK) }, func(csilV int64) cborValue { return cborInt(csilV) })})
-	return csilEntries
+	csilEntries = append(csilEntries, cborEntry{cborText("state_counts"), csilE.val(cborEncMap(csilV.StateCounts, func(csilK string) (cborValue, error) { return cborText(csilK), nil }, func(csilV int64) (cborValue, error) { return cborInt(csilV), nil }))})
+	return csilE.result(csilEntries)
 }
 
 // csilDecGetTaskStateCountsResponse reconstructs a GetTaskStateCountsResponse from a decoded CBOR value tree.
@@ -1841,8 +2117,8 @@ func csilDecGetTaskStateCountsResponse(csilRoot cborValue) (GetTaskStateCountsRe
 }
 
 // EncodeGetTaskStateCountsResponse encodes a GetTaskStateCountsResponse to canonical CSIL CBOR bytes.
-func EncodeGetTaskStateCountsResponse(csilV GetTaskStateCountsResponse) []byte {
-	return cborEncode(csilEncGetTaskStateCountsResponse(csilV))
+func EncodeGetTaskStateCountsResponse(csilV GetTaskStateCountsResponse) ([]byte, error) {
+	return cborEncodeE(csilEncGetTaskStateCountsResponse(csilV, 0))
 }
 
 // DecodeGetTaskStateCountsResponse decodes canonical CSIL CBOR bytes into a GetTaskStateCountsResponse.
@@ -1856,12 +2132,16 @@ func DecodeGetTaskStateCountsResponse(csilData []byte) (GetTaskStateCountsRespon
 }
 
 // csilEncQueueAndStateCounts builds the canonical CBOR value tree for a QueueAndStateCounts.
-func csilEncQueueAndStateCounts(csilV QueueAndStateCounts) cborValue {
+func csilEncQueueAndStateCounts(csilV QueueAndStateCounts, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 3)
 	csilEntries = append(csilEntries, cborEntry{cborText("count"), cborInt(csilV.Count)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
-	csilEntries = append(csilEntries, cborEntry{cborText("state_counts"), cborEncMap(csilV.StateCounts, func(csilK string) cborValue { return cborText(csilK) }, func(csilV int64) cborValue { return cborInt(csilV) })})
-	return csilEntries
+	csilEntries = append(csilEntries, cborEntry{cborText("state_counts"), csilE.val(cborEncMap(csilV.StateCounts, func(csilK string) (cborValue, error) { return cborText(csilK), nil }, func(csilV int64) (cborValue, error) { return cborInt(csilV), nil }))})
+	return csilE.result(csilEntries)
 }
 
 // csilDecQueueAndStateCounts reconstructs a QueueAndStateCounts from a decoded CBOR value tree.
@@ -1907,8 +2187,8 @@ func csilDecQueueAndStateCounts(csilRoot cborValue) (QueueAndStateCounts, error)
 }
 
 // EncodeQueueAndStateCounts encodes a QueueAndStateCounts to canonical CSIL CBOR bytes.
-func EncodeQueueAndStateCounts(csilV QueueAndStateCounts) []byte {
-	return cborEncode(csilEncQueueAndStateCounts(csilV))
+func EncodeQueueAndStateCounts(csilV QueueAndStateCounts) ([]byte, error) {
+	return cborEncodeE(csilEncQueueAndStateCounts(csilV, 0))
 }
 
 // DecodeQueueAndStateCounts decodes canonical CSIL CBOR bytes into a QueueAndStateCounts.
@@ -1922,9 +2202,12 @@ func DecodeQueueAndStateCounts(csilData []byte) (QueueAndStateCounts, error) {
 }
 
 // csilEncGetQueueAndStateCountsRequest builds the canonical CBOR value tree for a GetQueueAndStateCountsRequest.
-func csilEncGetQueueAndStateCountsRequest(csilV GetQueueAndStateCountsRequest) cborValue {
+func csilEncGetQueueAndStateCountsRequest(csilV GetQueueAndStateCountsRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 0)
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecGetQueueAndStateCountsRequest reconstructs a GetQueueAndStateCountsRequest from a decoded CBOR value tree.
@@ -1934,8 +2217,8 @@ func csilDecGetQueueAndStateCountsRequest(csilRoot cborValue) (GetQueueAndStateC
 }
 
 // EncodeGetQueueAndStateCountsRequest encodes a GetQueueAndStateCountsRequest to canonical CSIL CBOR bytes.
-func EncodeGetQueueAndStateCountsRequest(csilV GetQueueAndStateCountsRequest) []byte {
-	return cborEncode(csilEncGetQueueAndStateCountsRequest(csilV))
+func EncodeGetQueueAndStateCountsRequest(csilV GetQueueAndStateCountsRequest) ([]byte, error) {
+	return cborEncodeE(csilEncGetQueueAndStateCountsRequest(csilV, 0))
 }
 
 // DecodeGetQueueAndStateCountsRequest decodes canonical CSIL CBOR bytes into a GetQueueAndStateCountsRequest.
@@ -1949,10 +2232,16 @@ func DecodeGetQueueAndStateCountsRequest(csilData []byte) (GetQueueAndStateCount
 }
 
 // csilEncGetQueueAndStateCountsResponse builds the canonical CBOR value tree for a GetQueueAndStateCountsResponse.
-func csilEncGetQueueAndStateCountsResponse(csilV GetQueueAndStateCountsResponse) cborValue {
+func csilEncGetQueueAndStateCountsResponse(csilV GetQueueAndStateCountsResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 1)
-	csilEntries = append(csilEntries, cborEntry{cborText("queue_and_state_counts"), cborEncMap(csilV.QueueAndStateCounts, func(csilK string) cborValue { return cborText(csilK) }, func(csilV QueueAndStateCounts) cborValue { return csilEncQueueAndStateCounts(csilV) })})
-	return csilEntries
+	csilEntries = append(csilEntries, cborEntry{cborText("queue_and_state_counts"), csilE.val(cborEncMap(csilV.QueueAndStateCounts, func(csilK string) (cborValue, error) { return cborText(csilK), nil }, func(csilV QueueAndStateCounts) (cborValue, error) {
+		return csilEncQueueAndStateCounts(csilV, csilDepth+1)
+	}))})
+	return csilE.result(csilEntries)
 }
 
 // csilDecGetQueueAndStateCountsResponse reconstructs a GetQueueAndStateCountsResponse from a decoded CBOR value tree.
@@ -1978,8 +2267,8 @@ func csilDecGetQueueAndStateCountsResponse(csilRoot cborValue) (GetQueueAndState
 }
 
 // EncodeGetQueueAndStateCountsResponse encodes a GetQueueAndStateCountsResponse to canonical CSIL CBOR bytes.
-func EncodeGetQueueAndStateCountsResponse(csilV GetQueueAndStateCountsResponse) []byte {
-	return cborEncode(csilEncGetQueueAndStateCountsResponse(csilV))
+func EncodeGetQueueAndStateCountsResponse(csilV GetQueueAndStateCountsResponse) ([]byte, error) {
+	return cborEncodeE(csilEncGetQueueAndStateCountsResponse(csilV, 0))
 }
 
 // DecodeGetQueueAndStateCountsResponse decodes canonical CSIL CBOR bytes into a GetQueueAndStateCountsResponse.
@@ -1993,9 +2282,12 @@ func DecodeGetQueueAndStateCountsResponse(csilData []byte) (GetQueueAndStateCoun
 }
 
 // csilEncGetServerInfoRequest builds the canonical CBOR value tree for a GetServerInfoRequest.
-func csilEncGetServerInfoRequest(csilV GetServerInfoRequest) cborValue {
+func csilEncGetServerInfoRequest(csilV GetServerInfoRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 0)
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecGetServerInfoRequest reconstructs a GetServerInfoRequest from a decoded CBOR value tree.
@@ -2005,8 +2297,8 @@ func csilDecGetServerInfoRequest(csilRoot cborValue) (GetServerInfoRequest, erro
 }
 
 // EncodeGetServerInfoRequest encodes a GetServerInfoRequest to canonical CSIL CBOR bytes.
-func EncodeGetServerInfoRequest(csilV GetServerInfoRequest) []byte {
-	return cborEncode(csilEncGetServerInfoRequest(csilV))
+func EncodeGetServerInfoRequest(csilV GetServerInfoRequest) ([]byte, error) {
+	return cborEncodeE(csilEncGetServerInfoRequest(csilV, 0))
 }
 
 // DecodeGetServerInfoRequest decodes canonical CSIL CBOR bytes into a GetServerInfoRequest.
@@ -2020,14 +2312,18 @@ func DecodeGetServerInfoRequest(csilData []byte) (GetServerInfoRequest, error) {
 }
 
 // csilEncGetServerInfoResponse builds the canonical CBOR value tree for a GetServerInfoResponse.
-func csilEncGetServerInfoResponse(csilV GetServerInfoResponse) cborValue {
+func csilEncGetServerInfoResponse(csilV GetServerInfoResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 5)
-	csilEntries = append(csilEntries, cborEntry{cborText("features"), cborEncArray(csilV.Features, func(csilElem string) cborValue { return cborText(csilElem) })})
+	csilEntries = append(csilEntries, cborEntry{cborText("features"), csilE.val(cborEncArray(csilV.Features, func(csilElem string) (cborValue, error) { return cborText(csilElem), nil }))})
 	csilEntries = append(csilEntries, cborEntry{cborText("server_version"), cborText(csilV.ServerVersion)})
 	csilEntries = append(csilEntries, cborEntry{cborText("task_guard_policy"), cborText(csilV.TaskGuardPolicy)})
 	csilEntries = append(csilEntries, cborEntry{cborText("submission_key_policy"), cborText(csilV.SubmissionKeyPolicy)})
 	csilEntries = append(csilEntries, cborEntry{cborText("receipt_retention_seconds"), cborInt(csilV.ReceiptRetentionSeconds)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecGetServerInfoResponse reconstructs a GetServerInfoResponse from a decoded CBOR value tree.
@@ -2092,8 +2388,8 @@ func csilDecGetServerInfoResponse(csilRoot cborValue) (GetServerInfoResponse, er
 }
 
 // EncodeGetServerInfoResponse encodes a GetServerInfoResponse to canonical CSIL CBOR bytes.
-func EncodeGetServerInfoResponse(csilV GetServerInfoResponse) []byte {
-	return cborEncode(csilEncGetServerInfoResponse(csilV))
+func EncodeGetServerInfoResponse(csilV GetServerInfoResponse) ([]byte, error) {
+	return cborEncodeE(csilEncGetServerInfoResponse(csilV, 0))
 }
 
 // DecodeGetServerInfoResponse decodes canonical CSIL CBOR bytes into a GetServerInfoResponse.
@@ -2107,13 +2403,17 @@ func DecodeGetServerInfoResponse(csilData []byte) (GetServerInfoResponse, error)
 }
 
 // csilEncGuardedTask builds the canonical CBOR value tree for a GuardedTask.
-func csilEncGuardedTask(csilV GuardedTask) cborValue {
+func csilEncGuardedTask(csilV GuardedTask, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 4)
-	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncTask(csilV.Task, csilDepth+1))})
 	csilEntries = append(csilEntries, cborEntry{cborText("guarded"), cborBool(csilV.Guarded)})
 	csilEntries = append(csilEntries, cborEntry{cborText("revision"), cborInt(csilV.Revision)})
 	csilEntries = append(csilEntries, cborEntry{cborText("terminal"), cborBool(csilV.Terminal)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecGuardedTask reconstructs a GuardedTask from a decoded CBOR value tree.
@@ -2167,8 +2467,8 @@ func csilDecGuardedTask(csilRoot cborValue) (GuardedTask, error) {
 }
 
 // EncodeGuardedTask encodes a GuardedTask to canonical CSIL CBOR bytes.
-func EncodeGuardedTask(csilV GuardedTask) []byte {
-	return cborEncode(csilEncGuardedTask(csilV))
+func EncodeGuardedTask(csilV GuardedTask) ([]byte, error) {
+	return cborEncodeE(csilEncGuardedTask(csilV, 0))
 }
 
 // DecodeGuardedTask decodes canonical CSIL CBOR bytes into a GuardedTask.
@@ -2182,7 +2482,10 @@ func DecodeGuardedTask(csilData []byte) (GuardedTask, error) {
 }
 
 // csilEncSubmissionReceipt builds the canonical CBOR value tree for a SubmissionReceipt.
-func csilEncSubmissionReceipt(csilV SubmissionReceipt) cborValue {
+func csilEncSubmissionReceipt(csilV SubmissionReceipt, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 6)
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
 	csilEntries = append(csilEntries, cborEntry{cborText("guarded"), cborBool(csilV.Guarded)})
@@ -2190,7 +2493,7 @@ func csilEncSubmissionReceipt(csilV SubmissionReceipt) cborValue {
 	csilEntries = append(csilEntries, cborEntry{cborText("expires_at"), cborInt(csilV.ExpiresAt)})
 	csilEntries = append(csilEntries, cborEntry{cborText("accepted_at"), cborInt(csilV.AcceptedAt)})
 	csilEntries = append(csilEntries, cborEntry{cborText("submission_key"), cborText(csilV.SubmissionKey)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecSubmissionReceipt reconstructs a SubmissionReceipt from a decoded CBOR value tree.
@@ -2266,8 +2569,8 @@ func csilDecSubmissionReceipt(csilRoot cborValue) (SubmissionReceipt, error) {
 }
 
 // EncodeSubmissionReceipt encodes a SubmissionReceipt to canonical CSIL CBOR bytes.
-func EncodeSubmissionReceipt(csilV SubmissionReceipt) []byte {
-	return cborEncode(csilEncSubmissionReceipt(csilV))
+func EncodeSubmissionReceipt(csilV SubmissionReceipt) ([]byte, error) {
+	return cborEncodeE(csilEncSubmissionReceipt(csilV, 0))
 }
 
 // DecodeSubmissionReceipt decodes canonical CSIL CBOR bytes into a SubmissionReceipt.
@@ -2281,7 +2584,10 @@ func DecodeSubmissionReceipt(csilData []byte) (SubmissionReceipt, error) {
 }
 
 // csilEncSubmitKeyedTaskRequest builds the canonical CBOR value tree for a SubmitKeyedTaskRequest.
-func csilEncSubmitKeyedTaskRequest(csilV SubmitKeyedTaskRequest) cborValue {
+func csilEncSubmitKeyedTaskRequest(csilV SubmitKeyedTaskRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 8)
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
 	csilEntries = append(csilEntries, cborEntry{cborText("guarded"), cborBool(csilV.Guarded)})
@@ -2291,7 +2597,7 @@ func csilEncSubmitKeyedTaskRequest(csilV SubmitKeyedTaskRequest) cborValue {
 	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("submission_key"), cborText(csilV.SubmissionKey)})
 	csilEntries = append(csilEntries, cborEntry{cborText("auto_target_state"), cborText(csilV.AutoTargetState)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecSubmitKeyedTaskRequest reconstructs a SubmitKeyedTaskRequest from a decoded CBOR value tree.
@@ -2389,8 +2695,8 @@ func csilDecSubmitKeyedTaskRequest(csilRoot cborValue) (SubmitKeyedTaskRequest, 
 }
 
 // EncodeSubmitKeyedTaskRequest encodes a SubmitKeyedTaskRequest to canonical CSIL CBOR bytes.
-func EncodeSubmitKeyedTaskRequest(csilV SubmitKeyedTaskRequest) []byte {
-	return cborEncode(csilEncSubmitKeyedTaskRequest(csilV))
+func EncodeSubmitKeyedTaskRequest(csilV SubmitKeyedTaskRequest) ([]byte, error) {
+	return cborEncodeE(csilEncSubmitKeyedTaskRequest(csilV, 0))
 }
 
 // DecodeSubmitKeyedTaskRequest decodes canonical CSIL CBOR bytes into a SubmitKeyedTaskRequest.
@@ -2404,14 +2710,18 @@ func DecodeSubmitKeyedTaskRequest(csilData []byte) (SubmitKeyedTaskRequest, erro
 }
 
 // csilEncSubmitKeyedTaskResponse builds the canonical CBOR value tree for a SubmitKeyedTaskResponse.
-func csilEncSubmitKeyedTaskResponse(csilV SubmitKeyedTaskResponse) cborValue {
+func csilEncSubmitKeyedTaskResponse(csilV SubmitKeyedTaskResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 3)
 	if csilV.Task != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask((*csilV.Task))})
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncGuardedTask((*csilV.Task), csilDepth+1))})
 	}
-	csilEntries = append(csilEntries, cborEntry{cborText("receipt"), csilEncSubmissionReceipt(csilV.Receipt)})
+	csilEntries = append(csilEntries, cborEntry{cborText("receipt"), csilE.val(csilEncSubmissionReceipt(csilV.Receipt, csilDepth+1))})
 	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecSubmitKeyedTaskResponse reconstructs a SubmitKeyedTaskResponse from a decoded CBOR value tree.
@@ -2450,8 +2760,8 @@ func csilDecSubmitKeyedTaskResponse(csilRoot cborValue) (SubmitKeyedTaskResponse
 }
 
 // EncodeSubmitKeyedTaskResponse encodes a SubmitKeyedTaskResponse to canonical CSIL CBOR bytes.
-func EncodeSubmitKeyedTaskResponse(csilV SubmitKeyedTaskResponse) []byte {
-	return cborEncode(csilEncSubmitKeyedTaskResponse(csilV))
+func EncodeSubmitKeyedTaskResponse(csilV SubmitKeyedTaskResponse) ([]byte, error) {
+	return cborEncodeE(csilEncSubmitKeyedTaskResponse(csilV, 0))
 }
 
 // DecodeSubmitKeyedTaskResponse decodes canonical CSIL CBOR bytes into a SubmitKeyedTaskResponse.
@@ -2465,11 +2775,14 @@ func DecodeSubmitKeyedTaskResponse(csilData []byte) (SubmitKeyedTaskResponse, er
 }
 
 // csilEncLookupSubmissionRequest builds the canonical CBOR value tree for a LookupSubmissionRequest.
-func csilEncLookupSubmissionRequest(csilV LookupSubmissionRequest) cborValue {
+func csilEncLookupSubmissionRequest(csilV LookupSubmissionRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 2)
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
 	csilEntries = append(csilEntries, cborEntry{cborText("submission_key"), cborText(csilV.SubmissionKey)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecLookupSubmissionRequest reconstructs a LookupSubmissionRequest from a decoded CBOR value tree.
@@ -2501,8 +2814,8 @@ func csilDecLookupSubmissionRequest(csilRoot cborValue) (LookupSubmissionRequest
 }
 
 // EncodeLookupSubmissionRequest encodes a LookupSubmissionRequest to canonical CSIL CBOR bytes.
-func EncodeLookupSubmissionRequest(csilV LookupSubmissionRequest) []byte {
-	return cborEncode(csilEncLookupSubmissionRequest(csilV))
+func EncodeLookupSubmissionRequest(csilV LookupSubmissionRequest) ([]byte, error) {
+	return cborEncodeE(csilEncLookupSubmissionRequest(csilV, 0))
 }
 
 // DecodeLookupSubmissionRequest decodes canonical CSIL CBOR bytes into a LookupSubmissionRequest.
@@ -2516,15 +2829,19 @@ func DecodeLookupSubmissionRequest(csilData []byte) (LookupSubmissionRequest, er
 }
 
 // csilEncLookupSubmissionResponse builds the canonical CBOR value tree for a LookupSubmissionResponse.
-func csilEncLookupSubmissionResponse(csilV LookupSubmissionResponse) cborValue {
+func csilEncLookupSubmissionResponse(csilV LookupSubmissionResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 2)
 	if csilV.Task != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask((*csilV.Task))})
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncGuardedTask((*csilV.Task), csilDepth+1))})
 	}
 	if csilV.Receipt != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("receipt"), csilEncSubmissionReceipt((*csilV.Receipt))})
+		csilEntries = append(csilEntries, cborEntry{cborText("receipt"), csilE.val(csilEncSubmissionReceipt((*csilV.Receipt), csilDepth+1))})
 	}
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecLookupSubmissionResponse reconstructs a LookupSubmissionResponse from a decoded CBOR value tree.
@@ -2548,8 +2865,8 @@ func csilDecLookupSubmissionResponse(csilRoot cborValue) (LookupSubmissionRespon
 }
 
 // EncodeLookupSubmissionResponse encodes a LookupSubmissionResponse to canonical CSIL CBOR bytes.
-func EncodeLookupSubmissionResponse(csilV LookupSubmissionResponse) []byte {
-	return cborEncode(csilEncLookupSubmissionResponse(csilV))
+func EncodeLookupSubmissionResponse(csilV LookupSubmissionResponse) ([]byte, error) {
+	return cborEncodeE(csilEncLookupSubmissionResponse(csilV, 0))
 }
 
 // DecodeLookupSubmissionResponse decodes canonical CSIL CBOR bytes into a LookupSubmissionResponse.
@@ -2563,7 +2880,10 @@ func DecodeLookupSubmissionResponse(csilData []byte) (LookupSubmissionResponse, 
 }
 
 // csilEncClaimGuardedTaskRequest builds the canonical CBOR value tree for a ClaimGuardedTaskRequest.
-func csilEncClaimGuardedTaskRequest(csilV ClaimGuardedTaskRequest) cborValue {
+func csilEncClaimGuardedTaskRequest(csilV ClaimGuardedTaskRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 6)
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
 	csilEntries = append(csilEntries, cborEntry{cborText("operation_id"), cborText(csilV.OperationId)})
@@ -2571,7 +2891,7 @@ func csilEncClaimGuardedTaskRequest(csilV ClaimGuardedTaskRequest) cborValue {
 	csilEntries = append(csilEntries, cborEntry{cborText("override_timeout"), cborInt(csilV.OverrideTimeout)})
 	csilEntries = append(csilEntries, cborEntry{cborText("override_current_state"), cborText(csilV.OverrideCurrentState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("override_auto_target_state"), cborText(csilV.OverrideAutoTargetState)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecClaimGuardedTaskRequest reconstructs a ClaimGuardedTaskRequest from a decoded CBOR value tree.
@@ -2647,8 +2967,8 @@ func csilDecClaimGuardedTaskRequest(csilRoot cborValue) (ClaimGuardedTaskRequest
 }
 
 // EncodeClaimGuardedTaskRequest encodes a ClaimGuardedTaskRequest to canonical CSIL CBOR bytes.
-func EncodeClaimGuardedTaskRequest(csilV ClaimGuardedTaskRequest) []byte {
-	return cborEncode(csilEncClaimGuardedTaskRequest(csilV))
+func EncodeClaimGuardedTaskRequest(csilV ClaimGuardedTaskRequest) ([]byte, error) {
+	return cborEncodeE(csilEncClaimGuardedTaskRequest(csilV, 0))
 }
 
 // DecodeClaimGuardedTaskRequest decodes canonical CSIL CBOR bytes into a ClaimGuardedTaskRequest.
@@ -2662,11 +2982,15 @@ func DecodeClaimGuardedTaskRequest(csilData []byte) (ClaimGuardedTaskRequest, er
 }
 
 // csilEncGuardedDelivery builds the canonical CBOR value tree for a GuardedDelivery.
-func csilEncGuardedDelivery(csilV GuardedDelivery) cborValue {
+func csilEncGuardedDelivery(csilV GuardedDelivery, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 2)
-	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncGuardedTask(csilV.Task, csilDepth+1))})
 	csilEntries = append(csilEntries, cborEntry{cborText("payload"), cborBytes(csilV.Payload)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecGuardedDelivery reconstructs a GuardedDelivery from a decoded CBOR value tree.
@@ -2698,8 +3022,8 @@ func csilDecGuardedDelivery(csilRoot cborValue) (GuardedDelivery, error) {
 }
 
 // EncodeGuardedDelivery encodes a GuardedDelivery to canonical CSIL CBOR bytes.
-func EncodeGuardedDelivery(csilV GuardedDelivery) []byte {
-	return cborEncode(csilEncGuardedDelivery(csilV))
+func EncodeGuardedDelivery(csilV GuardedDelivery) ([]byte, error) {
+	return cborEncodeE(csilEncGuardedDelivery(csilV, 0))
 }
 
 // DecodeGuardedDelivery decodes canonical CSIL CBOR bytes into a GuardedDelivery.
@@ -2713,13 +3037,17 @@ func DecodeGuardedDelivery(csilData []byte) (GuardedDelivery, error) {
 }
 
 // csilEncClaimGuardedTaskResponse builds the canonical CBOR value tree for a ClaimGuardedTaskResponse.
-func csilEncClaimGuardedTaskResponse(csilV ClaimGuardedTaskResponse) cborValue {
+func csilEncClaimGuardedTaskResponse(csilV ClaimGuardedTaskResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 2)
 	if csilV.Delivery != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilEncGuardedDelivery((*csilV.Delivery))})
+		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilE.val(csilEncGuardedDelivery((*csilV.Delivery), csilDepth+1))})
 	}
 	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecClaimGuardedTaskResponse reconstructs a ClaimGuardedTaskResponse from a decoded CBOR value tree.
@@ -2747,8 +3075,8 @@ func csilDecClaimGuardedTaskResponse(csilRoot cborValue) (ClaimGuardedTaskRespon
 }
 
 // EncodeClaimGuardedTaskResponse encodes a ClaimGuardedTaskResponse to canonical CSIL CBOR bytes.
-func EncodeClaimGuardedTaskResponse(csilV ClaimGuardedTaskResponse) []byte {
-	return cborEncode(csilEncClaimGuardedTaskResponse(csilV))
+func EncodeClaimGuardedTaskResponse(csilV ClaimGuardedTaskResponse) ([]byte, error) {
+	return cborEncodeE(csilEncClaimGuardedTaskResponse(csilV, 0))
 }
 
 // DecodeClaimGuardedTaskResponse decodes canonical CSIL CBOR bytes into a ClaimGuardedTaskResponse.
@@ -2762,15 +3090,19 @@ func DecodeClaimGuardedTaskResponse(csilData []byte) (ClaimGuardedTaskResponse, 
 }
 
 // csilEncClaimGuardedTaskGroupRequest builds the canonical CBOR value tree for a ClaimGuardedTaskGroupRequest.
-func csilEncClaimGuardedTaskGroupRequest(csilV ClaimGuardedTaskGroupRequest) cborValue {
+func csilEncClaimGuardedTaskGroupRequest(csilV ClaimGuardedTaskGroupRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 6)
-	csilEntries = append(csilEntries, cborEntry{cborText("queues"), cborEncArray(csilV.Queues, func(csilElem string) cborValue { return cborText(csilElem) })})
+	csilEntries = append(csilEntries, cborEntry{cborText("queues"), csilE.val(cborEncArray(csilV.Queues, func(csilElem string) (cborValue, error) { return cborText(csilElem), nil }))})
 	csilEntries = append(csilEntries, cborEntry{cborText("operation_id"), cborText(csilV.OperationId)})
 	csilEntries = append(csilEntries, cborEntry{cborText("current_state"), cborText(csilV.CurrentState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("override_timeout"), cborInt(csilV.OverrideTimeout)})
 	csilEntries = append(csilEntries, cborEntry{cborText("override_current_state"), cborText(csilV.OverrideCurrentState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("override_auto_target_state"), cborText(csilV.OverrideAutoTargetState)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecClaimGuardedTaskGroupRequest reconstructs a ClaimGuardedTaskGroupRequest from a decoded CBOR value tree.
@@ -2846,8 +3178,8 @@ func csilDecClaimGuardedTaskGroupRequest(csilRoot cborValue) (ClaimGuardedTaskGr
 }
 
 // EncodeClaimGuardedTaskGroupRequest encodes a ClaimGuardedTaskGroupRequest to canonical CSIL CBOR bytes.
-func EncodeClaimGuardedTaskGroupRequest(csilV ClaimGuardedTaskGroupRequest) []byte {
-	return cborEncode(csilEncClaimGuardedTaskGroupRequest(csilV))
+func EncodeClaimGuardedTaskGroupRequest(csilV ClaimGuardedTaskGroupRequest) ([]byte, error) {
+	return cborEncodeE(csilEncClaimGuardedTaskGroupRequest(csilV, 0))
 }
 
 // DecodeClaimGuardedTaskGroupRequest decodes canonical CSIL CBOR bytes into a ClaimGuardedTaskGroupRequest.
@@ -2861,13 +3193,17 @@ func DecodeClaimGuardedTaskGroupRequest(csilData []byte) (ClaimGuardedTaskGroupR
 }
 
 // csilEncClaimGuardedTaskGroupResponse builds the canonical CBOR value tree for a ClaimGuardedTaskGroupResponse.
-func csilEncClaimGuardedTaskGroupResponse(csilV ClaimGuardedTaskGroupResponse) cborValue {
+func csilEncClaimGuardedTaskGroupResponse(csilV ClaimGuardedTaskGroupResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 2)
 	if csilV.Delivery != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilEncGuardedDelivery((*csilV.Delivery))})
+		csilEntries = append(csilEntries, cborEntry{cborText("delivery"), csilE.val(csilEncGuardedDelivery((*csilV.Delivery), csilDepth+1))})
 	}
 	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecClaimGuardedTaskGroupResponse reconstructs a ClaimGuardedTaskGroupResponse from a decoded CBOR value tree.
@@ -2895,8 +3231,8 @@ func csilDecClaimGuardedTaskGroupResponse(csilRoot cborValue) (ClaimGuardedTaskG
 }
 
 // EncodeClaimGuardedTaskGroupResponse encodes a ClaimGuardedTaskGroupResponse to canonical CSIL CBOR bytes.
-func EncodeClaimGuardedTaskGroupResponse(csilV ClaimGuardedTaskGroupResponse) []byte {
-	return cborEncode(csilEncClaimGuardedTaskGroupResponse(csilV))
+func EncodeClaimGuardedTaskGroupResponse(csilV ClaimGuardedTaskGroupResponse) ([]byte, error) {
+	return cborEncodeE(csilEncClaimGuardedTaskGroupResponse(csilV, 0))
 }
 
 // DecodeClaimGuardedTaskGroupResponse decodes canonical CSIL CBOR bytes into a ClaimGuardedTaskGroupResponse.
@@ -2910,7 +3246,10 @@ func DecodeClaimGuardedTaskGroupResponse(csilData []byte) (ClaimGuardedTaskGroup
 }
 
 // csilEncUpdateGuardedTaskRequest builds the canonical CBOR value tree for a UpdateGuardedTaskRequest.
-func csilEncUpdateGuardedTaskRequest(csilV UpdateGuardedTaskRequest) cborValue {
+func csilEncUpdateGuardedTaskRequest(csilV UpdateGuardedTaskRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 10)
 	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
@@ -2928,7 +3267,7 @@ func csilEncUpdateGuardedTaskRequest(csilV UpdateGuardedTaskRequest) cborValue {
 	}
 	csilEntries = append(csilEntries, cborEntry{cborText("auto_target_state"), cborText(csilV.AutoTargetState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("expected_revision"), cborInt(csilV.ExpectedRevision)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecUpdateGuardedTaskRequest reconstructs a UpdateGuardedTaskRequest from a decoded CBOR value tree.
@@ -3036,8 +3375,8 @@ func csilDecUpdateGuardedTaskRequest(csilRoot cborValue) (UpdateGuardedTaskReque
 }
 
 // EncodeUpdateGuardedTaskRequest encodes a UpdateGuardedTaskRequest to canonical CSIL CBOR bytes.
-func EncodeUpdateGuardedTaskRequest(csilV UpdateGuardedTaskRequest) []byte {
-	return cborEncode(csilEncUpdateGuardedTaskRequest(csilV))
+func EncodeUpdateGuardedTaskRequest(csilV UpdateGuardedTaskRequest) ([]byte, error) {
+	return cborEncodeE(csilEncUpdateGuardedTaskRequest(csilV, 0))
 }
 
 // DecodeUpdateGuardedTaskRequest decodes canonical CSIL CBOR bytes into a UpdateGuardedTaskRequest.
@@ -3051,11 +3390,15 @@ func DecodeUpdateGuardedTaskRequest(csilData []byte) (UpdateGuardedTaskRequest, 
 }
 
 // csilEncUpdateGuardedTaskResponse builds the canonical CBOR value tree for a UpdateGuardedTaskResponse.
-func csilEncUpdateGuardedTaskResponse(csilV UpdateGuardedTaskResponse) cborValue {
+func csilEncUpdateGuardedTaskResponse(csilV UpdateGuardedTaskResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 2)
-	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncGuardedTask(csilV.Task, csilDepth+1))})
 	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecUpdateGuardedTaskResponse reconstructs a UpdateGuardedTaskResponse from a decoded CBOR value tree.
@@ -3087,8 +3430,8 @@ func csilDecUpdateGuardedTaskResponse(csilRoot cborValue) (UpdateGuardedTaskResp
 }
 
 // EncodeUpdateGuardedTaskResponse encodes a UpdateGuardedTaskResponse to canonical CSIL CBOR bytes.
-func EncodeUpdateGuardedTaskResponse(csilV UpdateGuardedTaskResponse) []byte {
-	return cborEncode(csilEncUpdateGuardedTaskResponse(csilV))
+func EncodeUpdateGuardedTaskResponse(csilV UpdateGuardedTaskResponse) ([]byte, error) {
+	return cborEncodeE(csilEncUpdateGuardedTaskResponse(csilV, 0))
 }
 
 // DecodeUpdateGuardedTaskResponse decodes canonical CSIL CBOR bytes into a UpdateGuardedTaskResponse.
@@ -3102,7 +3445,10 @@ func DecodeUpdateGuardedTaskResponse(csilData []byte) (UpdateGuardedTaskResponse
 }
 
 // csilEncCompleteGuardedTaskRequest builds the canonical CBOR value tree for a CompleteGuardedTaskRequest.
-func csilEncCompleteGuardedTaskRequest(csilV CompleteGuardedTaskRequest) cborValue {
+func csilEncCompleteGuardedTaskRequest(csilV CompleteGuardedTaskRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 5)
 	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
@@ -3111,7 +3457,7 @@ func csilEncCompleteGuardedTaskRequest(csilV CompleteGuardedTaskRequest) cborVal
 		csilEntries = append(csilEntries, cborEntry{cborText("expected_state"), cborText((*csilV.ExpectedState))})
 	}
 	csilEntries = append(csilEntries, cborEntry{cborText("expected_revision"), cborInt(csilV.ExpectedRevision)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecCompleteGuardedTaskRequest reconstructs a CompleteGuardedTaskRequest from a decoded CBOR value tree.
@@ -3172,8 +3518,8 @@ func csilDecCompleteGuardedTaskRequest(csilRoot cborValue) (CompleteGuardedTaskR
 }
 
 // EncodeCompleteGuardedTaskRequest encodes a CompleteGuardedTaskRequest to canonical CSIL CBOR bytes.
-func EncodeCompleteGuardedTaskRequest(csilV CompleteGuardedTaskRequest) []byte {
-	return cborEncode(csilEncCompleteGuardedTaskRequest(csilV))
+func EncodeCompleteGuardedTaskRequest(csilV CompleteGuardedTaskRequest) ([]byte, error) {
+	return cborEncodeE(csilEncCompleteGuardedTaskRequest(csilV, 0))
 }
 
 // DecodeCompleteGuardedTaskRequest decodes canonical CSIL CBOR bytes into a CompleteGuardedTaskRequest.
@@ -3187,11 +3533,15 @@ func DecodeCompleteGuardedTaskRequest(csilData []byte) (CompleteGuardedTaskReque
 }
 
 // csilEncCompleteGuardedTaskResponse builds the canonical CBOR value tree for a CompleteGuardedTaskResponse.
-func csilEncCompleteGuardedTaskResponse(csilV CompleteGuardedTaskResponse) cborValue {
+func csilEncCompleteGuardedTaskResponse(csilV CompleteGuardedTaskResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 2)
-	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncGuardedTask(csilV.Task, csilDepth+1))})
 	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecCompleteGuardedTaskResponse reconstructs a CompleteGuardedTaskResponse from a decoded CBOR value tree.
@@ -3223,8 +3573,8 @@ func csilDecCompleteGuardedTaskResponse(csilRoot cborValue) (CompleteGuardedTask
 }
 
 // EncodeCompleteGuardedTaskResponse encodes a CompleteGuardedTaskResponse to canonical CSIL CBOR bytes.
-func EncodeCompleteGuardedTaskResponse(csilV CompleteGuardedTaskResponse) []byte {
-	return cborEncode(csilEncCompleteGuardedTaskResponse(csilV))
+func EncodeCompleteGuardedTaskResponse(csilV CompleteGuardedTaskResponse) ([]byte, error) {
+	return cborEncodeE(csilEncCompleteGuardedTaskResponse(csilV, 0))
 }
 
 // DecodeCompleteGuardedTaskResponse decodes canonical CSIL CBOR bytes into a CompleteGuardedTaskResponse.
@@ -3238,7 +3588,10 @@ func DecodeCompleteGuardedTaskResponse(csilData []byte) (CompleteGuardedTaskResp
 }
 
 // csilEncCancelGuardedTaskRequest builds the canonical CBOR value tree for a CancelGuardedTaskRequest.
-func csilEncCancelGuardedTaskRequest(csilV CancelGuardedTaskRequest) cborValue {
+func csilEncCancelGuardedTaskRequest(csilV CancelGuardedTaskRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 5)
 	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
@@ -3247,7 +3600,7 @@ func csilEncCancelGuardedTaskRequest(csilV CancelGuardedTaskRequest) cborValue {
 		csilEntries = append(csilEntries, cborEntry{cborText("expected_state"), cborText((*csilV.ExpectedState))})
 	}
 	csilEntries = append(csilEntries, cborEntry{cborText("expected_revision"), cborInt(csilV.ExpectedRevision)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecCancelGuardedTaskRequest reconstructs a CancelGuardedTaskRequest from a decoded CBOR value tree.
@@ -3308,8 +3661,8 @@ func csilDecCancelGuardedTaskRequest(csilRoot cborValue) (CancelGuardedTaskReque
 }
 
 // EncodeCancelGuardedTaskRequest encodes a CancelGuardedTaskRequest to canonical CSIL CBOR bytes.
-func EncodeCancelGuardedTaskRequest(csilV CancelGuardedTaskRequest) []byte {
-	return cborEncode(csilEncCancelGuardedTaskRequest(csilV))
+func EncodeCancelGuardedTaskRequest(csilV CancelGuardedTaskRequest) ([]byte, error) {
+	return cborEncodeE(csilEncCancelGuardedTaskRequest(csilV, 0))
 }
 
 // DecodeCancelGuardedTaskRequest decodes canonical CSIL CBOR bytes into a CancelGuardedTaskRequest.
@@ -3323,11 +3676,15 @@ func DecodeCancelGuardedTaskRequest(csilData []byte) (CancelGuardedTaskRequest, 
 }
 
 // csilEncCancelGuardedTaskResponse builds the canonical CBOR value tree for a CancelGuardedTaskResponse.
-func csilEncCancelGuardedTaskResponse(csilV CancelGuardedTaskResponse) cborValue {
+func csilEncCancelGuardedTaskResponse(csilV CancelGuardedTaskResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 2)
-	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask(csilV.Task)})
+	csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncGuardedTask(csilV.Task, csilDepth+1))})
 	csilEntries = append(csilEntries, cborEntry{cborText("replayed"), cborBool(csilV.Replayed)})
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecCancelGuardedTaskResponse reconstructs a CancelGuardedTaskResponse from a decoded CBOR value tree.
@@ -3359,8 +3716,8 @@ func csilDecCancelGuardedTaskResponse(csilRoot cborValue) (CancelGuardedTaskResp
 }
 
 // EncodeCancelGuardedTaskResponse encodes a CancelGuardedTaskResponse to canonical CSIL CBOR bytes.
-func EncodeCancelGuardedTaskResponse(csilV CancelGuardedTaskResponse) []byte {
-	return cborEncode(csilEncCancelGuardedTaskResponse(csilV))
+func EncodeCancelGuardedTaskResponse(csilV CancelGuardedTaskResponse) ([]byte, error) {
+	return cborEncodeE(csilEncCancelGuardedTaskResponse(csilV, 0))
 }
 
 // DecodeCancelGuardedTaskResponse decodes canonical CSIL CBOR bytes into a CancelGuardedTaskResponse.
@@ -3374,11 +3731,14 @@ func DecodeCancelGuardedTaskResponse(csilData []byte) (CancelGuardedTaskResponse
 }
 
 // csilEncGetGuardedTaskRequest builds the canonical CBOR value tree for a GetGuardedTaskRequest.
-func csilEncGetGuardedTaskRequest(csilV GetGuardedTaskRequest) cborValue {
+func csilEncGetGuardedTaskRequest(csilV GetGuardedTaskRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 2)
 	csilEntries = append(csilEntries, cborEntry{cborText("uuid"), cborText(csilV.Uuid)})
 	csilEntries = append(csilEntries, cborEntry{cborText("queue"), cborText(csilV.Queue)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecGetGuardedTaskRequest reconstructs a GetGuardedTaskRequest from a decoded CBOR value tree.
@@ -3410,8 +3770,8 @@ func csilDecGetGuardedTaskRequest(csilRoot cborValue) (GetGuardedTaskRequest, er
 }
 
 // EncodeGetGuardedTaskRequest encodes a GetGuardedTaskRequest to canonical CSIL CBOR bytes.
-func EncodeGetGuardedTaskRequest(csilV GetGuardedTaskRequest) []byte {
-	return cborEncode(csilEncGetGuardedTaskRequest(csilV))
+func EncodeGetGuardedTaskRequest(csilV GetGuardedTaskRequest) ([]byte, error) {
+	return cborEncodeE(csilEncGetGuardedTaskRequest(csilV, 0))
 }
 
 // DecodeGetGuardedTaskRequest decodes canonical CSIL CBOR bytes into a GetGuardedTaskRequest.
@@ -3425,12 +3785,16 @@ func DecodeGetGuardedTaskRequest(csilData []byte) (GetGuardedTaskRequest, error)
 }
 
 // csilEncGetGuardedTaskResponse builds the canonical CBOR value tree for a GetGuardedTaskResponse.
-func csilEncGetGuardedTaskResponse(csilV GetGuardedTaskResponse) cborValue {
+func csilEncGetGuardedTaskResponse(csilV GetGuardedTaskResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 1)
 	if csilV.Task != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilEncGuardedTask((*csilV.Task))})
+		csilEntries = append(csilEntries, cborEntry{cborText("task"), csilE.val(csilEncGuardedTask((*csilV.Task), csilDepth+1))})
 	}
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecGetGuardedTaskResponse reconstructs a GetGuardedTaskResponse from a decoded CBOR value tree.
@@ -3447,8 +3811,8 @@ func csilDecGetGuardedTaskResponse(csilRoot cborValue) (GetGuardedTaskResponse, 
 }
 
 // EncodeGetGuardedTaskResponse encodes a GetGuardedTaskResponse to canonical CSIL CBOR bytes.
-func EncodeGetGuardedTaskResponse(csilV GetGuardedTaskResponse) []byte {
-	return cborEncode(csilEncGetGuardedTaskResponse(csilV))
+func EncodeGetGuardedTaskResponse(csilV GetGuardedTaskResponse) ([]byte, error) {
+	return cborEncodeE(csilEncGetGuardedTaskResponse(csilV, 0))
 }
 
 // DecodeGetGuardedTaskResponse decodes canonical CSIL CBOR bytes into a GetGuardedTaskResponse.
@@ -3462,7 +3826,10 @@ func DecodeGetGuardedTaskResponse(csilData []byte) (GetGuardedTaskResponse, erro
 }
 
 // csilEncOperationReceipt builds the canonical CBOR value tree for a OperationReceipt.
-func csilEncOperationReceipt(csilV OperationReceipt) cborValue {
+func csilEncOperationReceipt(csilV OperationReceipt, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 8)
 	csilEntries = append(csilEntries, cborEntry{cborText("at"), cborInt(csilV.At)})
 	csilEntries = append(csilEntries, cborEntry{cborText("op"), cborText(csilV.Op)})
@@ -3472,7 +3839,7 @@ func csilEncOperationReceipt(csilV OperationReceipt) cborValue {
 	csilEntries = append(csilEntries, cborEntry{cborText("operation_id"), cborText(csilV.OperationId)})
 	csilEntries = append(csilEntries, cborEntry{cborText("result_state"), cborText(csilV.ResultState)})
 	csilEntries = append(csilEntries, cborEntry{cborText("result_revision"), cborInt(csilV.ResultRevision)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecOperationReceipt reconstructs a OperationReceipt from a decoded CBOR value tree.
@@ -3570,8 +3937,8 @@ func csilDecOperationReceipt(csilRoot cborValue) (OperationReceipt, error) {
 }
 
 // EncodeOperationReceipt encodes a OperationReceipt to canonical CSIL CBOR bytes.
-func EncodeOperationReceipt(csilV OperationReceipt) []byte {
-	return cborEncode(csilEncOperationReceipt(csilV))
+func EncodeOperationReceipt(csilV OperationReceipt) ([]byte, error) {
+	return cborEncodeE(csilEncOperationReceipt(csilV, 0))
 }
 
 // DecodeOperationReceipt decodes canonical CSIL CBOR bytes into a OperationReceipt.
@@ -3585,10 +3952,13 @@ func DecodeOperationReceipt(csilData []byte) (OperationReceipt, error) {
 }
 
 // csilEncLookupOperationRequest builds the canonical CBOR value tree for a LookupOperationRequest.
-func csilEncLookupOperationRequest(csilV LookupOperationRequest) cborValue {
+func csilEncLookupOperationRequest(csilV LookupOperationRequest, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 1)
 	csilEntries = append(csilEntries, cborEntry{cborText("operation_id"), cborText(csilV.OperationId)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecLookupOperationRequest reconstructs a LookupOperationRequest from a decoded CBOR value tree.
@@ -3609,8 +3979,8 @@ func csilDecLookupOperationRequest(csilRoot cborValue) (LookupOperationRequest, 
 }
 
 // EncodeLookupOperationRequest encodes a LookupOperationRequest to canonical CSIL CBOR bytes.
-func EncodeLookupOperationRequest(csilV LookupOperationRequest) []byte {
-	return cborEncode(csilEncLookupOperationRequest(csilV))
+func EncodeLookupOperationRequest(csilV LookupOperationRequest) ([]byte, error) {
+	return cborEncodeE(csilEncLookupOperationRequest(csilV, 0))
 }
 
 // DecodeLookupOperationRequest decodes canonical CSIL CBOR bytes into a LookupOperationRequest.
@@ -3624,12 +3994,16 @@ func DecodeLookupOperationRequest(csilData []byte) (LookupOperationRequest, erro
 }
 
 // csilEncLookupOperationResponse builds the canonical CBOR value tree for a LookupOperationResponse.
-func csilEncLookupOperationResponse(csilV LookupOperationResponse) cborValue {
+func csilEncLookupOperationResponse(csilV LookupOperationResponse, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
+	var csilE csilRtEncErr
 	csilEntries := make(cborMap, 0, 1)
 	if csilV.Receipt != nil {
-		csilEntries = append(csilEntries, cborEntry{cborText("receipt"), csilEncOperationReceipt((*csilV.Receipt))})
+		csilEntries = append(csilEntries, cborEntry{cborText("receipt"), csilE.val(csilEncOperationReceipt((*csilV.Receipt), csilDepth+1))})
 	}
-	return csilEntries
+	return csilE.result(csilEntries)
 }
 
 // csilDecLookupOperationResponse reconstructs a LookupOperationResponse from a decoded CBOR value tree.
@@ -3646,8 +4020,8 @@ func csilDecLookupOperationResponse(csilRoot cborValue) (LookupOperationResponse
 }
 
 // EncodeLookupOperationResponse encodes a LookupOperationResponse to canonical CSIL CBOR bytes.
-func EncodeLookupOperationResponse(csilV LookupOperationResponse) []byte {
-	return cborEncode(csilEncLookupOperationResponse(csilV))
+func EncodeLookupOperationResponse(csilV LookupOperationResponse) ([]byte, error) {
+	return cborEncodeE(csilEncLookupOperationResponse(csilV, 0))
 }
 
 // DecodeLookupOperationResponse decodes canonical CSIL CBOR bytes into a LookupOperationResponse.
@@ -3661,11 +4035,14 @@ func DecodeLookupOperationResponse(csilData []byte) (LookupOperationResponse, er
 }
 
 // csilEncServiceError builds the canonical CBOR value tree for a ServiceError.
-func csilEncServiceError(csilV ServiceError) cborValue {
+func csilEncServiceError(csilV ServiceError, csilDepth int) (cborValue, error) {
+	if csilDepth > csilRtEncDepthLimit {
+		return nil, fmt.Errorf("csil cbor: nesting limit exceeded")
+	}
 	csilEntries := make(cborMap, 0, 2)
 	csilEntries = append(csilEntries, cborEntry{cborText("code"), cborUint(csilV.Code)})
 	csilEntries = append(csilEntries, cborEntry{cborText("message"), cborText(csilV.Message)})
-	return csilEntries
+	return csilEntries, nil
 }
 
 // csilDecServiceError reconstructs a ServiceError from a decoded CBOR value tree.
@@ -3697,8 +4074,8 @@ func csilDecServiceError(csilRoot cborValue) (ServiceError, error) {
 }
 
 // EncodeServiceError encodes a ServiceError to canonical CSIL CBOR bytes.
-func EncodeServiceError(csilV ServiceError) []byte {
-	return cborEncode(csilEncServiceError(csilV))
+func EncodeServiceError(csilV ServiceError) ([]byte, error) {
+	return cborEncodeE(csilEncServiceError(csilV, 0))
 }
 
 // DecodeServiceError decodes canonical CSIL CBOR bytes into a ServiceError.
@@ -3709,4 +4086,801 @@ func DecodeServiceError(csilData []byte) (ServiceError, error) {
 		return csilZero, csilErr
 	}
 	return csilDecServiceError(csilRoot)
+}
+
+// RPCDecodeError reports a malformed typed RPC reply.
+type RPCDecodeError struct{ Err error }
+
+func (e *RPCDecodeError) Error() string { return e.Err.Error() }
+func (e *RPCDecodeError) Unwrap() error { return e.Err }
+
+// RPCEncodeError reports a value that has no valid wire form. A client returns it
+// for a request and does not call the transport. A server answers it for a handler
+// result with a transport failure, because no reply payload exists.
+type RPCEncodeError struct{ Err error }
+
+func (e *RPCEncodeError) Error() string { return e.Err.Error() }
+func (e *RPCEncodeError) Unwrap() error { return e.Err }
+
+// RPCApplicationError carries the declared value of an application refusal.
+type RPCApplicationError[T any] struct{ Value T }
+
+func (e *RPCApplicationError[T]) Error() string { return fmt.Sprintf("application error: %v", e.Value) }
+
+func EncodeCorndogsSubmitTaskReply(value SubmitTaskResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeSubmitTaskResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "SubmitTaskResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsGetTaskStateByIDReply(value GetTaskStateByIDResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeGetTaskStateByIDResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "GetTaskStateByIDResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsGetNextTaskReply(value GetNextTaskResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeGetNextTaskResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "GetNextTaskResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsGetNextTaskGroupReply(value GetNextTaskGroupResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeGetNextTaskGroupResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "GetNextTaskGroupResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsUpdateTaskReply(value UpdateTaskResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeUpdateTaskResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "UpdateTaskResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsCompleteTaskReply(value CompleteTaskResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeCompleteTaskResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "CompleteTaskResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsCancelTaskReply(value CancelTaskResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeCancelTaskResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "CancelTaskResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsCleanUpTimedOutReply(value CleanUpTimedOutResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeCleanUpTimedOutResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "CleanUpTimedOutResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsGetQueuesReply(value GetQueuesResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeGetQueuesResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "GetQueuesResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsGetQueueTaskCountsReply(value GetQueueTaskCountsResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeGetQueueTaskCountsResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "GetQueueTaskCountsResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsGetTaskStateCountsReply(value GetTaskStateCountsResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeGetTaskStateCountsResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "GetTaskStateCountsResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsGetQueueAndStateCountsReply(value GetQueueAndStateCountsResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeGetQueueAndStateCountsResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "GetQueueAndStateCountsResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsGetServerInfoReply(value GetServerInfoResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeGetServerInfoResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "GetServerInfoResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsSubmitKeyedTaskReply(value SubmitKeyedTaskResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeSubmitKeyedTaskResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "SubmitKeyedTaskResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsLookupSubmissionReply(value LookupSubmissionResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeLookupSubmissionResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "LookupSubmissionResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsClaimGuardedTaskReply(value ClaimGuardedTaskResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeClaimGuardedTaskResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ClaimGuardedTaskResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsClaimGuardedTaskGroupReply(value ClaimGuardedTaskGroupResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeClaimGuardedTaskGroupResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ClaimGuardedTaskGroupResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsUpdateGuardedTaskReply(value UpdateGuardedTaskResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeUpdateGuardedTaskResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "UpdateGuardedTaskResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsCompleteGuardedTaskReply(value CompleteGuardedTaskResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeCompleteGuardedTaskResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "CompleteGuardedTaskResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsCancelGuardedTaskReply(value CancelGuardedTaskResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeCancelGuardedTaskResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "CancelGuardedTaskResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsGetGuardedTaskReply(value GetGuardedTaskResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeGetGuardedTaskResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "GetGuardedTaskResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+func EncodeCorndogsLookupOperationReply(value LookupOperationResponse, err error) (string, []byte, error) {
+	if err == nil {
+		payload, encErr := EncodeLookupOperationResponse(value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "LookupOperationResponse", payload, nil
+	}
+	var refusal1 *RPCApplicationError[ServiceError]
+	if errors.As(err, &refusal1) && refusal1 != nil {
+		payload, encErr := EncodeServiceError(refusal1.Value)
+		if encErr != nil {
+			return "", nil, &RPCEncodeError{encErr}
+		}
+		return "ServiceError", payload, nil
+	}
+	return "", nil, err
+}
+
+// ResolveRPCReply turns a status-zero reply into its success payload or the declared
+// error arm. Generated clients call it with the reply from Transport.CallReply.
+func ResolveRPCReply(service, op string, variant *string, payload []byte) ([]byte, error) {
+	switch {
+	case service == "CorndogsService" && op == "SubmitTask":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "SubmitTaskResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "GetTaskStateByID":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "GetTaskStateByIDResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "GetNextTask":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "GetNextTaskResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "GetNextTaskGroup":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "GetNextTaskGroupResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "UpdateTask":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "UpdateTaskResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "CompleteTask":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "CompleteTaskResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "CancelTask":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "CancelTaskResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "CleanUpTimedOut":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "CleanUpTimedOutResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "GetQueues":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "GetQueuesResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "GetQueueTaskCounts":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "GetQueueTaskCountsResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "GetTaskStateCounts":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "GetTaskStateCountsResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "GetQueueAndStateCounts":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "GetQueueAndStateCountsResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "GetServerInfo":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "GetServerInfoResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "SubmitKeyedTask":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "SubmitKeyedTaskResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "LookupSubmission":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "LookupSubmissionResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "ClaimGuardedTask":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "ClaimGuardedTaskResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "ClaimGuardedTaskGroup":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "ClaimGuardedTaskGroupResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "UpdateGuardedTask":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "UpdateGuardedTaskResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "CompleteGuardedTask":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "CompleteGuardedTaskResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "CancelGuardedTask":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "CancelGuardedTaskResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "GetGuardedTask":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "GetGuardedTaskResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	case service == "CorndogsService" && op == "LookupOperation":
+		if variant == nil {
+			return nil, &RPCDecodeError{fmt.Errorf("missing RPC reply variant")}
+		}
+		switch *variant {
+		case "LookupOperationResponse":
+			return payload, nil
+		case "ServiceError":
+			value, err := DecodeServiceError(payload)
+			if err != nil {
+				return nil, &RPCDecodeError{err}
+			}
+			return nil, &RPCApplicationError[ServiceError]{Value: value}
+		default:
+			return nil, &RPCDecodeError{fmt.Errorf("unknown RPC reply variant %q", *variant)}
+		}
+	}
+	return payload, nil
 }

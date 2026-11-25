@@ -801,7 +801,7 @@ and decode_get_queue_task_counts_response (csil_c : Cbor.t) : get_queue_task_cou
       in
       ignore csil_req;
       {
-        queue_counts = (match (csil_req "queue_counts") with Cbor.Map csil_kvs -> List.map (fun (csil_k, csil_v) -> ((Cbor.to_text csil_k), (Cbor.to_i64 csil_v))) csil_kvs | _ -> failwith "csilgen: expected map");
+        queue_counts = (match (csil_req "queue_counts") with Cbor.Map csil_kvs -> List.map (fun (csil_k, csil_v) -> ((Cbor.to_text csil_k), (Cbor.to_i64 csil_v))) (Cbor.canonical_map csil_kvs) | _ -> failwith "csilgen: expected map");
         total_task_count = (Cbor.to_i64 (csil_req "total_task_count"));
       }
   | _ -> failwith "csilgen: expected map for get_queue_task_counts_response"
@@ -830,7 +830,7 @@ and decode_get_task_state_counts_response (csil_c : Cbor.t) : get_task_state_cou
       {
         count = (Cbor.to_i64 (csil_req "count"));
         queue = (Cbor.to_text (csil_req "queue"));
-        state_counts = (match (csil_req "state_counts") with Cbor.Map csil_kvs -> List.map (fun (csil_k, csil_v) -> ((Cbor.to_text csil_k), (Cbor.to_i64 csil_v))) csil_kvs | _ -> failwith "csilgen: expected map");
+        state_counts = (match (csil_req "state_counts") with Cbor.Map csil_kvs -> List.map (fun (csil_k, csil_v) -> ((Cbor.to_text csil_k), (Cbor.to_i64 csil_v))) (Cbor.canonical_map csil_kvs) | _ -> failwith "csilgen: expected map");
       }
   | _ -> failwith "csilgen: expected map for get_task_state_counts_response"
 
@@ -845,7 +845,7 @@ and decode_queue_and_state_counts (csil_c : Cbor.t) : queue_and_state_counts =
       {
         count = (Cbor.to_i64 (csil_req "count"));
         queue = (Cbor.to_text (csil_req "queue"));
-        state_counts = (match (csil_req "state_counts") with Cbor.Map csil_kvs -> List.map (fun (csil_k, csil_v) -> ((Cbor.to_text csil_k), (Cbor.to_i64 csil_v))) csil_kvs | _ -> failwith "csilgen: expected map");
+        state_counts = (match (csil_req "state_counts") with Cbor.Map csil_kvs -> List.map (fun (csil_k, csil_v) -> ((Cbor.to_text csil_k), (Cbor.to_i64 csil_v))) (Cbor.canonical_map csil_kvs) | _ -> failwith "csilgen: expected map");
       }
   | _ -> failwith "csilgen: expected map for queue_and_state_counts"
 
@@ -861,7 +861,7 @@ and decode_get_queue_and_state_counts_response (csil_c : Cbor.t) : get_queue_and
       in
       ignore csil_req;
       {
-        queue_and_state_counts = (match (csil_req "queue_and_state_counts") with Cbor.Map csil_kvs -> List.map (fun (csil_k, csil_v) -> ((Cbor.to_text csil_k), (decode_queue_and_state_counts csil_v))) csil_kvs | _ -> failwith "csilgen: expected map");
+        queue_and_state_counts = (match (csil_req "queue_and_state_counts") with Cbor.Map csil_kvs -> List.map (fun (csil_k, csil_v) -> ((Cbor.to_text csil_k), (decode_queue_and_state_counts csil_v))) (Cbor.canonical_map csil_kvs) | _ -> failwith "csilgen: expected map");
       }
   | _ -> failwith "csilgen: expected map for get_queue_and_state_counts_response"
 
@@ -1452,3 +1452,339 @@ let decode_lookup_operation_response_bytes (b : bytes) : lookup_operation_respon
 let encode_service_error_bytes (v : service_error) : bytes = Cbor.encode (encode_service_error v)
 let decode_service_error_bytes (b : bytes) : service_error =
   match Cbor.decode b with Ok c -> decode_service_error c | Error e -> failwith e
+
+let encode_corndogs_service_submit_task_request value = Cbor.encode (encode_submit_task_request value)
+let decode_corndogs_service_submit_task_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_submit_task_request root) | Error e -> failwith e
+
+let decode_corndogs_service_submit_task_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_submit_task_response root) | Error e -> failwith e
+
+exception Service_error_refusal of service_error
+
+let encode_corndogs_service_submit_task_reply = function
+  | Ok value -> ("SubmitTaskResponse", Cbor.encode (encode_submit_task_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_get_task_state_by_id_request value = Cbor.encode (encode_get_task_state_by_id_request value)
+let decode_corndogs_service_get_task_state_by_id_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_task_state_by_id_request root) | Error e -> failwith e
+
+let decode_corndogs_service_get_task_state_by_id_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_task_state_by_id_response root) | Error e -> failwith e
+
+let encode_corndogs_service_get_task_state_by_id_reply = function
+  | Ok value -> ("GetTaskStateByIDResponse", Cbor.encode (encode_get_task_state_by_id_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_get_next_task_request value = Cbor.encode (encode_get_next_task_request value)
+let decode_corndogs_service_get_next_task_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_next_task_request root) | Error e -> failwith e
+
+let decode_corndogs_service_get_next_task_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_next_task_response root) | Error e -> failwith e
+
+let encode_corndogs_service_get_next_task_reply = function
+  | Ok value -> ("GetNextTaskResponse", Cbor.encode (encode_get_next_task_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_get_next_task_group_request value = Cbor.encode (encode_get_next_task_group_request value)
+let decode_corndogs_service_get_next_task_group_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_next_task_group_request root) | Error e -> failwith e
+
+let decode_corndogs_service_get_next_task_group_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_next_task_group_response root) | Error e -> failwith e
+
+let encode_corndogs_service_get_next_task_group_reply = function
+  | Ok value -> ("GetNextTaskGroupResponse", Cbor.encode (encode_get_next_task_group_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_update_task_request value = Cbor.encode (encode_update_task_request value)
+let decode_corndogs_service_update_task_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_update_task_request root) | Error e -> failwith e
+
+let decode_corndogs_service_update_task_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_update_task_response root) | Error e -> failwith e
+
+let encode_corndogs_service_update_task_reply = function
+  | Ok value -> ("UpdateTaskResponse", Cbor.encode (encode_update_task_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_complete_task_request value = Cbor.encode (encode_complete_task_request value)
+let decode_corndogs_service_complete_task_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_complete_task_request root) | Error e -> failwith e
+
+let decode_corndogs_service_complete_task_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_complete_task_response root) | Error e -> failwith e
+
+let encode_corndogs_service_complete_task_reply = function
+  | Ok value -> ("CompleteTaskResponse", Cbor.encode (encode_complete_task_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_cancel_task_request value = Cbor.encode (encode_cancel_task_request value)
+let decode_corndogs_service_cancel_task_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_cancel_task_request root) | Error e -> failwith e
+
+let decode_corndogs_service_cancel_task_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_cancel_task_response root) | Error e -> failwith e
+
+let encode_corndogs_service_cancel_task_reply = function
+  | Ok value -> ("CancelTaskResponse", Cbor.encode (encode_cancel_task_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_clean_up_timed_out_request value = Cbor.encode (encode_clean_up_timed_out_request value)
+let decode_corndogs_service_clean_up_timed_out_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_clean_up_timed_out_request root) | Error e -> failwith e
+
+let decode_corndogs_service_clean_up_timed_out_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_clean_up_timed_out_response root) | Error e -> failwith e
+
+let encode_corndogs_service_clean_up_timed_out_reply = function
+  | Ok value -> ("CleanUpTimedOutResponse", Cbor.encode (encode_clean_up_timed_out_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_get_queues_request value = Cbor.encode (encode_get_queues_request value)
+let decode_corndogs_service_get_queues_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_queues_request root) | Error e -> failwith e
+
+let decode_corndogs_service_get_queues_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_queues_response root) | Error e -> failwith e
+
+let encode_corndogs_service_get_queues_reply = function
+  | Ok value -> ("GetQueuesResponse", Cbor.encode (encode_get_queues_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_get_queue_task_counts_request value = Cbor.encode (encode_get_queue_task_counts_request value)
+let decode_corndogs_service_get_queue_task_counts_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_queue_task_counts_request root) | Error e -> failwith e
+
+let decode_corndogs_service_get_queue_task_counts_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_queue_task_counts_response root) | Error e -> failwith e
+
+let encode_corndogs_service_get_queue_task_counts_reply = function
+  | Ok value -> ("GetQueueTaskCountsResponse", Cbor.encode (encode_get_queue_task_counts_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_get_task_state_counts_request value = Cbor.encode (encode_get_task_state_counts_request value)
+let decode_corndogs_service_get_task_state_counts_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_task_state_counts_request root) | Error e -> failwith e
+
+let decode_corndogs_service_get_task_state_counts_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_task_state_counts_response root) | Error e -> failwith e
+
+let encode_corndogs_service_get_task_state_counts_reply = function
+  | Ok value -> ("GetTaskStateCountsResponse", Cbor.encode (encode_get_task_state_counts_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_get_queue_and_state_counts_request value = Cbor.encode (encode_get_queue_and_state_counts_request value)
+let decode_corndogs_service_get_queue_and_state_counts_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_queue_and_state_counts_request root) | Error e -> failwith e
+
+let decode_corndogs_service_get_queue_and_state_counts_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_queue_and_state_counts_response root) | Error e -> failwith e
+
+let encode_corndogs_service_get_queue_and_state_counts_reply = function
+  | Ok value -> ("GetQueueAndStateCountsResponse", Cbor.encode (encode_get_queue_and_state_counts_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_get_server_info_request value = Cbor.encode (encode_get_server_info_request value)
+let decode_corndogs_service_get_server_info_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_server_info_request root) | Error e -> failwith e
+
+let decode_corndogs_service_get_server_info_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_server_info_response root) | Error e -> failwith e
+
+let encode_corndogs_service_get_server_info_reply = function
+  | Ok value -> ("GetServerInfoResponse", Cbor.encode (encode_get_server_info_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_submit_keyed_task_request value = Cbor.encode (encode_submit_keyed_task_request value)
+let decode_corndogs_service_submit_keyed_task_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_submit_keyed_task_request root) | Error e -> failwith e
+
+let decode_corndogs_service_submit_keyed_task_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_submit_keyed_task_response root) | Error e -> failwith e
+
+let encode_corndogs_service_submit_keyed_task_reply = function
+  | Ok value -> ("SubmitKeyedTaskResponse", Cbor.encode (encode_submit_keyed_task_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_lookup_submission_request value = Cbor.encode (encode_lookup_submission_request value)
+let decode_corndogs_service_lookup_submission_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_lookup_submission_request root) | Error e -> failwith e
+
+let decode_corndogs_service_lookup_submission_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_lookup_submission_response root) | Error e -> failwith e
+
+let encode_corndogs_service_lookup_submission_reply = function
+  | Ok value -> ("LookupSubmissionResponse", Cbor.encode (encode_lookup_submission_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_claim_guarded_task_request value = Cbor.encode (encode_claim_guarded_task_request value)
+let decode_corndogs_service_claim_guarded_task_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_claim_guarded_task_request root) | Error e -> failwith e
+
+let decode_corndogs_service_claim_guarded_task_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_claim_guarded_task_response root) | Error e -> failwith e
+
+let encode_corndogs_service_claim_guarded_task_reply = function
+  | Ok value -> ("ClaimGuardedTaskResponse", Cbor.encode (encode_claim_guarded_task_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_claim_guarded_task_group_request value = Cbor.encode (encode_claim_guarded_task_group_request value)
+let decode_corndogs_service_claim_guarded_task_group_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_claim_guarded_task_group_request root) | Error e -> failwith e
+
+let decode_corndogs_service_claim_guarded_task_group_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_claim_guarded_task_group_response root) | Error e -> failwith e
+
+let encode_corndogs_service_claim_guarded_task_group_reply = function
+  | Ok value -> ("ClaimGuardedTaskGroupResponse", Cbor.encode (encode_claim_guarded_task_group_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_update_guarded_task_request value = Cbor.encode (encode_update_guarded_task_request value)
+let decode_corndogs_service_update_guarded_task_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_update_guarded_task_request root) | Error e -> failwith e
+
+let decode_corndogs_service_update_guarded_task_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_update_guarded_task_response root) | Error e -> failwith e
+
+let encode_corndogs_service_update_guarded_task_reply = function
+  | Ok value -> ("UpdateGuardedTaskResponse", Cbor.encode (encode_update_guarded_task_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_complete_guarded_task_request value = Cbor.encode (encode_complete_guarded_task_request value)
+let decode_corndogs_service_complete_guarded_task_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_complete_guarded_task_request root) | Error e -> failwith e
+
+let decode_corndogs_service_complete_guarded_task_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_complete_guarded_task_response root) | Error e -> failwith e
+
+let encode_corndogs_service_complete_guarded_task_reply = function
+  | Ok value -> ("CompleteGuardedTaskResponse", Cbor.encode (encode_complete_guarded_task_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_cancel_guarded_task_request value = Cbor.encode (encode_cancel_guarded_task_request value)
+let decode_corndogs_service_cancel_guarded_task_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_cancel_guarded_task_request root) | Error e -> failwith e
+
+let decode_corndogs_service_cancel_guarded_task_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_cancel_guarded_task_response root) | Error e -> failwith e
+
+let encode_corndogs_service_cancel_guarded_task_reply = function
+  | Ok value -> ("CancelGuardedTaskResponse", Cbor.encode (encode_cancel_guarded_task_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_get_guarded_task_request value = Cbor.encode (encode_get_guarded_task_request value)
+let decode_corndogs_service_get_guarded_task_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_guarded_task_request root) | Error e -> failwith e
+
+let decode_corndogs_service_get_guarded_task_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_get_guarded_task_response root) | Error e -> failwith e
+
+let encode_corndogs_service_get_guarded_task_reply = function
+  | Ok value -> ("GetGuardedTaskResponse", Cbor.encode (encode_get_guarded_task_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let encode_corndogs_service_lookup_operation_request value = Cbor.encode (encode_lookup_operation_request value)
+let decode_corndogs_service_lookup_operation_request bytes =
+  match Cbor.decode bytes with Ok root -> (decode_lookup_operation_request root) | Error e -> failwith e
+
+let decode_corndogs_service_lookup_operation_success bytes =
+  match Cbor.decode bytes with Ok root -> (decode_lookup_operation_response root) | Error e -> failwith e
+
+let encode_corndogs_service_lookup_operation_reply = function
+  | Ok value -> ("LookupOperationResponse", Cbor.encode (encode_lookup_operation_response value))
+  | Error (`Service_error value) -> ("ServiceError", Cbor.encode (encode_service_error value))
+
+let resolve_rpc_reply ~service ~op ~variant payload =
+  match service, op, variant with
+  | "CorndogsService", "SubmitTask", Some "SubmitTaskResponse" -> payload
+  | "CorndogsService", "SubmitTask", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "SubmitTask", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "GetTaskStateByID", Some "GetTaskStateByIDResponse" -> payload
+  | "CorndogsService", "GetTaskStateByID", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "GetTaskStateByID", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "GetNextTask", Some "GetNextTaskResponse" -> payload
+  | "CorndogsService", "GetNextTask", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "GetNextTask", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "GetNextTaskGroup", Some "GetNextTaskGroupResponse" -> payload
+  | "CorndogsService", "GetNextTaskGroup", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "GetNextTaskGroup", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "UpdateTask", Some "UpdateTaskResponse" -> payload
+  | "CorndogsService", "UpdateTask", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "UpdateTask", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "CompleteTask", Some "CompleteTaskResponse" -> payload
+  | "CorndogsService", "CompleteTask", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "CompleteTask", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "CancelTask", Some "CancelTaskResponse" -> payload
+  | "CorndogsService", "CancelTask", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "CancelTask", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "CleanUpTimedOut", Some "CleanUpTimedOutResponse" -> payload
+  | "CorndogsService", "CleanUpTimedOut", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "CleanUpTimedOut", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "GetQueues", Some "GetQueuesResponse" -> payload
+  | "CorndogsService", "GetQueues", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "GetQueues", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "GetQueueTaskCounts", Some "GetQueueTaskCountsResponse" -> payload
+  | "CorndogsService", "GetQueueTaskCounts", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "GetQueueTaskCounts", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "GetTaskStateCounts", Some "GetTaskStateCountsResponse" -> payload
+  | "CorndogsService", "GetTaskStateCounts", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "GetTaskStateCounts", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "GetQueueAndStateCounts", Some "GetQueueAndStateCountsResponse" -> payload
+  | "CorndogsService", "GetQueueAndStateCounts", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "GetQueueAndStateCounts", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "GetServerInfo", Some "GetServerInfoResponse" -> payload
+  | "CorndogsService", "GetServerInfo", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "GetServerInfo", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "SubmitKeyedTask", Some "SubmitKeyedTaskResponse" -> payload
+  | "CorndogsService", "SubmitKeyedTask", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "SubmitKeyedTask", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "LookupSubmission", Some "LookupSubmissionResponse" -> payload
+  | "CorndogsService", "LookupSubmission", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "LookupSubmission", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "ClaimGuardedTask", Some "ClaimGuardedTaskResponse" -> payload
+  | "CorndogsService", "ClaimGuardedTask", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "ClaimGuardedTask", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "ClaimGuardedTaskGroup", Some "ClaimGuardedTaskGroupResponse" -> payload
+  | "CorndogsService", "ClaimGuardedTaskGroup", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "ClaimGuardedTaskGroup", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "UpdateGuardedTask", Some "UpdateGuardedTaskResponse" -> payload
+  | "CorndogsService", "UpdateGuardedTask", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "UpdateGuardedTask", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "CompleteGuardedTask", Some "CompleteGuardedTaskResponse" -> payload
+  | "CorndogsService", "CompleteGuardedTask", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "CompleteGuardedTask", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "CancelGuardedTask", Some "CancelGuardedTaskResponse" -> payload
+  | "CorndogsService", "CancelGuardedTask", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "CancelGuardedTask", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "GetGuardedTask", Some "GetGuardedTaskResponse" -> payload
+  | "CorndogsService", "GetGuardedTask", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "GetGuardedTask", _ -> failwith "invalid RPC reply variant"
+  | "CorndogsService", "LookupOperation", Some "LookupOperationResponse" -> payload
+  | "CorndogsService", "LookupOperation", Some "ServiceError" ->
+      (match Cbor.decode payload with Ok root -> raise (Service_error_refusal ((decode_service_error root))) | Error e -> failwith e)
+  | "CorndogsService", "LookupOperation", _ -> failwith "invalid RPC reply variant"
+  | _ -> payload

@@ -75,6 +75,8 @@ defmodule Csilgen.Generated.Task do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -132,6 +134,8 @@ defmodule Csilgen.Generated.TaskDelivery do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -196,6 +200,8 @@ defmodule Csilgen.Generated.SubmitTaskRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -251,6 +257,8 @@ defmodule Csilgen.Generated.SubmitTaskResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -303,6 +311,8 @@ defmodule Csilgen.Generated.GetTaskStateByIDRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -352,6 +362,8 @@ defmodule Csilgen.Generated.GetTaskStateByIDResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -428,6 +440,8 @@ defmodule Csilgen.Generated.GetNextTaskRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -486,6 +500,8 @@ defmodule Csilgen.Generated.GetNextTaskResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -562,6 +578,8 @@ defmodule Csilgen.Generated.GetNextTaskGroupRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -624,6 +642,8 @@ defmodule Csilgen.Generated.GetNextTaskGroupResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -678,6 +698,8 @@ defmodule Csilgen.Generated.CompleteTaskRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -729,6 +751,8 @@ defmodule Csilgen.Generated.CompleteTaskResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -811,6 +835,8 @@ defmodule Csilgen.Generated.UpdateTaskRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -876,6 +902,8 @@ defmodule Csilgen.Generated.UpdateTaskResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -930,6 +958,8 @@ defmodule Csilgen.Generated.CancelTaskRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -981,6 +1011,8 @@ defmodule Csilgen.Generated.CancelTaskResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1033,6 +1065,8 @@ defmodule Csilgen.Generated.CleanUpTimedOutRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1080,6 +1114,8 @@ defmodule Csilgen.Generated.CleanUpTimedOutResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1121,6 +1157,8 @@ defmodule Csilgen.Generated.GetQueuesRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, _csil_kvs}) do
     %__MODULE__{}
   end
@@ -1165,6 +1203,8 @@ defmodule Csilgen.Generated.GetQueuesResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1212,6 +1252,8 @@ defmodule Csilgen.Generated.GetQueueTaskCountsRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, _csil_kvs}) do
     %__MODULE__{}
   end
@@ -1248,7 +1290,7 @@ defmodule Csilgen.Generated.GetQueueTaskCountsResponse do
      Enum.reject(
        [
          {{:text, "queue_counts"},
-          {:map,
+          {:dynamic_map,
            Enum.map(v.queue_counts, fn {csil_k, csil_v} -> {{:text, csil_k}, {:int, csil_v}} end)}},
          {{:text, "total_task_count"}, {:int, v.total_task_count}}
        ],
@@ -1258,6 +1300,8 @@ defmodule Csilgen.Generated.GetQueueTaskCountsResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1268,6 +1312,9 @@ defmodule Csilgen.Generated.GetQueueTaskCountsResponse do
             Map.new(csil_kvs, fn {csil_k, csil_v} ->
               {Csilgen.Generated.Cbor.to_text(csil_k), Csilgen.Generated.Cbor.to_int(csil_v)}
             end)
+
+          {:unordered_map, _} ->
+            raise(ArgumentError, "csil cbor: map keys are not in canonical order")
         end,
       total_task_count:
         Csilgen.Generated.Cbor.to_int(Map.fetch!(csil_fields, {:text, "total_task_count"}))
@@ -1312,6 +1359,8 @@ defmodule Csilgen.Generated.GetTaskStateCountsRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1355,7 +1404,7 @@ defmodule Csilgen.Generated.GetTaskStateCountsResponse do
          {{:text, "count"}, {:int, v.count}},
          {{:text, "queue"}, {:text, v.queue}},
          {{:text, "state_counts"},
-          {:map,
+          {:dynamic_map,
            Enum.map(v.state_counts, fn {csil_k, csil_v} -> {{:text, csil_k}, {:int, csil_v}} end)}}
        ],
        &is_nil/1
@@ -1364,6 +1413,8 @@ defmodule Csilgen.Generated.GetTaskStateCountsResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1376,6 +1427,9 @@ defmodule Csilgen.Generated.GetTaskStateCountsResponse do
             Map.new(csil_kvs, fn {csil_k, csil_v} ->
               {Csilgen.Generated.Cbor.to_text(csil_k), Csilgen.Generated.Cbor.to_int(csil_v)}
             end)
+
+          {:unordered_map, _} ->
+            raise(ArgumentError, "csil cbor: map keys are not in canonical order")
         end
     }
   end
@@ -1415,7 +1469,7 @@ defmodule Csilgen.Generated.QueueAndStateCounts do
          {{:text, "count"}, {:int, v.count}},
          {{:text, "queue"}, {:text, v.queue}},
          {{:text, "state_counts"},
-          {:map,
+          {:dynamic_map,
            Enum.map(v.state_counts, fn {csil_k, csil_v} -> {{:text, csil_k}, {:int, csil_v}} end)}}
        ],
        &is_nil/1
@@ -1424,6 +1478,8 @@ defmodule Csilgen.Generated.QueueAndStateCounts do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1436,6 +1492,9 @@ defmodule Csilgen.Generated.QueueAndStateCounts do
             Map.new(csil_kvs, fn {csil_k, csil_v} ->
               {Csilgen.Generated.Cbor.to_text(csil_k), Csilgen.Generated.Cbor.to_int(csil_v)}
             end)
+
+          {:unordered_map, _} ->
+            raise(ArgumentError, "csil cbor: map keys are not in canonical order")
         end
     }
   end
@@ -1478,6 +1537,8 @@ defmodule Csilgen.Generated.GetQueueAndStateCountsRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, _csil_kvs}) do
     %__MODULE__{}
   end
@@ -1513,7 +1574,7 @@ defmodule Csilgen.Generated.GetQueueAndStateCountsResponse do
      Enum.reject(
        [
          {{:text, "queue_and_state_counts"},
-          {:map,
+          {:dynamic_map,
            Enum.map(v.queue_and_state_counts, fn {csil_k, csil_v} ->
              {{:text, csil_k}, Csilgen.Generated.QueueAndStateCounts.to_cbor_value(csil_v)}
            end)}}
@@ -1524,6 +1585,8 @@ defmodule Csilgen.Generated.GetQueueAndStateCountsResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1535,6 +1598,9 @@ defmodule Csilgen.Generated.GetQueueAndStateCountsResponse do
               {Csilgen.Generated.Cbor.to_text(csil_k),
                Csilgen.Generated.QueueAndStateCounts.from_cbor_value(csil_v)}
             end)
+
+          {:unordered_map, _} ->
+            raise(ArgumentError, "csil cbor: map keys are not in canonical order")
         end
     }
   end
@@ -1572,6 +1638,8 @@ defmodule Csilgen.Generated.GetServerInfoRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, _csil_kvs}) do
     %__MODULE__{}
   end
@@ -1640,6 +1708,8 @@ defmodule Csilgen.Generated.GetServerInfoResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1706,6 +1776,8 @@ defmodule Csilgen.Generated.GuardedTask do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1772,6 +1844,8 @@ defmodule Csilgen.Generated.SubmissionReceipt do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1865,6 +1939,8 @@ defmodule Csilgen.Generated.SubmitKeyedTaskRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1928,6 +2004,8 @@ defmodule Csilgen.Generated.SubmitKeyedTaskResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -1985,6 +2063,8 @@ defmodule Csilgen.Generated.LookupSubmissionRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2041,6 +2121,8 @@ defmodule Csilgen.Generated.LookupSubmissionResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2127,6 +2209,8 @@ defmodule Csilgen.Generated.ClaimGuardedTaskRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2187,6 +2271,8 @@ defmodule Csilgen.Generated.GuardedDelivery do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2241,6 +2327,8 @@ defmodule Csilgen.Generated.ClaimGuardedTaskResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2323,6 +2411,8 @@ defmodule Csilgen.Generated.ClaimGuardedTaskGroupRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2391,6 +2481,8 @@ defmodule Csilgen.Generated.ClaimGuardedTaskGroupResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2493,6 +2585,8 @@ defmodule Csilgen.Generated.UpdateGuardedTaskRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2565,6 +2659,8 @@ defmodule Csilgen.Generated.UpdateGuardedTaskResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2630,6 +2726,8 @@ defmodule Csilgen.Generated.CompleteGuardedTaskRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2688,6 +2786,8 @@ defmodule Csilgen.Generated.CompleteGuardedTaskResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2753,6 +2853,8 @@ defmodule Csilgen.Generated.CancelGuardedTaskRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2811,6 +2913,8 @@ defmodule Csilgen.Generated.CancelGuardedTaskResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2861,6 +2965,8 @@ defmodule Csilgen.Generated.GetGuardedTaskRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -2910,6 +3016,8 @@ defmodule Csilgen.Generated.GetGuardedTaskResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -3001,6 +3109,8 @@ defmodule Csilgen.Generated.OperationReceipt do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -3057,6 +3167,8 @@ defmodule Csilgen.Generated.LookupOperationRequest do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -3106,6 +3218,8 @@ defmodule Csilgen.Generated.LookupOperationResponse do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 
@@ -3158,6 +3272,8 @@ defmodule Csilgen.Generated.ServiceError do
 
   @doc "Reconstructs this struct from a decoded CBOR value tree."
   @spec from_cbor_value(term()) :: t()
+  def from_cbor_value({:unordered_map, csil_kvs}), do: from_cbor_value({:map, csil_kvs})
+
   def from_cbor_value({:map, csil_kvs}) do
     csil_fields = Map.new(csil_kvs)
 

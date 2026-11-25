@@ -40,17 +40,19 @@ pub fn main() !void {
     const a = arena.allocator();
 
     // Submit a task, then claim the next one from the queue.
-    var submitted: types.SubmitTaskResponse = undefined;
+    var submitted: types.CorndogsServiceSubmitTaskReply = undefined;
     try svc.submit_task(a, &types.SubmitTaskRequest{
         .queue = "emails", .current_state = "submitted", .auto_target_state = "sending",
         .timeout = -1, .payload = "...", .priority = 0,
     }, &submitted);
+    if (submitted == .service_error) return error.ServiceRefused;
 
-    var next: types.GetNextTaskResponse = undefined;
+    var next: types.CorndogsServiceGetNextTaskReply = undefined;
     try svc.get_next_task(a, &types.GetNextTaskRequest{
         .queue = "emails", .current_state = "submitted",
         .override_timeout = 0, .override_current_state = "", .override_auto_target_state = "",
     }, &next);
+    if (next == .service_error) return error.ServiceRefused;
 }
 ```
 
@@ -77,8 +79,11 @@ transparently redirected to the leader.
 
 ## Errors
 
-`Transport.call` (and every typed method built on it) returns a Zig error union.
-Two members carry extra context, since a plain Zig `error` can't hold a payload:
+Each generated method writes a tagged union to its output parameter. Check the
+`.service_error` tag before you read the success field. The service error
+contains the code and message.
+
+The raw `Transport.call` method can return these errors:
 
 - `error.TransportStatus` — a transport-level failure; the server's message is in
   `tr.last_transport_error` (owned, valid until the transport's next call).
@@ -99,24 +104,27 @@ the legacy operation instead.
 - `error.OutcomeUncertain` means that the request possibly ran. Retry a resilience operation with the same request. Do not retry a legacy mutation automatically.
 
 ```zig
-var sub: types.SubmitKeyedTaskResponse = undefined;
+var sub: types.CorndogsServiceSubmitKeyedTaskReply = undefined;
 try svc.submit_keyed_task(a, &types.SubmitKeyedTaskRequest{
     .submission_key = "order-1234", .guarded = true, .queue = "orders", .current_state = "submitted",
     .auto_target_state = "submitted-working", .timeout = 60, .payload = bytes, .priority = 0,
 }, &sub);
-// sub.replayed is true when the server already accepted this key.
+if (sub == .service_error) return error.ServiceRefused;
+// sub.submit_keyed_task_response.replayed is true when the server already accepted this key.
 
-var claimed: types.ClaimGuardedTaskResponse = undefined;
+var claimed: types.CorndogsServiceClaimGuardedTaskReply = undefined;
 try svc.claim_guarded_task(a, &types.ClaimGuardedTaskRequest{
     .operation_id = "claim-7f3a", .queue = "orders", .current_state = "submitted",
     .override_timeout = 0, .override_current_state = "", .override_auto_target_state = "",
 }, &claimed);
-if (claimed.delivery) |d| {
-    var done: types.CompleteGuardedTaskResponse = undefined;
+if (claimed == .service_error) return error.ServiceRefused;
+if (claimed.claim_guarded_task_response.delivery) |d| {
+    var done: types.CorndogsServiceCompleteGuardedTaskReply = undefined;
     try svc.complete_guarded_task(a, &types.CompleteGuardedTaskRequest{
         .operation_id = "done-7f3a", .uuid = d.task.task.uuid, .queue = "orders",
         .expected_revision = d.task.revision,
     }, &done);
+    if (done == .service_error) return error.ServiceRefused;
 }
 ```
 

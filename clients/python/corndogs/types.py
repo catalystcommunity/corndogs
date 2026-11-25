@@ -6,6 +6,20 @@ from typing import Optional, List, Dict, Any, Union
 import json
 
 
+def _csil_json_bytes_out(value: Any) -> str:
+    import base64
+
+    return base64.b64encode(bytes(value)).decode("ascii")
+
+
+def _csil_json_bytes_in(value: Any) -> bytes:
+    import base64
+
+    if not isinstance(value, str):
+        raise ValueError(f"expected base64 text, got {type(value).__name__}")
+    return base64.b64decode(value, validate=True)
+
+
 StringInt64Map = Dict[str, int]
 
 @dataclass
@@ -62,15 +76,15 @@ class TaskDelivery:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         if hasattr(self, 'payload') and self.payload is not None:
-            result['payload'] = self.payload
+            result['payload'] = _csil_json_bytes_out(self.payload)
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TaskDelivery':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'), payload=data.get('payload'))
+        return cls(task=(None if data.get('task') is None else Task.from_dict(data['task'])), payload=(None if data.get('payload') is None else _csil_json_bytes_in(data['payload'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -102,7 +116,7 @@ class SubmitTaskRequest:
         if hasattr(self, 'timeout') and self.timeout is not None:
             result['timeout'] = self.timeout
         if hasattr(self, 'payload') and self.payload is not None:
-            result['payload'] = self.payload
+            result['payload'] = _csil_json_bytes_out(self.payload)
         if hasattr(self, 'priority') and self.priority is not None:
             result['priority'] = self.priority
         return result
@@ -110,7 +124,7 @@ class SubmitTaskRequest:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SubmitTaskRequest':
         """Create instance from dictionary."""
-        return cls(queue=data.get('queue'), current_state=data.get('current_state'), auto_target_state=data.get('auto_target_state'), timeout=data.get('timeout'), payload=data.get('payload'), priority=data.get('priority'))
+        return cls(queue=data.get('queue'), current_state=data.get('current_state'), auto_target_state=data.get('auto_target_state'), timeout=data.get('timeout'), payload=(None if data.get('payload') is None else _csil_json_bytes_in(data['payload'])), priority=data.get('priority'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -129,13 +143,13 @@ class SubmitTaskResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SubmitTaskResponse':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'))
+        return cls(task=(None if data.get('task') is None else Task.from_dict(data['task'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -182,13 +196,13 @@ class GetTaskStateByIdResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'GetTaskStateByIdResponse':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'))
+        return cls(task=(None if data.get('task') is None else Task.from_dict(data['task'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -244,13 +258,13 @@ class GetNextTaskResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'delivery') and self.delivery is not None:
-            result['delivery'] = self.delivery
+            result['delivery'] = self.delivery.to_dict()
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'GetNextTaskResponse':
         """Create instance from dictionary."""
-        return cls(delivery=data.get('delivery'))
+        return cls(delivery=(None if data.get('delivery') is None else TaskDelivery.from_dict(data['delivery'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -306,13 +320,13 @@ class GetNextTaskGroupResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'delivery') and self.delivery is not None:
-            result['delivery'] = self.delivery
+            result['delivery'] = self.delivery.to_dict()
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'GetNextTaskGroupResponse':
         """Create instance from dictionary."""
-        return cls(delivery=data.get('delivery'))
+        return cls(delivery=(None if data.get('delivery') is None else TaskDelivery.from_dict(data['delivery'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -362,13 +376,13 @@ class CompleteTaskResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CompleteTaskResponse':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'))
+        return cls(task=(None if data.get('task') is None else Task.from_dict(data['task'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -406,7 +420,7 @@ class UpdateTaskRequest:
         if hasattr(self, 'new_state') and self.new_state is not None:
             result['new_state'] = self.new_state
         if hasattr(self, 'payload') and self.payload is not None:
-            result['payload'] = self.payload
+            result['payload'] = _csil_json_bytes_out(self.payload)
         if hasattr(self, 'priority') and self.priority is not None:
             result['priority'] = self.priority
         return result
@@ -414,7 +428,7 @@ class UpdateTaskRequest:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'UpdateTaskRequest':
         """Create instance from dictionary."""
-        return cls(uuid=data.get('uuid'), queue=data.get('queue'), current_state=data.get('current_state'), auto_target_state=data.get('auto_target_state'), timeout=data.get('timeout'), new_state=data.get('new_state'), payload=data.get('payload'), priority=data.get('priority'))
+        return cls(uuid=data.get('uuid'), queue=data.get('queue'), current_state=data.get('current_state'), auto_target_state=data.get('auto_target_state'), timeout=data.get('timeout'), new_state=data.get('new_state'), payload=(None if data.get('payload') is None else _csil_json_bytes_in(data['payload'])), priority=data.get('priority'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -433,13 +447,13 @@ class UpdateTaskResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'UpdateTaskResponse':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'))
+        return cls(task=(None if data.get('task') is None else Task.from_dict(data['task'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -489,13 +503,13 @@ class CancelTaskResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CancelTaskResponse':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'))
+        return cls(task=(None if data.get('task') is None else Task.from_dict(data['task'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -724,13 +738,13 @@ class GetQueueAndStateCountsResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'queue_and_state_counts') and self.queue_and_state_counts is not None:
-            result['queue_and_state_counts'] = self.queue_and_state_counts
+            result['queue_and_state_counts'] = {k0: v0.to_dict() for k0, v0 in self.queue_and_state_counts.items()}
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'GetQueueAndStateCountsResponse':
         """Create instance from dictionary."""
-        return cls(queue_and_state_counts=data.get('queue_and_state_counts'))
+        return cls(queue_and_state_counts=(None if data.get('queue_and_state_counts') is None else {k0: QueueAndStateCounts.from_dict(v0) for k0, v0 in data['queue_and_state_counts'].items()}))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -793,7 +807,7 @@ class GuardedTask:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         if hasattr(self, 'guarded') and self.guarded is not None:
             result['guarded'] = self.guarded
         if hasattr(self, 'revision') and self.revision is not None:
@@ -805,7 +819,7 @@ class GuardedTask:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'GuardedTask':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'), guarded=data.get('guarded'), revision=data.get('revision'), terminal=data.get('terminal'))
+        return cls(task=(None if data.get('task') is None else Task.from_dict(data['task'])), guarded=data.get('guarded'), revision=data.get('revision'), terminal=data.get('terminal'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -883,7 +897,7 @@ class SubmitKeyedTaskRequest:
         if hasattr(self, 'timeout') and self.timeout is not None:
             result['timeout'] = self.timeout
         if hasattr(self, 'payload') and self.payload is not None:
-            result['payload'] = self.payload
+            result['payload'] = _csil_json_bytes_out(self.payload)
         if hasattr(self, 'priority') and self.priority is not None:
             result['priority'] = self.priority
         return result
@@ -891,7 +905,7 @@ class SubmitKeyedTaskRequest:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SubmitKeyedTaskRequest':
         """Create instance from dictionary."""
-        return cls(submission_key=data.get('submission_key'), guarded=data.get('guarded'), queue=data.get('queue'), current_state=data.get('current_state'), auto_target_state=data.get('auto_target_state'), timeout=data.get('timeout'), payload=data.get('payload'), priority=data.get('priority'))
+        return cls(submission_key=data.get('submission_key'), guarded=data.get('guarded'), queue=data.get('queue'), current_state=data.get('current_state'), auto_target_state=data.get('auto_target_state'), timeout=data.get('timeout'), payload=(None if data.get('payload') is None else _csil_json_bytes_in(data['payload'])), priority=data.get('priority'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -912,17 +926,17 @@ class SubmitKeyedTaskResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'receipt') and self.receipt is not None:
-            result['receipt'] = self.receipt
+            result['receipt'] = self.receipt.to_dict()
         if hasattr(self, 'replayed') and self.replayed is not None:
             result['replayed'] = self.replayed
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SubmitKeyedTaskResponse':
         """Create instance from dictionary."""
-        return cls(receipt=data.get('receipt'), replayed=data.get('replayed'), task=data.get('task'))
+        return cls(receipt=(None if data.get('receipt') is None else SubmissionReceipt.from_dict(data['receipt'])), replayed=data.get('replayed'), task=(None if data.get('task') is None else GuardedTask.from_dict(data['task'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -970,15 +984,15 @@ class LookupSubmissionResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'receipt') and self.receipt is not None:
-            result['receipt'] = self.receipt
+            result['receipt'] = self.receipt.to_dict()
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'LookupSubmissionResponse':
         """Create instance from dictionary."""
-        return cls(receipt=data.get('receipt'), task=data.get('task'))
+        return cls(receipt=(None if data.get('receipt') is None else SubmissionReceipt.from_dict(data['receipt'])), task=(None if data.get('task') is None else GuardedTask.from_dict(data['task'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -1038,15 +1052,15 @@ class GuardedDelivery:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         if hasattr(self, 'payload') and self.payload is not None:
-            result['payload'] = self.payload
+            result['payload'] = _csil_json_bytes_out(self.payload)
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'GuardedDelivery':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'), payload=data.get('payload'))
+        return cls(task=(None if data.get('task') is None else GuardedTask.from_dict(data['task'])), payload=(None if data.get('payload') is None else _csil_json_bytes_in(data['payload'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -1066,7 +1080,7 @@ class ClaimGuardedTaskResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'delivery') and self.delivery is not None:
-            result['delivery'] = self.delivery
+            result['delivery'] = self.delivery.to_dict()
         if hasattr(self, 'replayed') and self.replayed is not None:
             result['replayed'] = self.replayed
         return result
@@ -1074,7 +1088,7 @@ class ClaimGuardedTaskResponse:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ClaimGuardedTaskResponse':
         """Create instance from dictionary."""
-        return cls(delivery=data.get('delivery'), replayed=data.get('replayed'))
+        return cls(delivery=(None if data.get('delivery') is None else GuardedDelivery.from_dict(data['delivery'])), replayed=data.get('replayed'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -1134,7 +1148,7 @@ class ClaimGuardedTaskGroupResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'delivery') and self.delivery is not None:
-            result['delivery'] = self.delivery
+            result['delivery'] = self.delivery.to_dict()
         if hasattr(self, 'replayed') and self.replayed is not None:
             result['replayed'] = self.replayed
         return result
@@ -1142,7 +1156,7 @@ class ClaimGuardedTaskGroupResponse:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ClaimGuardedTaskGroupResponse':
         """Create instance from dictionary."""
-        return cls(delivery=data.get('delivery'), replayed=data.get('replayed'))
+        return cls(delivery=(None if data.get('delivery') is None else GuardedDelivery.from_dict(data['delivery'])), replayed=data.get('replayed'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -1186,7 +1200,7 @@ class UpdateGuardedTaskRequest:
         if hasattr(self, 'timeout') and self.timeout is not None:
             result['timeout'] = self.timeout
         if hasattr(self, 'payload') and self.payload is not None:
-            result['payload'] = self.payload
+            result['payload'] = _csil_json_bytes_out(self.payload)
         if hasattr(self, 'priority') and self.priority is not None:
             result['priority'] = self.priority
         return result
@@ -1194,7 +1208,7 @@ class UpdateGuardedTaskRequest:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'UpdateGuardedTaskRequest':
         """Create instance from dictionary."""
-        return cls(operation_id=data.get('operation_id'), uuid=data.get('uuid'), queue=data.get('queue'), expected_revision=data.get('expected_revision'), expected_state=data.get('expected_state'), new_state=data.get('new_state'), auto_target_state=data.get('auto_target_state'), timeout=data.get('timeout'), payload=data.get('payload'), priority=data.get('priority'))
+        return cls(operation_id=data.get('operation_id'), uuid=data.get('uuid'), queue=data.get('queue'), expected_revision=data.get('expected_revision'), expected_state=data.get('expected_state'), new_state=data.get('new_state'), auto_target_state=data.get('auto_target_state'), timeout=data.get('timeout'), payload=(None if data.get('payload') is None else _csil_json_bytes_in(data['payload'])), priority=data.get('priority'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -1214,7 +1228,7 @@ class UpdateGuardedTaskResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         if hasattr(self, 'replayed') and self.replayed is not None:
             result['replayed'] = self.replayed
         return result
@@ -1222,7 +1236,7 @@ class UpdateGuardedTaskResponse:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'UpdateGuardedTaskResponse':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'), replayed=data.get('replayed'))
+        return cls(task=(None if data.get('task') is None else GuardedTask.from_dict(data['task'])), replayed=data.get('replayed'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -1279,7 +1293,7 @@ class CompleteGuardedTaskResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         if hasattr(self, 'replayed') and self.replayed is not None:
             result['replayed'] = self.replayed
         return result
@@ -1287,7 +1301,7 @@ class CompleteGuardedTaskResponse:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CompleteGuardedTaskResponse':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'), replayed=data.get('replayed'))
+        return cls(task=(None if data.get('task') is None else GuardedTask.from_dict(data['task'])), replayed=data.get('replayed'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -1344,7 +1358,7 @@ class CancelGuardedTaskResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         if hasattr(self, 'replayed') and self.replayed is not None:
             result['replayed'] = self.replayed
         return result
@@ -1352,7 +1366,7 @@ class CancelGuardedTaskResponse:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CancelGuardedTaskResponse':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'), replayed=data.get('replayed'))
+        return cls(task=(None if data.get('task') is None else GuardedTask.from_dict(data['task'])), replayed=data.get('replayed'))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -1399,13 +1413,13 @@ class GetGuardedTaskResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'task') and self.task is not None:
-            result['task'] = self.task
+            result['task'] = self.task.to_dict()
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'GetGuardedTaskResponse':
         """Create instance from dictionary."""
-        return cls(task=data.get('task'))
+        return cls(task=(None if data.get('task') is None else GuardedTask.from_dict(data['task'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -1495,13 +1509,13 @@ class LookupOperationResponse:
         """Convert to dictionary for JSON serialization."""
         result = {}
         if hasattr(self, 'receipt') and self.receipt is not None:
-            result['receipt'] = self.receipt
+            result['receipt'] = self.receipt.to_dict()
         return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'LookupOperationResponse':
         """Create instance from dictionary."""
-        return cls(receipt=data.get('receipt'))
+        return cls(receipt=(None if data.get('receipt') is None else OperationReceipt.from_dict(data['receipt'])))
 
     def to_json(self) -> str:
         """Convert to JSON string."""

@@ -3,210 +3,242 @@
 // Target: typescript-client
 
 import type { CancelGuardedTaskRequest, CancelGuardedTaskResponse, CancelTaskRequest, CancelTaskResponse, ClaimGuardedTaskGroupRequest, ClaimGuardedTaskGroupResponse, ClaimGuardedTaskRequest, ClaimGuardedTaskResponse, CleanUpTimedOutRequest, CleanUpTimedOutResponse, CompleteGuardedTaskRequest, CompleteGuardedTaskResponse, CompleteTaskRequest, CompleteTaskResponse, GetGuardedTaskRequest, GetGuardedTaskResponse, GetNextTaskGroupRequest, GetNextTaskGroupResponse, GetNextTaskRequest, GetNextTaskResponse, GetQueueAndStateCountsRequest, GetQueueAndStateCountsResponse, GetQueueTaskCountsRequest, GetQueueTaskCountsResponse, GetQueuesRequest, GetQueuesResponse, GetServerInfoRequest, GetServerInfoResponse, GetTaskStateByIDRequest, GetTaskStateByIDResponse, GetTaskStateCountsRequest, GetTaskStateCountsResponse, LookupOperationRequest, LookupOperationResponse, LookupSubmissionRequest, LookupSubmissionResponse, SubmitKeyedTaskRequest, SubmitKeyedTaskResponse, SubmitTaskRequest, SubmitTaskResponse, UpdateGuardedTaskRequest, UpdateGuardedTaskResponse, UpdateTaskRequest, UpdateTaskResponse } from "./types.gen.ts";
-import { fromCancelGuardedTaskResponseCbor, fromCancelTaskResponseCbor, fromClaimGuardedTaskGroupResponseCbor, fromClaimGuardedTaskResponseCbor, fromCleanUpTimedOutResponseCbor, fromCompleteGuardedTaskResponseCbor, fromCompleteTaskResponseCbor, fromGetGuardedTaskResponseCbor, fromGetNextTaskGroupResponseCbor, fromGetNextTaskResponseCbor, fromGetQueueAndStateCountsResponseCbor, fromGetQueueTaskCountsResponseCbor, fromGetQueuesResponseCbor, fromGetServerInfoResponseCbor, fromGetTaskStateByIDResponseCbor, fromGetTaskStateCountsResponseCbor, fromLookupOperationResponseCbor, fromLookupSubmissionResponseCbor, fromSubmitKeyedTaskResponseCbor, fromSubmitTaskResponseCbor, fromUpdateGuardedTaskResponseCbor, fromUpdateTaskResponseCbor, toCancelGuardedTaskRequestCbor, toCancelTaskRequestCbor, toClaimGuardedTaskGroupRequestCbor, toClaimGuardedTaskRequestCbor, toCleanUpTimedOutRequestCbor, toCompleteGuardedTaskRequestCbor, toCompleteTaskRequestCbor, toGetGuardedTaskRequestCbor, toGetNextTaskGroupRequestCbor, toGetNextTaskRequestCbor, toGetQueueAndStateCountsRequestCbor, toGetQueueTaskCountsRequestCbor, toGetQueuesRequestCbor, toGetServerInfoRequestCbor, toGetTaskStateByIDRequestCbor, toGetTaskStateCountsRequestCbor, toLookupOperationRequestCbor, toLookupSubmissionRequestCbor, toSubmitKeyedTaskRequestCbor, toSubmitTaskRequestCbor, toUpdateGuardedTaskRequestCbor, toUpdateTaskRequestCbor } from "./codec.gen.ts";
+import { fromCancelGuardedTaskResponseCbor, fromCancelTaskResponseCbor, fromClaimGuardedTaskGroupResponseCbor, fromClaimGuardedTaskResponseCbor, fromCleanUpTimedOutResponseCbor, fromCompleteGuardedTaskResponseCbor, fromCompleteTaskResponseCbor, fromGetGuardedTaskResponseCbor, fromGetNextTaskGroupResponseCbor, fromGetNextTaskResponseCbor, fromGetQueueAndStateCountsResponseCbor, fromGetQueueTaskCountsResponseCbor, fromGetQueuesResponseCbor, fromGetServerInfoResponseCbor, fromGetTaskStateByIDResponseCbor, fromGetTaskStateCountsResponseCbor, fromLookupOperationResponseCbor, fromLookupSubmissionResponseCbor, fromSubmitKeyedTaskResponseCbor, fromSubmitTaskResponseCbor, fromUpdateGuardedTaskResponseCbor, fromUpdateTaskResponseCbor, resolveRpcReply, toCancelGuardedTaskRequestCbor, toCancelTaskRequestCbor, toClaimGuardedTaskGroupRequestCbor, toClaimGuardedTaskRequestCbor, toCleanUpTimedOutRequestCbor, toCompleteGuardedTaskRequestCbor, toCompleteTaskRequestCbor, toGetGuardedTaskRequestCbor, toGetNextTaskGroupRequestCbor, toGetNextTaskRequestCbor, toGetQueueAndStateCountsRequestCbor, toGetQueueTaskCountsRequestCbor, toGetQueuesRequestCbor, toGetServerInfoRequestCbor, toGetTaskStateByIDRequestCbor, toGetTaskStateCountsRequestCbor, toLookupOperationRequestCbor, toLookupSubmissionRequestCbor, toSubmitKeyedTaskRequestCbor, toSubmitTaskRequestCbor, toUpdateGuardedTaskRequestCbor, toUpdateTaskRequestCbor } from "./codec.gen.ts";
 
 export interface AsyncServiceTransport {
   call(service: string, op: string, req: Uint8Array): Promise<Uint8Array>;
+  /**
+   * Perform an operation that declares more than one reply arm. Return the
+   * CSIL-RPC response `variant` (the CSIL name of the arm) with its payload
+   * bytes; the client decodes the arm that the variant names.
+   */
+  callReply(service: string, op: string, req: Uint8Array): Promise<{ readonly variant?: string | null; readonly payload: Uint8Array }>;
 }
 
 export class CorndogsAsyncClient {
-  constructor(private readonly t: AsyncServiceTransport) {}
+  private readonly t: AsyncServiceTransport;
+
+  constructor(t: AsyncServiceTransport) {
+    this.t = t;
+  }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async submitTask(req: SubmitTaskRequest): Promise<SubmitTaskResponse> {
-    const csilResp = await this.t.call("CorndogsService", "SubmitTask", toSubmitTaskRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "SubmitTask", toSubmitTaskRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "SubmitTask", csilReply.variant, csilReply.payload);
     return fromSubmitTaskResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getTaskStateByID(req: GetTaskStateByIDRequest): Promise<GetTaskStateByIDResponse> {
-    const csilResp = await this.t.call("CorndogsService", "GetTaskStateByID", toGetTaskStateByIDRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "GetTaskStateByID", toGetTaskStateByIDRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "GetTaskStateByID", csilReply.variant, csilReply.payload);
     return fromGetTaskStateByIDResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getNextTask(req: GetNextTaskRequest): Promise<GetNextTaskResponse> {
-    const csilResp = await this.t.call("CorndogsService", "GetNextTask", toGetNextTaskRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "GetNextTask", toGetNextTaskRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "GetNextTask", csilReply.variant, csilReply.payload);
     return fromGetNextTaskResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getNextTaskGroup(req: GetNextTaskGroupRequest): Promise<GetNextTaskGroupResponse> {
-    const csilResp = await this.t.call("CorndogsService", "GetNextTaskGroup", toGetNextTaskGroupRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "GetNextTaskGroup", toGetNextTaskGroupRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "GetNextTaskGroup", csilReply.variant, csilReply.payload);
     return fromGetNextTaskGroupResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async updateTask(req: UpdateTaskRequest): Promise<UpdateTaskResponse> {
-    const csilResp = await this.t.call("CorndogsService", "UpdateTask", toUpdateTaskRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "UpdateTask", toUpdateTaskRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "UpdateTask", csilReply.variant, csilReply.payload);
     return fromUpdateTaskResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async completeTask(req: CompleteTaskRequest): Promise<CompleteTaskResponse> {
-    const csilResp = await this.t.call("CorndogsService", "CompleteTask", toCompleteTaskRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "CompleteTask", toCompleteTaskRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "CompleteTask", csilReply.variant, csilReply.payload);
     return fromCompleteTaskResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async cancelTask(req: CancelTaskRequest): Promise<CancelTaskResponse> {
-    const csilResp = await this.t.call("CorndogsService", "CancelTask", toCancelTaskRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "CancelTask", toCancelTaskRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "CancelTask", csilReply.variant, csilReply.payload);
     return fromCancelTaskResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async cleanUpTimedOut(req: CleanUpTimedOutRequest): Promise<CleanUpTimedOutResponse> {
-    const csilResp = await this.t.call("CorndogsService", "CleanUpTimedOut", toCleanUpTimedOutRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "CleanUpTimedOut", toCleanUpTimedOutRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "CleanUpTimedOut", csilReply.variant, csilReply.payload);
     return fromCleanUpTimedOutResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getQueues(req: GetQueuesRequest): Promise<GetQueuesResponse> {
-    const csilResp = await this.t.call("CorndogsService", "GetQueues", toGetQueuesRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "GetQueues", toGetQueuesRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "GetQueues", csilReply.variant, csilReply.payload);
     return fromGetQueuesResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getQueueTaskCounts(req: GetQueueTaskCountsRequest): Promise<GetQueueTaskCountsResponse> {
-    const csilResp = await this.t.call("CorndogsService", "GetQueueTaskCounts", toGetQueueTaskCountsRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "GetQueueTaskCounts", toGetQueueTaskCountsRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "GetQueueTaskCounts", csilReply.variant, csilReply.payload);
     return fromGetQueueTaskCountsResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getTaskStateCounts(req: GetTaskStateCountsRequest): Promise<GetTaskStateCountsResponse> {
-    const csilResp = await this.t.call("CorndogsService", "GetTaskStateCounts", toGetTaskStateCountsRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "GetTaskStateCounts", toGetTaskStateCountsRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "GetTaskStateCounts", csilReply.variant, csilReply.payload);
     return fromGetTaskStateCountsResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getQueueAndStateCounts(req: GetQueueAndStateCountsRequest): Promise<GetQueueAndStateCountsResponse> {
-    const csilResp = await this.t.call("CorndogsService", "GetQueueAndStateCounts", toGetQueueAndStateCountsRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "GetQueueAndStateCounts", toGetQueueAndStateCountsRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "GetQueueAndStateCounts", csilReply.variant, csilReply.payload);
     return fromGetQueueAndStateCountsResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getServerInfo(req: GetServerInfoRequest): Promise<GetServerInfoResponse> {
-    const csilResp = await this.t.call("CorndogsService", "GetServerInfo", toGetServerInfoRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "GetServerInfo", toGetServerInfoRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "GetServerInfo", csilReply.variant, csilReply.payload);
     return fromGetServerInfoResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async submitKeyedTask(req: SubmitKeyedTaskRequest): Promise<SubmitKeyedTaskResponse> {
-    const csilResp = await this.t.call("CorndogsService", "SubmitKeyedTask", toSubmitKeyedTaskRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "SubmitKeyedTask", toSubmitKeyedTaskRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "SubmitKeyedTask", csilReply.variant, csilReply.payload);
     return fromSubmitKeyedTaskResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async lookupSubmission(req: LookupSubmissionRequest): Promise<LookupSubmissionResponse> {
-    const csilResp = await this.t.call("CorndogsService", "LookupSubmission", toLookupSubmissionRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "LookupSubmission", toLookupSubmissionRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "LookupSubmission", csilReply.variant, csilReply.payload);
     return fromLookupSubmissionResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async claimGuardedTask(req: ClaimGuardedTaskRequest): Promise<ClaimGuardedTaskResponse> {
-    const csilResp = await this.t.call("CorndogsService", "ClaimGuardedTask", toClaimGuardedTaskRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "ClaimGuardedTask", toClaimGuardedTaskRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "ClaimGuardedTask", csilReply.variant, csilReply.payload);
     return fromClaimGuardedTaskResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async claimGuardedTaskGroup(req: ClaimGuardedTaskGroupRequest): Promise<ClaimGuardedTaskGroupResponse> {
-    const csilResp = await this.t.call("CorndogsService", "ClaimGuardedTaskGroup", toClaimGuardedTaskGroupRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "ClaimGuardedTaskGroup", toClaimGuardedTaskGroupRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "ClaimGuardedTaskGroup", csilReply.variant, csilReply.payload);
     return fromClaimGuardedTaskGroupResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async updateGuardedTask(req: UpdateGuardedTaskRequest): Promise<UpdateGuardedTaskResponse> {
-    const csilResp = await this.t.call("CorndogsService", "UpdateGuardedTask", toUpdateGuardedTaskRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "UpdateGuardedTask", toUpdateGuardedTaskRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "UpdateGuardedTask", csilReply.variant, csilReply.payload);
     return fromUpdateGuardedTaskResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async completeGuardedTask(req: CompleteGuardedTaskRequest): Promise<CompleteGuardedTaskResponse> {
-    const csilResp = await this.t.call("CorndogsService", "CompleteGuardedTask", toCompleteGuardedTaskRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "CompleteGuardedTask", toCompleteGuardedTaskRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "CompleteGuardedTask", csilReply.variant, csilReply.payload);
     return fromCompleteGuardedTaskResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async cancelGuardedTask(req: CancelGuardedTaskRequest): Promise<CancelGuardedTaskResponse> {
-    const csilResp = await this.t.call("CorndogsService", "CancelGuardedTask", toCancelGuardedTaskRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "CancelGuardedTask", toCancelGuardedTaskRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "CancelGuardedTask", csilReply.variant, csilReply.payload);
     return fromCancelGuardedTaskResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async getGuardedTask(req: GetGuardedTaskRequest): Promise<GetGuardedTaskResponse> {
-    const csilResp = await this.t.call("CorndogsService", "GetGuardedTask", toGetGuardedTaskRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "GetGuardedTask", toGetGuardedTaskRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "GetGuardedTask", csilReply.variant, csilReply.payload);
     return fromGetGuardedTaskResponseCbor(csilResp);
   }
 
   /**
-   * @throws {ServiceError} when the API returns an error response
+   * @throws {ServiceErrorRefusal} for the declared application error
    * @throws transport errors (network, timeout) raised by the transport
    */
   async lookupOperation(req: LookupOperationRequest): Promise<LookupOperationResponse> {
-    const csilResp = await this.t.call("CorndogsService", "LookupOperation", toLookupOperationRequestCbor(req));
+    const csilReply = await this.t.callReply("CorndogsService", "LookupOperation", toLookupOperationRequestCbor(req));
+    const csilResp = resolveRpcReply("CorndogsService", "LookupOperation", csilReply.variant, csilReply.payload);
     return fromLookupOperationResponseCbor(csilResp);
   }
 }

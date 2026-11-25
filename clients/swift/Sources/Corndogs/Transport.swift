@@ -24,8 +24,14 @@
 
 #if canImport(Glibc)
     import Glibc
+    private let closeSocket = Glibc.close
+    private let connectSocket = Glibc.connect
+    private let streamSocketType = Int32(SOCK_STREAM.rawValue)
 #elseif canImport(Darwin)
     import Darwin
+    private let closeSocket = Darwin.close
+    private let connectSocket = Darwin.connect
+    private let streamSocketType = SOCK_STREAM
 #endif
 import Dispatch
 import Foundation
@@ -97,7 +103,7 @@ public final class TcpTransport: CsilTransport {
     }
 
     private func resetLocked() {
-        if let fd { _ = close(fd) }
+        if let fd { _ = closeSocket(fd) }
         fd = nil
     }
 
@@ -108,7 +114,7 @@ public final class TcpTransport: CsilTransport {
 
         var hints = addrinfo()
         hints.ai_family = AF_UNSPEC
-        hints.ai_socktype = SOCK_STREAM
+        hints.ai_socktype = streamSocketType
         hints.ai_protocol = Int32(IPPROTO_TCP)
 
         var resultPtr: UnsafeMutablePointer<addrinfo>?
@@ -133,7 +139,7 @@ public final class TcpTransport: CsilTransport {
                 configure(candidate)
                 return candidate
             } catch {
-                _ = close(candidate)
+                _ = closeSocket(candidate)
                 lastError = "\(error)"
                 cursor = info.pointee.ai_next
             }
@@ -152,7 +158,7 @@ public final class TcpTransport: CsilTransport {
         let flags = fcntl(fd, F_GETFL, 0)
         _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
 
-        let rc = connect(fd, rawAddr, addrLen)
+        let rc = connectSocket(fd, rawAddr, addrLen)
         if rc == 0 {
             _ = fcntl(fd, F_SETFL, flags)  // restore blocking mode
             return
@@ -191,6 +197,15 @@ public final class TcpTransport: CsilTransport {
     /// Sends one request and waits for its response. Implements `CsilTransport.call`
     /// for `CorndogsClient`.
     public func call(service: String, op: String, request: [UInt8]) throws -> [UInt8] {
+        let reply = try callReply(service: service, op: op, request: request)
+        if reply.variant == "ServiceError" {
+            let se = try ServiceError.fromCbor(reply.payload)
+            throw CsilClientError(code: Int64(se.code), message: se.message)
+        }
+        return reply.payload
+    }
+
+    public func callReply(service: String, op: String, request: [UInt8]) throws -> (variant: String?, payload: [UInt8]) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -370,11 +385,8 @@ private func readFrame(_ fd: Int32) throws -> [UInt8]? {
     return body
 }
 
-/// Decodes a response envelope into the inner payload bytes. A non-zero transport
-/// status throws `TransportError`; a `"ServiceError"` variant throws the generated
-/// `CsilClientError`. Empty (not a nil/absent case) for control replies (e.g. "$pong")
-/// that carry no payload.
-private func parseResponse(_ frame: [UInt8]) throws -> [UInt8] {
+/// Returns the reply variant and payload. A nonzero transport status throws an error.
+private func parseResponse(_ frame: [UInt8]) throws -> (variant: String?, payload: [UInt8]) {
     let val: CsilCborValue
     do {
         val = try CsilCbor.decode(frame)
@@ -390,8 +402,9 @@ private func parseResponse(_ frame: [UInt8]) throws -> [UInt8] {
         throw TransportError("corndogs: transport status \(status): \(message)")
     }
 
+    let variant = try CsilCbor.mapGet(val, "variant").map { try CsilCbor.asText($0) }
     guard let payloadV = CsilCbor.mapGet(val, "payload") else {
-        return []  // control replies (e.g. $pong) carry no payload
+        return (variant, [])  // control replies (e.g. $pong) carry no payload
     }
     let inner: CsilCborValue
     if case .tag(_, let tagged) = payloadV {
@@ -406,12 +419,5 @@ private func parseResponse(_ frame: [UInt8]) throws -> [UInt8] {
         throw TransportError("corndogs: response payload is not tag-24 bytes: \(error)")
     }
 
-    if let variantV = CsilCbor.mapGet(val, "variant"),
-        let variant = try? CsilCbor.asText(variantV),
-        variant == "ServiceError"
-    {
-        let se = try ServiceError.fromCbor(bytes)
-        throw CsilClientError(code: Int64(se.code), message: se.message)
-    }
-    return bytes
+    return (variant, bytes)
 }

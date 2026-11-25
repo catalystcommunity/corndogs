@@ -21,76 +21,105 @@ class ClientError(
  */
 interface Transport {
     fun call(service: String, op: String, request: ByteArray): ByteArray
+
+    /**
+     * Performs a call to an op with several reply arms and returns the reply variant
+     * with the payload bytes. The client selects the arm from the variant, so the
+     * carrier must not drop it.
+     */
+    fun callReply(service: String, op: String, request: ByteArray): WireReply
 }
 
 /** Typed client for the CorndogsService service. The client owns (de)serialization;
  * the carrier only moves bytes. */
 class CorndogsClient(private val transport: Transport) {
     fun submitTask(request: SubmitTaskRequest): SubmitTaskResponse {
-        return decode<SubmitTaskResponse>(transport.call("CorndogsService", "SubmitTask", encode(request)))
+        val reply = transport.callReply("CorndogsService", "SubmitTask", encode(request))
+        return decode<SubmitTaskResponse>(resolveRpcReply("CorndogsService", "SubmitTask", reply.variant, reply.payload))
     }
     fun getTaskStateByID(request: GetTaskStateByIDRequest): GetTaskStateByIDResponse {
-        return decode<GetTaskStateByIDResponse>(transport.call("CorndogsService", "GetTaskStateByID", encode(request)))
+        val reply = transport.callReply("CorndogsService", "GetTaskStateByID", encode(request))
+        return decode<GetTaskStateByIDResponse>(resolveRpcReply("CorndogsService", "GetTaskStateByID", reply.variant, reply.payload))
     }
     fun getNextTask(request: GetNextTaskRequest): GetNextTaskResponse {
-        return decode<GetNextTaskResponse>(transport.call("CorndogsService", "GetNextTask", encode(request)))
+        val reply = transport.callReply("CorndogsService", "GetNextTask", encode(request))
+        return decode<GetNextTaskResponse>(resolveRpcReply("CorndogsService", "GetNextTask", reply.variant, reply.payload))
     }
     fun getNextTaskGroup(request: GetNextTaskGroupRequest): GetNextTaskGroupResponse {
-        return decode<GetNextTaskGroupResponse>(transport.call("CorndogsService", "GetNextTaskGroup", encode(request)))
+        val reply = transport.callReply("CorndogsService", "GetNextTaskGroup", encode(request))
+        return decode<GetNextTaskGroupResponse>(resolveRpcReply("CorndogsService", "GetNextTaskGroup", reply.variant, reply.payload))
     }
     fun updateTask(request: UpdateTaskRequest): UpdateTaskResponse {
-        return decode<UpdateTaskResponse>(transport.call("CorndogsService", "UpdateTask", encode(request)))
+        val reply = transport.callReply("CorndogsService", "UpdateTask", encode(request))
+        return decode<UpdateTaskResponse>(resolveRpcReply("CorndogsService", "UpdateTask", reply.variant, reply.payload))
     }
     fun completeTask(request: CompleteTaskRequest): CompleteTaskResponse {
-        return decode<CompleteTaskResponse>(transport.call("CorndogsService", "CompleteTask", encode(request)))
+        val reply = transport.callReply("CorndogsService", "CompleteTask", encode(request))
+        return decode<CompleteTaskResponse>(resolveRpcReply("CorndogsService", "CompleteTask", reply.variant, reply.payload))
     }
     fun cancelTask(request: CancelTaskRequest): CancelTaskResponse {
-        return decode<CancelTaskResponse>(transport.call("CorndogsService", "CancelTask", encode(request)))
+        val reply = transport.callReply("CorndogsService", "CancelTask", encode(request))
+        return decode<CancelTaskResponse>(resolveRpcReply("CorndogsService", "CancelTask", reply.variant, reply.payload))
     }
     fun cleanUpTimedOut(request: CleanUpTimedOutRequest): CleanUpTimedOutResponse {
-        return decode<CleanUpTimedOutResponse>(transport.call("CorndogsService", "CleanUpTimedOut", encode(request)))
+        val reply = transport.callReply("CorndogsService", "CleanUpTimedOut", encode(request))
+        return decode<CleanUpTimedOutResponse>(resolveRpcReply("CorndogsService", "CleanUpTimedOut", reply.variant, reply.payload))
     }
     fun getQueues(request: GetQueuesRequest): GetQueuesResponse {
-        return decode<GetQueuesResponse>(transport.call("CorndogsService", "GetQueues", encode(request)))
+        val reply = transport.callReply("CorndogsService", "GetQueues", encode(request))
+        return decode<GetQueuesResponse>(resolveRpcReply("CorndogsService", "GetQueues", reply.variant, reply.payload))
     }
     fun getQueueTaskCounts(request: GetQueueTaskCountsRequest): GetQueueTaskCountsResponse {
-        return decode<GetQueueTaskCountsResponse>(transport.call("CorndogsService", "GetQueueTaskCounts", encode(request)))
+        val reply = transport.callReply("CorndogsService", "GetQueueTaskCounts", encode(request))
+        return decode<GetQueueTaskCountsResponse>(resolveRpcReply("CorndogsService", "GetQueueTaskCounts", reply.variant, reply.payload))
     }
     fun getTaskStateCounts(request: GetTaskStateCountsRequest): GetTaskStateCountsResponse {
-        return decode<GetTaskStateCountsResponse>(transport.call("CorndogsService", "GetTaskStateCounts", encode(request)))
+        val reply = transport.callReply("CorndogsService", "GetTaskStateCounts", encode(request))
+        return decode<GetTaskStateCountsResponse>(resolveRpcReply("CorndogsService", "GetTaskStateCounts", reply.variant, reply.payload))
     }
     fun getQueueAndStateCounts(request: GetQueueAndStateCountsRequest): GetQueueAndStateCountsResponse {
-        return decode<GetQueueAndStateCountsResponse>(transport.call("CorndogsService", "GetQueueAndStateCounts", encode(request)))
+        val reply = transport.callReply("CorndogsService", "GetQueueAndStateCounts", encode(request))
+        return decode<GetQueueAndStateCountsResponse>(resolveRpcReply("CorndogsService", "GetQueueAndStateCounts", reply.variant, reply.payload))
     }
     fun getServerInfo(request: GetServerInfoRequest): GetServerInfoResponse {
-        return decode<GetServerInfoResponse>(transport.call("CorndogsService", "GetServerInfo", encode(request)))
+        val reply = transport.callReply("CorndogsService", "GetServerInfo", encode(request))
+        return decode<GetServerInfoResponse>(resolveRpcReply("CorndogsService", "GetServerInfo", reply.variant, reply.payload))
     }
     fun submitKeyedTask(request: SubmitKeyedTaskRequest): SubmitKeyedTaskResponse {
-        return decode<SubmitKeyedTaskResponse>(transport.call("CorndogsService", "SubmitKeyedTask", encode(request)))
+        val reply = transport.callReply("CorndogsService", "SubmitKeyedTask", encode(request))
+        return decode<SubmitKeyedTaskResponse>(resolveRpcReply("CorndogsService", "SubmitKeyedTask", reply.variant, reply.payload))
     }
     fun lookupSubmission(request: LookupSubmissionRequest): LookupSubmissionResponse {
-        return decode<LookupSubmissionResponse>(transport.call("CorndogsService", "LookupSubmission", encode(request)))
+        val reply = transport.callReply("CorndogsService", "LookupSubmission", encode(request))
+        return decode<LookupSubmissionResponse>(resolveRpcReply("CorndogsService", "LookupSubmission", reply.variant, reply.payload))
     }
     fun claimGuardedTask(request: ClaimGuardedTaskRequest): ClaimGuardedTaskResponse {
-        return decode<ClaimGuardedTaskResponse>(transport.call("CorndogsService", "ClaimGuardedTask", encode(request)))
+        val reply = transport.callReply("CorndogsService", "ClaimGuardedTask", encode(request))
+        return decode<ClaimGuardedTaskResponse>(resolveRpcReply("CorndogsService", "ClaimGuardedTask", reply.variant, reply.payload))
     }
     fun claimGuardedTaskGroup(request: ClaimGuardedTaskGroupRequest): ClaimGuardedTaskGroupResponse {
-        return decode<ClaimGuardedTaskGroupResponse>(transport.call("CorndogsService", "ClaimGuardedTaskGroup", encode(request)))
+        val reply = transport.callReply("CorndogsService", "ClaimGuardedTaskGroup", encode(request))
+        return decode<ClaimGuardedTaskGroupResponse>(resolveRpcReply("CorndogsService", "ClaimGuardedTaskGroup", reply.variant, reply.payload))
     }
     fun updateGuardedTask(request: UpdateGuardedTaskRequest): UpdateGuardedTaskResponse {
-        return decode<UpdateGuardedTaskResponse>(transport.call("CorndogsService", "UpdateGuardedTask", encode(request)))
+        val reply = transport.callReply("CorndogsService", "UpdateGuardedTask", encode(request))
+        return decode<UpdateGuardedTaskResponse>(resolveRpcReply("CorndogsService", "UpdateGuardedTask", reply.variant, reply.payload))
     }
     fun completeGuardedTask(request: CompleteGuardedTaskRequest): CompleteGuardedTaskResponse {
-        return decode<CompleteGuardedTaskResponse>(transport.call("CorndogsService", "CompleteGuardedTask", encode(request)))
+        val reply = transport.callReply("CorndogsService", "CompleteGuardedTask", encode(request))
+        return decode<CompleteGuardedTaskResponse>(resolveRpcReply("CorndogsService", "CompleteGuardedTask", reply.variant, reply.payload))
     }
     fun cancelGuardedTask(request: CancelGuardedTaskRequest): CancelGuardedTaskResponse {
-        return decode<CancelGuardedTaskResponse>(transport.call("CorndogsService", "CancelGuardedTask", encode(request)))
+        val reply = transport.callReply("CorndogsService", "CancelGuardedTask", encode(request))
+        return decode<CancelGuardedTaskResponse>(resolveRpcReply("CorndogsService", "CancelGuardedTask", reply.variant, reply.payload))
     }
     fun getGuardedTask(request: GetGuardedTaskRequest): GetGuardedTaskResponse {
-        return decode<GetGuardedTaskResponse>(transport.call("CorndogsService", "GetGuardedTask", encode(request)))
+        val reply = transport.callReply("CorndogsService", "GetGuardedTask", encode(request))
+        return decode<GetGuardedTaskResponse>(resolveRpcReply("CorndogsService", "GetGuardedTask", reply.variant, reply.payload))
     }
     fun lookupOperation(request: LookupOperationRequest): LookupOperationResponse {
-        return decode<LookupOperationResponse>(transport.call("CorndogsService", "LookupOperation", encode(request)))
+        val reply = transport.callReply("CorndogsService", "LookupOperation", encode(request))
+        return decode<LookupOperationResponse>(resolveRpcReply("CorndogsService", "LookupOperation", reply.variant, reply.payload))
     }
 }
 

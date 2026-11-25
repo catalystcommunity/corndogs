@@ -43,6 +43,17 @@ possibly sent. They report such a failure as "outcome uncertain". Each language
 README shows an example. See [docs/resilience.md](../docs/resilience.md) for the
 contract, the server policies, and the upgrade steps.
 
+## Upgrade to csilgen 0.3.3
+
+If you supply a custom transport, implement the reply method in the generated
+transport interface. For a successful transport status, return the variant
+name and the payload from the same response. The client uses the name to
+decode the success value or the service error. See the language README for the
+error type.
+
+If you call an encoder directly, check the Go error or the Rust `Result`.
+In Swift, use `try`. Handle an encoding failure before you send the request.
+
 ## Generated and maintained files
 
 The generation script replaces generated types, codecs, and service methods.

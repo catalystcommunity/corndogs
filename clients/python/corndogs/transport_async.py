@@ -24,7 +24,6 @@ import struct
 from typing import Callable, Dict, Optional
 
 from .codec import CborTag, cbor_decode, cbor_encode
-from .client import ServiceError
 from .transport import (
     TransportError,
     _CONTROL_SERVICE,
@@ -32,6 +31,7 @@ from .transport import (
     _OP_PING,
     _TAG_ENCODED_CBOR,
     _parse_response,
+    _reply_payload,
     _split_addr,
 )
 
@@ -89,6 +89,10 @@ class AsyncTcpTransport:
                 fut.set_exception(TransportError(f"outcome uncertain: connection lost: {cause}"))
 
     async def call(self, service: str, method: str, req: bytes) -> bytes:
+        variant, payload = await self.call_reply(service, method, req)
+        return _reply_payload(variant, payload)
+
+    async def call_reply(self, service: str, method: str, req: bytes) -> tuple[Optional[str], bytes]:
         await self._ensure()
         self._next_id += 1
         mid = self._next_id
